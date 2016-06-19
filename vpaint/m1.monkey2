@@ -20,8 +20,13 @@ Class VPane Extends Image
 		canvas.Flush()
 		display.DrawImage( Self, 0,0)
 	End
+	
+	Field fx0:Float
+	Field fy0:Float
+	Field fx1:Float
+	Field fy1:Float
 
-	Method FatLine(x:Int,y:Int,x1:Int,y1:Int)
+	Method FatSegment(x:Int,y:Int,x1:Int,y1:Int)
 		Local fat:Int=7
 
 		If Not canvas Return
@@ -34,26 +39,46 @@ Class VPane Extends Image
 		Local len:Float=Sqrt(dx*dx+dy*dy) 
 		Local q:Float=fat/len
 				
-		verts[0]=x+dy*q
-		verts[1]=y-dx*q
-		
-		verts[2]=x1+dy*q
-		verts[3]=y1-dx*q
+		Local v0:=New Vec2f(fx0,fy0)
+		Local v1:=New Vec2f(x1+dy*q,y1-dx*q)
+		Local v2:=New Vec2f(x1-dy*q,y1+dx*q)
+		Local v3:=New Vec2f(fx1,fy1)
+				
+		canvas.DrawTriangle(v0,v1,v2)
+		canvas.DrawTriangle(v0,v2,v3)
+				
+		fx0=x1+dy*q
+		fy0=y1-dx*q
 
-		verts[4]=x1-dy*q
-		verts[5]=y1+dx*q
+		fx1=x1-dy*q
+		fy1=y1+dx*q
 
-		verts[6]=x-dy*q
-		verts[7]=y+dx*q
-		
 		canvas.DrawPoly(verts)
 	End
 	
+	Method FatLine(x:Int,y:Int,x1:Int,y1:Int)
+		Local fat:Int=7
+
+		If Not canvas Return
+				
+		Local dy:Int=y1-y
+		Local dx:Int=x1-x
+				
+		Local len:Float=Sqrt(dx*dx+dy*dy) 
+		Local q:Float=fat/len
+				
+		Local v0:=New Vec2f(x+dy*q,y-dx*q)
+		Local v1:=New Vec2f(x1+dy*q,y1-dx*q)
+		Local v2:=New Vec2f(x1-dy*q,y1+dx*q)
+		Local v3:=New Vec2f(x-dy*q,y+dx*q)
+				
+		canvas.DrawTriangle(v0,v1,v2)
+		canvas.DrawTriangle(v0,v2,v3)
+	End
 
 	Method FatCurve(x0:Int,y0:Int,x1:Int,y1:Int,x2:Int,y2:Int,x3:Int,y3:Int)
 		If Not canvas Return
-		Local fat:Int=3
-		Local seg:Int=8
+		Local seg:Int=24
 		Local verts:=New Float[(seg+1)*2]		
 		For Local i:Int=0 To seg		
 			Local mu:Float=i*1.0/seg			    
@@ -63,7 +88,7 @@ Class VPane Extends Image
         	verts[i*2+1]=y
 		Next		
 		For Local i:Int=0 Until seg		
-			FatLine(verts[i*2+0],verts[i*2+1],verts[i*2+2],verts[i*2+3])
+			FatSegment(verts[i*2+0],verts[i*2+1],verts[i*2+2],verts[i*2+3])
 		Next
 	End
 
@@ -122,9 +147,10 @@ Class VPaint Extends Window
 		
 	End
 	
-	Field linetool:Bool
+	Field linetool:Bool=true
 	Field mx:=New Int[4]
 	Field my:=New Int[4]
+				
 			
 	Method OnMouseEvent(event:MouseEvent ) Override
 		Local x:Int=event.Location.X
@@ -164,4 +190,3 @@ Function Main()
 	App.Run()	
 End
 
-'Method DrawIndexedPrimitives : Void ( order:Int, count:Int, vertices:Float[], texcoords:Float[], indices:Int[], material:Material=Null )
