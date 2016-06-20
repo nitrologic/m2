@@ -11,15 +11,20 @@ Class VPane Extends Image
 	Field canvas:Canvas
 
 	Method New(w:Int,h:Int,bg:Color)		
-		Super.New(w,h,TextureFlags.Dynamic)		
+		Super.New(w,h,TextureFlags.Dynamic|TextureFlags.Filter|TextureFlags.Mipmap)		
 		canvas=New Canvas(Self)	
 		canvas.Clear(bg)
-		canvas.Alpha=0.5
+		canvas.Alpha=0.8
 	End
 	
-	Method Draw(display:Canvas)
+	Method Draw(display:Canvas, zoom:Float)
 		canvas.Flush()
-		display.DrawImage( Self, 0,0)
+		Local z:Float=1.0/zoom
+		display.DrawImage( Self, 0,0, 0, z,z)
+	End
+	
+	Method Clear(bg:Color)
+		canvas.Clear(bg)
 	End
 	
 	Field segcount:Int
@@ -27,7 +32,8 @@ Class VPane Extends Image
 	Field edge1:Vec2f
 
 	Method FatSegment(x:Float,y:Float,x1:Float,y1:Float)
-		Local fat:Int=7
+
+		Local fat:Int=6
 
 		If Not canvas Return
 				
@@ -121,7 +127,10 @@ End
 
 Class VPaint Extends Window
 
+
 	Field pane:VPane
+	Field zoom:Float
+
 	Field ink:Color
 
 	Field mousex:Int
@@ -131,6 +140,7 @@ Class VPaint Extends Window
 
 	Method New(title:String)
 		Super.New(title,800,600)		
+		zoom=2
 		pane=New VPane(2048,2048,Color.Black)
 		ink=New Color
 	End
@@ -146,7 +156,7 @@ Class VPaint Extends Window
 		
 	Method OnRender( display:Canvas ) Override	
 		App.RequestRender()				
-		pane.Draw(display)		
+		pane.Draw(display,zoom)		
 		framecount+=1				
 		ink.r=(framecount&255)/255.0
 		ink.g=(framecount&1023)/1023.0
@@ -158,6 +168,8 @@ Class VPaint Extends Window
 		Select event.Type
 		Case EventType.KeyDown
 			Select event.Key
+			Case Key.Space
+				pane.Clear(ink )
 			Case Key.Escape
 				instance.Terminate()
 			Case Key.F1
@@ -171,15 +183,26 @@ Class VPaint Extends Window
 	Field history:=New Vec2f[4]
 							
 	Method OnMouseEvent(event:MouseEvent ) Override
-		Local x:Int=event.Location.X
-		Local y:Int=event.Location.Y
-		Local b:Int=event.Button
-		
-		history[0]=history[1]
-		history[1]=history[2]
-		history[2]=history[3]
-		history[3]=New Vec2f(x,y)
 
+		Local x:Int=event.Location.X * zoom
+		Local y:Int=event.Location.Y * zoom
+		Local b:Int=event.Button
+
+		Local w:Int=event.Wheel.Y
+		
+		Select event.Type
+		
+		Case EventType.MouseWheel
+			zoom-=w/8.0
+			If zoom<1.0/8 zoom=1.0/8
+				
+		Case EventType.MouseMove
+			history[0]=history[1]
+			history[1]=history[2]
+			history[2]=history[3]
+			history[3]=New Vec2f(x,y)
+		End
+		
 If linetool
 		If drawcount	
 			pane.FatLine(mousex,mousey,x,y)		
@@ -196,7 +219,7 @@ Endif
 	End	
 End
 
-Global title:String="VPaint 0.0"	
+Global title:String="VPaint 0.1"	
 
 Function Main()
 	Print title
