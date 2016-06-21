@@ -1,6 +1,8 @@
 #Import "<std>"
 #Import "<mojo>"
 
+#Import "mojox/mojox.monkey2"
+
 Using std..
 Using mojo..
 
@@ -15,9 +17,16 @@ Class VPane Extends Image
 		canvas=New Canvas(Self)	
 		canvas.Clear(bg)
 		canvas.Alpha=0.8
+	'	fade=New Color(0,1,0,1.0/64)
 	End
 	
 	Method Draw(display:Canvas, zoom:Float)
+	
+		If fade<>null
+			canvas.Color=fade
+			canvas.DrawRect(0,0,Width,Height)
+		Endif
+
 		canvas.Flush()
 		Local z:Float=1.0/zoom
 		display.DrawImage( Self, 0,0, 0, z,z)
@@ -27,9 +36,14 @@ Class VPane Extends Image
 		canvas.Clear(bg)
 	End
 	
+	Field fade:Color
 	Field segcount:Int
 	Field edge0:Vec2f
 	Field edge1:Vec2f
+	
+	Method EndSegment()
+		segcount=0
+	End
 
 	Method FatSegment(x:Float,y:Float,x1:Float,y1:Float)
 
@@ -120,13 +134,10 @@ Class VPane Extends Image
 		canvas.DrawTriangle(v0,v1,v2)
 		canvas.DrawTriangle(v0,v2,v3)
 	End
-
-
-	    
+  
 End
 
 Class VPaint Extends Window
-
 
 	Field pane:VPane
 	Field zoom:Float
@@ -139,7 +150,7 @@ Class VPaint Extends Window
 	Field drawcount:Int
 
 	Method New(title:String)
-		Super.New(title,800,600)		
+		Super.New(title,720,560,WindowFlags.Resizable)		
 		zoom=2
 		pane=New VPane(2048,2048,Color.Black)
 		ink=New Color
@@ -196,6 +207,9 @@ Class VPaint Extends Window
 			zoom-=w/8.0
 			If zoom<1.0/8 zoom=1.0/8
 				
+		Case EventType.MouseDown
+			pane.EndSegment()
+			
 		Case EventType.MouseMove
 			history[0]=history[1]
 			history[1]=history[2]
