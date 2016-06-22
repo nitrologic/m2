@@ -1,4 +1,4 @@
-vpaint is a video editor written in monkey2 by Simon Armstrong
+VPaint is a video editor by Simon Armstrong
 
 ----
 
