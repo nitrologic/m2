@@ -1,7 +1,7 @@
+#nitrologic m2 
 
-![mousewheel](/mousewheel.png?raw=true "Mouse Wheel Roller")
-
-![catmull](/catmull.png?raw=true "Catmull Mouse Interpolation")
-
-vpaint is a video editor written in monkey2 by Simon Armstrong
+* monkey2 compiler support
+* home of vpaint application monkey2 source
+* tools and utilities for
+* home of monkey2 nitro modules 
 
