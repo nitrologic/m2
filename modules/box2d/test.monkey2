@@ -6,17 +6,12 @@ Using std..
 
 Class Box2DSim Extends box2d.b2ContactListener
 
-	Field world1:box2d.b2World
+	Field world:box2d.b2World
 
 	Method New()	
 		Local down:=New box2d.b2Vec2(0,20)
 		
 		Local world:=New box2d.b2World(down)		
-
-' uncomment this line
-
-'		world1=world
-
 		
 		Local g:=world.GetGravity()		
 		
@@ -29,7 +24,6 @@ Function Main()
 	Print "monkey2 box2d test"
 	
 	Local sim:=New Box2DSim()
-
 
 End
 

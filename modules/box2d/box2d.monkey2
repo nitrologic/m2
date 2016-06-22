@@ -62,9 +62,44 @@ End
 Struct b2AABB
 End
 
+Enum b2BodyType
+	Static_BODY,KINEMATIC_BODY,DYNAMIC_BODY
+End
+
+Struct b2BodyDef
+	Field type:b2BodyType
+	Field position:b2Vec2
+	Field angle:Float
+	Field linearVelocity:b2Vec2
+	Field angularVelocity:Float
+	Field linearDamping:Float
+	Field angularDamping:Float
+	Field allowSleep:Bool
+	Field awake:Bool
+	Field fixedRotation:Bool
+	Field bullet:Bool
+	Field active:Bool
+	Field userData:Object
+	Field gravityScale:Float	
+End
+
+Struct b2FixtureDef
+End
+
+Class b2Shape Extends Void
+End
+
+Class b2Fixture Extends Void
+End
+
 
 Class b2Body Extends Void
+	Method createFixture:b2Fixture(fixtureDef:b2FixtureDef)
+	Method createFixture:b2Fixture(shape:b2Shape,density:Float)
+	Method destroyFixture(fixture:b2Fixture)
+	Method setTransform(position:b2Vec2,angle:Float)	
 End
+
 
 Class b2Joint Extends Void
 End
@@ -88,16 +123,10 @@ Class b2ContactListener Extends Void
 	Method PostSolve(contact:b2Contact,impulse:b2ContactImpulse)
 End
 
-Class b2Fixture Extends Void
-End
-
-Class b2ContactManager Extends void
+Class b2ContactManager Extends Void
 End
 
 Class b2Controller Extends Void
-End
-
-Class b2BodyDef Extends Void
 End
 
 Class b2JointDef Extends Void
