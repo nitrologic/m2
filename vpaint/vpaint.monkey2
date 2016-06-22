@@ -43,7 +43,7 @@ Class VPane Extends Image
 
 	Method FatSegment(x:Float,y:Float,x1:Float,y1:Float)
 
-		Local fat:Int=6
+		Local fat:Int=3
 
 		If Not canvas Return
 				
@@ -272,7 +272,8 @@ Class VPaint Extends Window
 				rotSpeed+=0.1			
 			Case Key.Right
 				rotSpeed-=0.1
-
+			Case Key.Up
+				rotSpeed=0
 			End
 		End
 		
