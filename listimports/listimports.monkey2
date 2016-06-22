@@ -76,6 +76,8 @@ Function DecodeCHeader(path:String)
 					
 						a=a.Trim()
 						
+						If a="" Continue
+						
 						Local p:=a.Find(" ")
 						Local c:=a.Slice(0,p)
 						Local n:=a.Slice(p+1)

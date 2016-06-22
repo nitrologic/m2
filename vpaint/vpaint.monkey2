@@ -1,13 +1,10 @@
 #Import "<std>"
 #Import "<mojo>"
 
-#Import "mojox/mojox.monkey2"
-
 Using std..
 Using mojo..
 
 Global instance:AppInstance
-
 
 Class VPane Extends Image
 	Field canvas:Canvas
@@ -17,19 +14,18 @@ Class VPane Extends Image
 		canvas=New Canvas(Self)	
 		canvas.Clear(bg)
 		canvas.Alpha=0.8
+		canvas.Translate(w/2,h/2)
 	'	fade=New Color(0,1,0,1.0/64)
+		Handle=New Vec2f(0.5,0.5)
 	End
 	
-	Method Draw(display:Canvas, zoom:Float)
-	
-		If fade<>null
+	Method Draw(display:Canvas)	
+		If fade<>Null
 			canvas.Color=fade
 			canvas.DrawRect(0,0,Width,Height)
 		Endif
-
 		canvas.Flush()
-		Local z:Float=1.0/zoom
-		display.DrawImage( Self, 0,0, 0, z,z)
+		display.DrawImage(Self,0,0)
 	End
 	
 	Method Clear(bg:Color)
@@ -77,25 +73,36 @@ Class VPane Extends Image
 		edge1=v2
 	End
 	
-	
-	Method FatCurve(p0:Vec2f,p1:Vec2f,p2:Vec2f,p3:Vec2f)
-		If Not canvas Return
-		Local seg:Int=16
+	Function Curve:Float[](seg:Int,p0:Vec2f,p1:Vec2f,p2:Vec2f,p3:Vec2f)
 		Local verts:=New Float[(seg+1)*2]		
 		For Local i:Int=0 To seg		
 			Local mu:Float=i*1.0/seg			    
-'	       	Local x:Float=CubicInterpolate(p0.x,p1.x,p2.x,p3.x,mu)
-'        	Local y:Float=CubicInterpolate(p0.y,p1.y,p2.y,p3.y,mu)
         	Local x:Float=CatmullInterpolate(p0.x,p1.x,p2.x,p3.x,mu)
 	       	Local y:Float=CatmullInterpolate(p0.y,p1.y,p2.y,p3.y,mu)
           	verts[i*2+0]=x
         	verts[i*2+1]=y
 		Next		
+		Return verts
+	End
+	
+	Method OpenCurve(p0:Vec2f,p1:Vec2f,p2:Vec2f,p3:Vec2f)
+		If Not canvas Return
+		Local seg:Int=6
+		Local verts:=Curve(seg,p0,p1,p2,p3)
 		For Local i:Int=0 Until seg		
 			FatSegment(verts[i*2+0],verts[i*2+1],verts[i*2+2],verts[i*2+3])
 		Next
 	End
 		
+	Method ClosedCurve(p0:Vec2f,p1:Vec2f,p2:Vec2f,p3:Vec2f)
+		If Not canvas Return
+		OpenCurve(p3,p0,p1,p2)
+		OpenCurve(p0,p1,p2,p3)
+		OpenCurve(p1,p2,p3,p0)
+		OpenCurve(p2,p3,p0,p1)
+		EndSegment()
+	End
+
  	Function CubicInterpolate:Float(y0:Float,y1:Float,y2:Float,y3:Float,mu:Float)
 		Local a0:Float,a1:Float,a2:Float,a3:Float,mu2:Float
 		mu2 = mu*mu
@@ -134,57 +141,138 @@ Class VPane Extends Image
 		canvas.DrawTriangle(v0,v1,v2)
 		canvas.DrawTriangle(v0,v2,v3)
 	End
-  
-End
 
-Class VPaint Extends Window
 
-	Field pane:VPane
-	Field zoom:Float
-
-	Field ink:Color
-
-	Field mousex:Int
-	Field mousey:Int
-	Field framecount:Int
-	Field drawcount:Int
-
-	Method New(title:String)
-		Super.New(title,720,560,WindowFlags.Resizable)		
-		zoom=2
-		pane=New VPane(2048,2048,Color.Black)
-		ink=New Color
-	End
-	
-	Method test()
+	Method Smile(x:Float,y:Float)
 		Local v0:=New Vec2f(100,100)
 		Local v1:=New Vec2f(100,300)
 		Local v2:=New Vec2f(300,300)
 		Local v3:=New Vec2f(300,100)
-		pane.canvas.Color=Color.White
-		pane.FatCurve(v0,v1,v2,v3)
+		EndSegment()
+		OpenCurve(v0,v1,v2,v3)
+		EndSegment()
 	End
 		
+	Method Circle(x:Float,y:Float)
+		Local v0:=New Vec2f(x-100,y-100)
+		Local v1:=New Vec2f(x+100,y-100)
+		Local v2:=New Vec2f(x+100,y+100)
+		Local v3:=New Vec2f(x-100,y+100)
+		EndSegment()
+		ClosedCurve(v0,v1,v2,v3)
+	End
+
+  
+End
+
+Class VBrowse
+
+End
+
+
+Enum AppState
+	Title
+	Draw
+	Browse
+End
+
+Global AboutApp:="VPaint 0.1 by Simon,Space Clear,S Smile,c Box,Left -RPM,Right +RPM,F1 Toggle Fullscreen"
+
+Class VTool Extends Window
+	Method New(title:String)
+		Super.New(title,480,34,WindowFlags.Resizable)		
+	End
+End
+
+Class VPaint Extends Window
+	Field appState:AppState
+
+	Field tool:VTool
+	Field pane:VPane
+	Field browse:VBrowse
+	
+	Field zoom:Float
+	Field ink:Color
+	Field mousex:Int
+	Field mousey:Int
+	Field mousew:Int
+	Field framecount:Int
+	Field drawcount:Int
+	Field mousecount:Int
+	Field cx:Float
+	Field cy:Float
+	Field rot:Float
+	Field rotSpeed:Float
+	
+	Method ToggleTwo()
+	
+	End
+	
+	Method New(title:String)
+		Super.New(title,720,560,WindowFlags.Resizable)		
+		zoom=2
+'		pane=New VPane(2048,2048,Color.Black)
+		pane=New VPane(4096,4096,Color.Black)
+		browse=New VBrowse()
+		ink=New Color
+		
+		tool=New VTool("Tools")
+	End
+	
 	Method OnRender( display:Canvas ) Override	
-		App.RequestRender()				
-		pane.Draw(display,zoom)		
-		framecount+=1				
-		ink.r=(framecount&255)/255.0
-		ink.g=(framecount&1023)/1023.0
-		ink.b=(framecount&511)/511.0
-		pane.canvas.Color=ink
+		App.RequestRender()						
+
+		Select appState
+
+			Case AppState.Title
+				Local cy:=40
+				For Local line:=Eachin AboutApp.Split(",")
+					display.DrawText(line,50,cy)
+					cy+=20
+				Next
+
+			Case AppState.Draw
+				cx=Width/2
+				cy=Height/2
+				display.Translate(cx,cy)
+				Local scale:=-1.0/zoom
+				display.Scale(scale,scale)
+				display.Rotate(rot)		
+				rot+=rotSpeed*rotSpeed*rotSpeed	
+				OnMouseEvent(recentMouseEvent)		
+				pane.Draw(display)		
+				framecount+=1				
+				ink.r=(framecount&255)/255.0
+				ink.g=(framecount&1023)/1023.0
+				ink.b=(framecount&511)/511.0
+				pane.canvas.Color=ink
+
+			Case AppState.Browse
+		End
+
 	End
 
 	Method OnKeyEvent( event:KeyEvent ) Override	
 		Select event.Type
 		Case EventType.KeyDown
 			Select event.Key
+			Case Key.S
+				pane.Smile(mousex,mousey)
+			Case Key.C
+				pane.Circle(mousex,mousey)
 			Case Key.Space
 				pane.Clear(ink )
 			Case Key.Escape
 				instance.Terminate()
 			Case Key.F1
 				Fullscreen = Not Fullscreen
+			Case Key.F2
+				ToggleTwo()	
+			Case Key.Left
+				rotSpeed+=0.1			
+			Case Key.Right
+				rotSpeed-=0.1
+
 			End
 		End
 		
@@ -192,14 +280,42 @@ Class VPaint Extends Window
 	
 	Field linetool:Bool=False
 	Field history:=New Vec2f[4]
+
+	Field recentMouseEvent:MouseEvent
+	
+	Method DrawMode()
+		appState=AppState.Draw
+	End
 							
 	Method OnMouseEvent(event:MouseEvent ) Override
+	
+		If appState=AppState.Title
+			If event.Type=EventType.MouseDown
+				DrawMode()
+			Endif
+			Return
+		Endif
 
-		Local x:Int=event.Location.X * zoom
-		Local y:Int=event.Location.Y * zoom
+	
+		If event=Null Return
+		
+		Local mx:Int=event.Location.X
+		Local my:Int=event.Location.Y
 		Local b:Int=event.Button
+				
+		mx=(mx-cx)*zoom
+		my=(my-cy)*zoom
 
-		Local w:Int=event.Wheel.Y
+		Local x:=-Cos(rot)*mx+Sin(rot)*my
+		Local y:=-Sin(rot)*mx-Cos(rot)*my
+						
+		Local w:Int
+		
+		If recentMouseEvent<>event w=event.Wheel.Y
+		
+		If mousex=x And mousey=y And mousew=w Return
+		
+		recentMouseEvent = event
 		
 		Select event.Type
 		
@@ -224,12 +340,16 @@ If linetool
 Else
 		If drawcount>2 And Not b
 '			pane.FatCurve(mx[0],my[0],mx[1],my[1],mx[2],my[2],mx[3],my[3])				
-			pane.FatCurve(history[0],history[1],history[2],history[3])				
+			pane.OpenCurve(history[0],history[1],history[2],history[3])				
 		Endif
 Endif
+		drawcount+=1
+
 		mousex=x
 		mousey=y
-		drawcount+=1
+		mousew=w
+		
+		mousecount+=1
 	End	
 End
 
