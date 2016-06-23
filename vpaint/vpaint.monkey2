@@ -4,24 +4,11 @@
 Using std..
 Using mojo..
 
-Global instance:AppInstance
+Global title:String="VPaint 0.1 Easter-Show-Spew Release"	
+Global AboutApp:="VPaint Control,Mouse Button=Lift Pen,Mouse Wheel=Zoom,Space Key=Clear,S Key=Smile Box,C Key=Hold,Cursor Left=-RPM,Cursor Right=+RPM,Cursor Up=+Pen Radius,Cursor Down=+Pen Radius,Hold,F1=Toggle Fullscreen,Click To Start"
+Global ContactApp:=",,Latest Source: github.com/nitrologic/m2"
 
-Function SaveTGA(path:String, pixmap:Pixmap)
-	Local stream:=FileStream.Open(path,"w")
-	Local buffer:=New Byte[18]		
-	Local w:=pixmap.Width
-	Local h:=pixmap.Height	
-	buffer[2]=2
-	buffer[12]=w & 255
-	buffer[13]=w Shr 8
-	buffer[14]=h & 255
-	buffer[15]=h Shr 8
-	buffer[16]=32
-	buffer[17]=8
-	stream.Write(Varptr buffer[0],18)	
-	stream.Write(pixmap.Data,w*h*4)
-	stream.Close()
-End Function
+Global instance:AppInstance
 
 Class VPane Extends Image
 	Field canvas:Canvas
@@ -33,17 +20,10 @@ Class VPane Extends Image
 		canvas.Clear(bg)
 		canvas.Alpha=0.8
 		canvas.Translate(w/2,h/2)
-	'	fade=New Color(0,1,0,1.0/64)
 		Handle=New Vec2f(0.5,0.5)		
-'		pixmap=New Pixmap(256,256)
-'		SaveTGA("test.tga",pixmap)
 	End
 	
 	Method Draw(display:Canvas)	
-		If fade<>Null
-			canvas.Color=fade
-			canvas.DrawRect(0,0,Width,Height)
-		Endif
 		canvas.Flush()
 		display.DrawImage(Self,0,0)
 	End
@@ -52,7 +32,6 @@ Class VPane Extends Image
 		canvas.Clear(bg)
 	End
 	
-	Field fade:Color
 	Field segcount:Int
 	Field edge0:Vec2f
 	Field edge1:Vec2f
@@ -195,8 +174,6 @@ End
 
 Const TickMark:String=String.FromChar(65)	'(0xE2 0x9C 0x93)
 
-Global AboutApp:="VPaint Control,Mouse Button=Lift Pen,Mouse Wheel=Zoom,Space Key=Clear,S Key=Smile Box,C Key=Hold,Cursor Left=-RPM,Cursor Right=+RPM,Cursor Up=+Pen Radius,Cursor Down=+Pen Radius,Hold,F1=Toggle Fullscreen,Click To Start"
-
 Class VTool Extends Window
 	Method New(title:String)
 		Super.New(title,480,34,WindowFlags.Resizable)		
@@ -252,7 +229,7 @@ Class VPaint Extends Window
 
 			Case AppState.Title
 				Local cy:=40
-				For Local line:=Eachin AboutApp.Split(",")
+				For Local line:=Eachin (AboutApp+","+ContactApp).Split(",")
 					Local cx:=50
 					For Local tab:=Eachin line.Split("=")
 						display.DrawText(tab,cx,cy)
@@ -297,12 +274,12 @@ Class VPaint Extends Window
 				Fullscreen = Not Fullscreen
 			Case Key.F2
 				ToggleTwo()	
+			Case Key.Space
+				rotSpeed=0
 			Case Key.Left
 				rotSpeed+=0.1			
 			Case Key.Right
 				rotSpeed-=0.1
-			Case Key.Space
-				rotSpeed=0
 			Case Key.Down
 				radius*=0.8			
 			Case Key.Up
@@ -387,8 +364,6 @@ Endif
 	End	
 End
 
-Global title:String="VPaint 0.1"	
-
 Function Main()
 	Print title
 	instance = New AppInstance	
@@ -396,3 +371,19 @@ Function Main()
 	App.Run()	
 End
 
+Function SaveTGA(path:String, pixmap:Pixmap)
+	Local stream:=FileStream.Open(path,"w")
+	Local buffer:=New Byte[18]		
+	Local w:=pixmap.Width
+	Local h:=pixmap.Height	
+	buffer[2]=2
+	buffer[12]=w & 255
+	buffer[13]=w Shr 8
+	buffer[14]=h & 255
+	buffer[15]=h Shr 8
+	buffer[16]=32
+	buffer[17]=8
+	stream.Write(Varptr buffer[0],18)	
+	stream.Write(pixmap.Data,w*h*4)
+	stream.Close()
+End Function
