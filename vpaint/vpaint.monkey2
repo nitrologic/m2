@@ -6,8 +6,26 @@ Using mojo..
 
 Global instance:AppInstance
 
+Function SaveTGA(path:String, pixmap:Pixmap)
+	Local stream:=FileStream.Open(path,"w")
+	Local buffer:=New Byte[18]		
+	Local w:=pixmap.Width
+	Local h:=pixmap.Height	
+	buffer[2]=2
+	buffer[12]=w & 255
+	buffer[13]=w Shr 8
+	buffer[14]=h & 255
+	buffer[15]=h Shr 8
+	buffer[16]=32
+	buffer[17]=8
+	stream.Write(Varptr buffer[0],18)	
+	stream.Write(pixmap.Data,w*h*4)
+	stream.Close()
+End Function
+
 Class VPane Extends Image
 	Field canvas:Canvas
+	Field pixmap:Pixmap
 
 	Method New(w:Int,h:Int,bg:Color)		
 		Super.New(w,h,TextureFlags.Dynamic|TextureFlags.Filter|TextureFlags.Mipmap)		
@@ -16,7 +34,9 @@ Class VPane Extends Image
 		canvas.Alpha=0.8
 		canvas.Translate(w/2,h/2)
 	'	fade=New Color(0,1,0,1.0/64)
-		Handle=New Vec2f(0.5,0.5)
+		Handle=New Vec2f(0.5,0.5)		
+'		pixmap=New Pixmap(256,256)
+'		SaveTGA("test.tga",pixmap)
 	End
 	
 	Method Draw(display:Canvas)	
@@ -41,9 +61,7 @@ Class VPane Extends Image
 		segcount=0
 	End
 
-	Method FatSegment(x:Float,y:Float,x1:Float,y1:Float)
-
-		Local fat:Int=3
+	Method FatSegment(x:Float,y:Float,x1:Float,y1:Float,fat:Float)
 
 		If Not canvas Return
 				
@@ -85,21 +103,21 @@ Class VPane Extends Image
 		Return verts
 	End
 	
-	Method OpenCurve(p0:Vec2f,p1:Vec2f,p2:Vec2f,p3:Vec2f)
+	Method OpenCurve(p0:Vec2f,p1:Vec2f,p2:Vec2f,p3:Vec2f,fat:Float)
 		If Not canvas Return
 		Local seg:Int=6
 		Local verts:=Curve(seg,p0,p1,p2,p3)
 		For Local i:Int=0 Until seg		
-			FatSegment(verts[i*2+0],verts[i*2+1],verts[i*2+2],verts[i*2+3])
+			FatSegment(verts[i*2+0],verts[i*2+1],verts[i*2+2],verts[i*2+3],fat)
 		Next
 	End
 		
-	Method ClosedCurve(p0:Vec2f,p1:Vec2f,p2:Vec2f,p3:Vec2f)
+	Method ClosedCurve(p0:Vec2f,p1:Vec2f,p2:Vec2f,p3:Vec2f,fat:Float)
 		If Not canvas Return
-		OpenCurve(p3,p0,p1,p2)
-		OpenCurve(p0,p1,p2,p3)
-		OpenCurve(p1,p2,p3,p0)
-		OpenCurve(p2,p3,p0,p1)
+		OpenCurve(p3,p0,p1,p2,fat)
+		OpenCurve(p0,p1,p2,p3,fat)
+		OpenCurve(p1,p2,p3,p0,fat)
+		OpenCurve(p2,p3,p0,p1,fat)
 		EndSegment()
 	End
 
@@ -127,8 +145,7 @@ Class VPane Extends Image
 		Return p1 + 0.5 * x*(p2-p0+x*(2.0*p0-5.0*p1+4.0*p2-p3+x*(3.0*(p1-p2)+p3-p0)))
 	End
 
-	Method FatLine(x:Int,y:Int,x1:Int,y1:Int)
-		Local fat:Int=7
+	Method FatLine(x:Int,y:Int,x1:Int,y1:Int,fat:Float)
 		If Not canvas Return				
 		Local dy:Int=y1-y
 		Local dx:Int=x1-x				
@@ -143,23 +160,23 @@ Class VPane Extends Image
 	End
 
 
-	Method Smile(x:Float,y:Float)
-		Local v0:=New Vec2f(100,100)
-		Local v1:=New Vec2f(100,300)
-		Local v2:=New Vec2f(300,300)
-		Local v3:=New Vec2f(300,100)
+	Method Smile(x:Float,y:Float,r:Float)
+		Local v0:=New Vec2f(x-100,y+100)
+		Local v1:=New Vec2f(x-100,y-20)
+		Local v2:=New Vec2f(x+100,y-20)
+		Local v3:=New Vec2f(x+100,y+100)
 		EndSegment()
-		OpenCurve(v0,v1,v2,v3)
+		OpenCurve(v0,v1,v2,v3,r)
 		EndSegment()
 	End
 		
-	Method Circle(x:Float,y:Float)
+	Method Circle(x:Float,y:Float,r:Float)
 		Local v0:=New Vec2f(x-100,y-100)
 		Local v1:=New Vec2f(x+100,y-100)
 		Local v2:=New Vec2f(x+100,y+100)
 		Local v3:=New Vec2f(x-100,y+100)
 		EndSegment()
-		ClosedCurve(v0,v1,v2,v3)
+		ClosedCurve(v0,v1,v2,v3,r)
 	End
 
   
@@ -176,7 +193,9 @@ Enum AppState
 	Browse
 End
 
-Global AboutApp:="VPaint 0.1 by Simon,Space Clear,S Smile,c Box,Left -RPM,Right +RPM,F1 Toggle Fullscreen"
+Const TickMark:String=String.FromChar(65)	'(0xE2 0x9C 0x93)
+
+Global AboutApp:="VPaint Control,Mouse Button=Lift Pen,Mouse Wheel=Zoom,Space Key=Clear,S Key=Smile Box,C Key=Hold,Cursor Left=-RPM,Cursor Right=+RPM,Cursor Up=+Pen Radius,Cursor Down=+Pen Radius,Hold,F1=Toggle Fullscreen,Click To Start"
 
 Class VTool Extends Window
 	Method New(title:String)
@@ -187,7 +206,7 @@ End
 Class VPaint Extends Window
 	Field appState:AppState
 
-	Field tool:VTool
+'	Field tool:VTool
 	Field pane:VPane
 	Field browse:VBrowse
 	
@@ -203,9 +222,9 @@ Class VPaint Extends Window
 	Field cy:Float
 	Field rot:Float
 	Field rotSpeed:Float
+	Field radius:Float
 	
-	Method ToggleTwo()
-	
+	Method ToggleTwo()	
 	End
 	
 	Method New(title:String)
@@ -215,8 +234,15 @@ Class VPaint Extends Window
 		pane=New VPane(4096,4096,Color.Black)
 		browse=New VBrowse()
 		ink=New Color
-		
-		tool=New VTool("Tools")
+		radius=1.0
+'		tool=New VTool("Tools")
+'		tool.Title="VPaint Pen : RGBCycle"
+	End
+	
+	Method RefreshTitle()	
+		Local r:=rotSpeed*rotSpeed*rotSpeed
+		Local rpm:Int=Abs(60*60*r/(Pi*2))
+		Title="RPM "+rpm+" R="+Int(radius*100)
 	End
 	
 	Method OnRender( display:Canvas ) Override	
@@ -227,7 +253,11 @@ Class VPaint Extends Window
 			Case AppState.Title
 				Local cy:=40
 				For Local line:=Eachin AboutApp.Split(",")
-					display.DrawText(line,50,cy)
+					Local cx:=50
+					For Local tab:=Eachin line.Split("=")
+						display.DrawText(tab,cx,cy)
+						cx+=120
+					Next
 					cy+=20
 				Next
 
@@ -257,10 +287,9 @@ Class VPaint Extends Window
 		Case EventType.KeyDown
 			Select event.Key
 			Case Key.S
-				pane.Smile(mousex,mousey)
+				pane.Smile(mousex,mousey,radius)
+				pane.Circle(mousex,mousey,radius)
 			Case Key.C
-				pane.Circle(mousex,mousey)
-			Case Key.Space
 				pane.Clear(ink )
 			Case Key.Escape
 				instance.Terminate()
@@ -272,11 +301,15 @@ Class VPaint Extends Window
 				rotSpeed+=0.1			
 			Case Key.Right
 				rotSpeed-=0.1
-			Case Key.Up
+			Case Key.Space
 				rotSpeed=0
+			Case Key.Down
+				radius*=0.8			
+			Case Key.Up
+				radius*=1.2			
 			End
 		End
-		
+		RefreshTitle()		
 	End
 	
 	Field linetool:Bool=False
@@ -336,12 +369,12 @@ Class VPaint Extends Window
 		
 If linetool
 		If drawcount	
-			pane.FatLine(mousex,mousey,x,y)		
+			pane.FatLine(mousex,mousey,x,y,radius)		
 		Endif
 Else
 		If drawcount>2 And Not b
 '			pane.FatCurve(mx[0],my[0],mx[1],my[1],mx[2],my[2],mx[3],my[3])				
-			pane.OpenCurve(history[0],history[1],history[2],history[3])				
+			pane.OpenCurve(history[0],history[1],history[2],history[3],radius)				
 		Endif
 Endif
 		drawcount+=1
