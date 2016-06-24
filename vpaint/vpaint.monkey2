@@ -6,7 +6,7 @@ Using mojo..
 
 Global title:String="VPaint 0.2 Beta-Testers-Deployment-One Release"	
 Global AboutApp:="VPaint Control,,Cursor Left=-RPM,Cursor Right=+RPM,,Mouse Button=Lift Pen,Mouse Wheel=Zoom,Space Key=Clear,S Key=Smile Box,C Key=Hold,Cursor Up=+Pen Size,Cursor Down=-Pen Size,Hold,F1=Toggle Fullscreen,Click To Start"
-Global ContactApp:=",,Latest Source: github.com/nitrologic/m2"
+Global ContactApp:=",,Latest Source: github.com/nitrologic/m2/tree/master/vpaint"
 
 Global instance:AppInstance
 
@@ -206,6 +206,11 @@ Class VPaint Extends Window
 	Field rotSpeed:Float
 	Field radius:Float
 	Field tool:=Tool.Curve
+
+	Field panx:Float
+	Field pany:Float
+	Field panxSpeed:Float
+	Field panySpeed:Float
 	
 	Method ToggleTwo()	
 	End
@@ -225,8 +230,12 @@ Class VPaint Extends Window
 	Method RefreshTitle()	
 		Local r:=rotSpeed*rotSpeed*rotSpeed
 		Local rpm:Float=Abs(60*60*r/(Pi*2))		
-		Title="RPM "+rpm+" R="+Int(radius*100)
+		Local velocity:Int=Sqrt(panxSpeed*panxSpeed+panySpeed*panySpeed)
+		Title="RPM "+rpm+" R="+Int(radius*100)+" Velocity="+velocity
+		titleCount=200
 	End
+	
+	Field titleCount:Int
 	
 	Method OnRender( display:Canvas ) Override	
 		App.RequestRender()						
@@ -245,25 +254,36 @@ Class VPaint Extends Window
 				Next
 
 			Case AppState.Draw
+				rot+=rotSpeed*rotSpeed*rotSpeed							
+						
+				If rotSpeed Or panxSpeed Or panySpeed
+					OnMouseEvent(recentMouseEvent)		
+				Endif
+
+				display.PushMatrix()
 				cx=Width/2
 				cy=Height/2
 				display.Translate(cx,cy)
 				Local scale:=-1.0/zoom
 				display.Scale(scale,scale)
 				display.Rotate(rot)		
-				rot+=rotSpeed*rotSpeed*rotSpeed	
 				
-				If rotSpeed OnMouseEvent(recentMouseEvent)		
-
 				pane.Draw(display)		
 				framecount+=1				
 				ink.r=(framecount&255)/255.0
 				ink.g=(framecount&1023)/1023.0
 				ink.b=(framecount&511)/511.0
 				' ink=Color.FromHSV( framecount/100.0,1,1 )				
+				
 				pane.canvas.Color=ink
+				display.PopMatrix()
 
 			Case AppState.Browse
+		End
+		
+		If titleCount>0 And Fullscreen
+			display.DrawText(Title,20,20)
+			titleCount-=1
 		End
 
 	End
@@ -286,15 +306,32 @@ Class VPaint Extends Window
 			Case Key.Space
 				rotSpeed=0
 				rot=0
-			Case Key.Left
-				rotSpeed+=1.0/16			
-			Case Key.Right
-				rotSpeed-=1.0/16
-			Case Key.Key0
-				radius*=0.8			
-			Case Key.Minus
-				radius*=1.2			
 			End
+				
+			If event.Modifiers & Modifier.Alt
+				Select event.Key
+				Case Key.Left
+					panxSpeed+=1.0/16			
+				Case Key.Right
+					panxSpeed-=1.0/16
+				Case Key.Down
+					panySpeed*=0.8			
+				Case Key.Up
+					panySpeed*=1.2			
+				End
+			Else
+				Select event.Key
+				Case Key.Left
+					rotSpeed+=1.0/16			
+				Case Key.Right
+					rotSpeed-=1.0/16
+				Case Key.Down
+					radius*=0.8			
+				Case Key.Up
+					radius*=1.2			
+				End
+			End
+			
 		End
 		RefreshTitle()		
 	End
