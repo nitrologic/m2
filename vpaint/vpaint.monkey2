@@ -4,8 +4,8 @@
 Using std..
 Using mojo..
 
-Global title:String="VPaint 0.1 Easter-Show-Spew Release"	
-Global AboutApp:="VPaint Control,Mouse Button=Lift Pen,Mouse Wheel=Zoom,Space Key=Clear,S Key=Smile Box,C Key=Hold,Cursor Left=-RPM,Cursor Right=+RPM,Cursor Up=+Pen Radius,Cursor Down=+Pen Radius,Hold,F1=Toggle Fullscreen,Click To Start"
+Global title:String="VPaint 0.2 Beta-Testers-Deployment-One Release"	
+Global AboutApp:="VPaint Control,,Cursor Left=-RPM,Cursor Right=+RPM,,Mouse Button=Lift Pen,Mouse Wheel=Zoom,Space Key=Clear,S Key=Smile Box,C Key=Hold,Cursor Up=+Pen Size,Cursor Down=-Pen Size,Hold,F1=Toggle Fullscreen,Click To Start"
 Global ContactApp:=",,Latest Source: github.com/nitrologic/m2"
 
 Global instance:AppInstance
@@ -84,7 +84,7 @@ Class VPane Extends Image
 	
 	Method OpenCurve(p0:Vec2f,p1:Vec2f,p2:Vec2f,p3:Vec2f,fat:Float)
 		If Not canvas Return
-		Local seg:Int=6
+		Local seg:Int=9
 		Local verts:=Curve(seg,p0,p1,p2,p3)
 		For Local i:Int=0 Until seg		
 			FatSegment(verts[i*2+0],verts[i*2+1],verts[i*2+2],verts[i*2+3],fat)
@@ -124,7 +124,7 @@ Class VPane Extends Image
 		Return p1 + 0.5 * x*(p2-p0+x*(2.0*p0-5.0*p1+4.0*p2-p3+x*(3.0*(p1-p2)+p3-p0)))
 	End
 
-	Method FatLine(x:Int,y:Int,x1:Int,y1:Int,fat:Float)
+	Method StraightLine(x:Int,y:Int,x1:Int,y1:Int,fat:Float)
 		If Not canvas Return				
 		Local dy:Int=y1-y
 		Local dx:Int=x1-x				
@@ -172,6 +172,11 @@ Enum AppState
 	Browse
 End
 
+Enum Tool
+	Line
+	Curve
+End
+
 Const TickMark:String=String.FromChar(65)	'(0xE2 0x9C 0x93)
 
 Class VTool Extends Window
@@ -200,6 +205,7 @@ Class VPaint Extends Window
 	Field rot:Float
 	Field rotSpeed:Float
 	Field radius:Float
+	Field tool:=Tool.Curve
 	
 	Method ToggleTwo()	
 	End
@@ -211,14 +217,14 @@ Class VPaint Extends Window
 		pane=New VPane(4096,4096,Color.Black)
 		browse=New VBrowse()
 		ink=New Color
-		radius=1.0
+		radius=2.5
 '		tool=New VTool("Tools")
 '		tool.Title="VPaint Pen : RGBCycle"
 	End
 	
 	Method RefreshTitle()	
 		Local r:=rotSpeed*rotSpeed*rotSpeed
-		Local rpm:Int=Abs(60*60*r/(Pi*2))
+		Local rpm:Float=Abs(60*60*r/(Pi*2))		
 		Title="RPM "+rpm+" R="+Int(radius*100)
 	End
 	
@@ -246,12 +252,15 @@ Class VPaint Extends Window
 				display.Scale(scale,scale)
 				display.Rotate(rot)		
 				rot+=rotSpeed*rotSpeed*rotSpeed	
-				OnMouseEvent(recentMouseEvent)		
+				
+				If rotSpeed OnMouseEvent(recentMouseEvent)		
+
 				pane.Draw(display)		
 				framecount+=1				
 				ink.r=(framecount&255)/255.0
 				ink.g=(framecount&1023)/1023.0
 				ink.b=(framecount&511)/511.0
+				' ink=Color.FromHSV( framecount/100.0,1,1 )				
 				pane.canvas.Color=ink
 
 			Case AppState.Browse
@@ -276,20 +285,20 @@ Class VPaint Extends Window
 				ToggleTwo()	
 			Case Key.Space
 				rotSpeed=0
+				rot=0
 			Case Key.Left
-				rotSpeed+=0.1			
+				rotSpeed+=1.0/16			
 			Case Key.Right
-				rotSpeed-=0.1
-			Case Key.Down
+				rotSpeed-=1.0/16
+			Case Key.Key0
 				radius*=0.8			
-			Case Key.Up
+			Case Key.Minus
 				radius*=1.2			
 			End
 		End
 		RefreshTitle()		
 	End
-	
-	Field linetool:Bool=False
+		
 	Field history:=New Vec2f[4]
 
 	Field recentMouseEvent:MouseEvent
@@ -344,16 +353,18 @@ Class VPaint Extends Window
 			history[3]=New Vec2f(x,y)
 		End
 		
-If linetool
-		If drawcount	
-			pane.FatLine(mousex,mousey,x,y,radius)		
-		Endif
-Else
-		If drawcount>2 And Not b
+		Select tool
+			Case Tool.Line
+				If drawcount	
+					pane.StraightLine(mousex,mousey,x,y,radius)		
+				Endif
+			Case Tool.Curve
+				If drawcount>2 And Not b
 '			pane.FatCurve(mx[0],my[0],mx[1],my[1],mx[2],my[2],mx[3],my[3])				
-			pane.OpenCurve(history[0],history[1],history[2],history[3],radius)				
-		Endif
-Endif
+					pane.OpenCurve(history[0],history[1],history[2],history[3],radius)				
+				Endif
+		End
+		
 		drawcount+=1
 
 		mousex=x
