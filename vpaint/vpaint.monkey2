@@ -5,9 +5,9 @@ Using std..
 Using mojo..
 
 Global title:String="VPaint 0.2 Beta-Testers-Deployment-One Release"	
-Global AboutApp:="VPaint Control,,Cursor Left=-RPM,Cursor Right=+RPM,,Mouse Button=Lift Pen,Mouse Wheel=Zoom,Space Key=Clear,S Key=Smile Box,C Key=Hold,Cursor Up=+Pen Size,Cursor Down=-Pen Size,Hold,F1=Toggle Fullscreen,Click To Start"
-Global ContactApp:=",,Latest Source: github.com/nitrologic/m2/tree/master/vpaint"
-
+Global AboutApp:="VPaint Control,,Cursor Left=-RPM,Cursor Right=+RPM,,Mouse Button=Lift Pen,Mouse Wheel=Zoom,Space Key=Hold,S Key=Smile Box,C Key=Clear,Cursor Up=+Pen Size,Cursor Down=-Pen Size,Hold,F1=Toggle Fullscreen,Click To Start"
+Global Contact:=",,Latest Source: github.com/nitrologic/m2/tree/master/vpaint"
+Global Credits:=",,Machine translated by Monkey2 the primate language of champions."
 Global instance:AppInstance
 
 Class VPane Extends Image
@@ -179,7 +179,7 @@ End
 
 Const TickMark:String=String.FromChar(65)	'(0xE2 0x9C 0x93)
 
-Class VTool Extends Window
+Class VToolbar Extends Window
 	Method New(title:String)
 		Super.New(title,480,34,WindowFlags.Resizable)		
 	End
@@ -188,7 +188,7 @@ End
 Class VPaint Extends Window
 	Field appState:AppState
 
-'	Field tool:VTool
+'	Field tool:VToolbar
 	Field pane:VPane
 	Field browse:VBrowse
 	
@@ -230,8 +230,10 @@ Class VPaint Extends Window
 	Method RefreshTitle()	
 		Local r:=rotSpeed*rotSpeed*rotSpeed
 		Local rpm:Float=Abs(60*60*r/(Pi*2))		
-		Local velocity:Int=Sqrt(panxSpeed*panxSpeed+panySpeed*panySpeed)
-		Title="RPM "+rpm+" R="+Int(radius*100)+" Velocity="+velocity
+		Local velocity:Int=100*Sqrt(panxSpeed*panxSpeed+panySpeed*panySpeed)
+		Local tooltype:="Line"
+		If tool=Tool.Curve tooltype="Curve"
+		Title="RPM "+rpm+" Pan="+velocity+" Tip="+Int(radius*100)+" Tool="+tooltype
 		titleCount=200
 	End
 	
@@ -244,7 +246,7 @@ Class VPaint Extends Window
 
 			Case AppState.Title
 				Local cy:=40
-				For Local line:=Eachin (AboutApp+","+ContactApp).Split(",")
+				For Local line:=Eachin (AboutApp+","+Contact+","+Credits).Split(",")
 					Local cx:=50
 					For Local tab:=Eachin line.Split("=")
 						display.DrawText(tab,cx,cy)
@@ -255,14 +257,17 @@ Class VPaint Extends Window
 
 			Case AppState.Draw
 				rot+=rotSpeed*rotSpeed*rotSpeed							
+				
+				panx+=panxSpeed
+				pany+=panySpeed
 						
 				If rotSpeed Or panxSpeed Or panySpeed
 					OnMouseEvent(recentMouseEvent)		
 				Endif
 
 				display.PushMatrix()
-				cx=Width/2
-				cy=Height/2
+				cx=Width/2-panx
+				cy=Height/2-pany
 				display.Translate(cx,cy)
 				Local scale:=-1.0/zoom
 				display.Scale(scale,scale)
@@ -288,10 +293,26 @@ Class VPaint Extends Window
 
 	End
 
+	Method Hold()
+		rotSpeed=0
+		rot=0
+		panxSpeed=0
+		panySpeed=0
+		panx=0
+		pany=0
+	End
+	
 	Method OnKeyEvent( event:KeyEvent ) Override	
 		Select event.Type
 		Case EventType.KeyDown
 			Select event.Key
+			Case Key.T
+				Select tool
+				Case Tool.Curve
+					tool=Tool.Line
+				Case Tool.Line
+					tool=Tool.Curve
+				End
 			Case Key.S
 				pane.Smile(mousex,mousey,radius)
 				pane.Circle(mousex,mousey,radius)
@@ -304,20 +325,20 @@ Class VPaint Extends Window
 			Case Key.F2
 				ToggleTwo()	
 			Case Key.Space
-				rotSpeed=0
-				rot=0
+				Hold()
+				pane.EndSegment()
 			End
 				
-			If event.Modifiers & Modifier.Alt
+			If event.Modifiers & Modifier.Control
 				Select event.Key
 				Case Key.Left
-					panxSpeed+=1.0/16			
+					panxSpeed+=1.0/4			
 				Case Key.Right
-					panxSpeed-=1.0/16
+					panxSpeed-=1.0/4
 				Case Key.Down
-					panySpeed*=0.8			
+					panySpeed+=1.0/4		
 				Case Key.Up
-					panySpeed*=1.2			
+					panySpeed-=1.0/4		
 				End
 			Else
 				Select event.Key
