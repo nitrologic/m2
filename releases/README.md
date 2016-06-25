@@ -1,8 +1,8 @@
 ##Nitrologic m2 Public Binaries
 
-[vpaint 0.2 for Macs](https://github.com/nitrologic/m2/raw/master/releases/VPaint0.2.app.zip)
+[VPaint 0.2 for Macs](https://github.com/nitrologic/m2/raw/master/releases/VPaint0.2.app.zip)
 
-[vpaint 0.2 for Windows](https://github.com/nitrologic/m2/raw/master/releases/VPaint0.2.zip)
+[VPaint 0.2 for Windows](https://github.com/nitrologic/m2/raw/master/releases/VPaint0.2.zip)
 
 ![releases](releases.png?raw=true "Latest Binaries")
 
