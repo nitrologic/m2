@@ -1,3 +1,20 @@
+' class 1
+
+' instance chain audio component synth
+
+' voice per panel UI 
+
+' [class ] 
+' [instance 1]
+' [instance 2]
+' [instance 3]
+
+' [OSC]
+' [*    ]
+' [ *   ]
+' [  *  ]
+' [   * ]
+
 #Import "<std>"
 #Import "<mojo>"
 #Import "<sdl2>"
@@ -12,7 +29,7 @@ Global instance:AppInstance
 Global vsynth:VSynth
 
 Global Pos:Float
-Global FragmentSize:=4096
+Global FragmentSize:=32
 Global AudioFrequency:=44100
 
 Alias V:Double	' Voltage
@@ -159,7 +176,7 @@ Class VSynth Extends Window
 	
 	Method OnRender( display:Canvas ) Override	
 		App.RequestRender()	
-		UpdateSequence()
+'		UpdateSequence()
 	End
 	
 	Field frame:Int
@@ -261,6 +278,9 @@ Class VSynth Extends Window
 			Print "Audio Overrun"
 			samples=FragmentSize
 		Endif
+
+		vsynth.UpdateSequence()
+		
 		Local buffer:=vsynth.FillAudioBuffer(samples)
 		For Local i:=0 Until samples
 			Local s0:Int=buffer[i*2+0]*2000			
