@@ -10,9 +10,11 @@ Using std..
 Using mojo..
 
 Global title:String="VPaint 0.3"	
+
 Global AboutApp:="VPaint Control,,Cursor Left=-RPM,Cursor Right=+RPM,,Mouse Button=Lift Pen,Mouse Wheel=Zoom,Space Key=Hold,S Key=Smile Box,C Key=Clear,Cursor Up=+Pen Size,Cursor Down=-Pen Size,Hold,F1=Toggle Fullscreen,Click To Start"
 Global Contact:=",,Latest Source: github.com/nitrologic/m2/tree/master/vpaint"
-Global Credits:=",,Machine translated by Monkey2 the primate language of champions."
+Global Credits:=",,Transpiled by Monkey2 the primate language of champions."
+
 Global instance:AppInstance
 
 Class VPane Extends Image
