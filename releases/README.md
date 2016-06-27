@@ -8,6 +8,6 @@
 
 ###Operation
 
-Mac users will need to check their security settings Allow Apps Downloaded From Anywhere or wait until VPaint is available on the AppStore.
+Mac users will need to check their security settings Allow Apps Downloaded From Anywhere or wait until VPaint is signed and available on the AppStore.
 
 Windows use to be advised.

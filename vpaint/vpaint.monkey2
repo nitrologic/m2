@@ -1,10 +1,15 @@
 #Import "<std>"
 #Import "<mojo>"
 
+#Import "assets/thrust.wav"
+#Import "assets/engine1.wav"
+#Import "assets/bang.wav"
+#Import "assets/whale52hz.wav"
+
 Using std..
 Using mojo..
 
-Global title:String="VPaint 0.2 Beta-Testers-Deployment-One Release"	
+Global title:String="VPaint 0.3"	
 Global AboutApp:="VPaint Control,,Cursor Left=-RPM,Cursor Right=+RPM,,Mouse Button=Lift Pen,Mouse Wheel=Zoom,Space Key=Hold,S Key=Smile Box,C Key=Clear,Cursor Up=+Pen Size,Cursor Down=-Pen Size,Hold,F1=Toggle Fullscreen,Click To Start"
 Global Contact:=",,Latest Source: github.com/nitrologic/m2/tree/master/vpaint"
 Global Credits:=",,Machine translated by Monkey2 the primate language of champions."
@@ -191,6 +196,7 @@ Class VPaint Extends Window
 '	Field tool:VToolbar
 	Field pane:VPane
 	Field browse:VBrowse
+	Field status:String
 	
 	Field zoom:Float
 	Field ink:Color
@@ -211,6 +217,9 @@ Class VPaint Extends Window
 	Field pany:Float
 	Field panxSpeed:Float
 	Field panySpeed:Float
+
+	Field sample:Sound
+	Field wheel:Channel
 	
 	Method ToggleTwo()	
 	End
@@ -225,19 +234,35 @@ Class VPaint Extends Window
 		radius=2.5
 '		tool=New VTool("Tools")
 '		tool.Title="VPaint Pen : RGBCycle"
+		
+'		sample=Sound.Load("asset::bang.wav")
+'		sample=Sound.Load("asset::whale52hz.wav")
+'		sample=Sound.Load("asset::whale52hz.wav")
+		sample=Sound.Load("asset::thrust.wav")
+
+		If sample
+			wheel=sample.Play(-1)
+			wheel.Rate=5
+		Else
+			Print "Sample not found"
+		Endif
+		
+		sdl2.SDL_ShowCursor(0)
+		
 	End
 	
-	Method RefreshTitle()	
+	Method RefreshStatus()	
 		Local r:=rotSpeed*rotSpeed*rotSpeed
 		Local rpm:Float=Abs(60*60*r/(Pi*2))		
 		Local velocity:Int=100*Sqrt(panxSpeed*panxSpeed+panySpeed*panySpeed)
 		Local tooltype:="Line"
 		If tool=Tool.Curve tooltype="Curve"
-		Title="RPM "+rpm+" Pan="+velocity+" Tip="+Int(radius*100)+" Tool="+tooltype
-		titleCount=200
+		status="RPM "+rpm+" Pan="+velocity+" Tip="+Int(radius*100)+" Tool="+tooltype
+		statusCount=200		
+		wheel.Rate=rpm/60
 	End
 	
-	Field titleCount:Int
+	Field statusCount:Int
 	
 	Method OnRender( display:Canvas ) Override	
 		App.RequestRender()						
@@ -286,9 +311,9 @@ Class VPaint Extends Window
 			Case AppState.Browse
 		End
 		
-		If titleCount>0 And Fullscreen
-			display.DrawText(Title,20,20)
-			titleCount-=1
+		If statusCount>0
+			display.DrawText(status,20,20)
+			statusCount-=1
 		End
 
 	End
@@ -301,6 +326,8 @@ Class VPaint Extends Window
 		panx=0
 		pany=0
 	End
+	
+	Field CommandKey:=Modifier.Gui
 	
 	Method OnKeyEvent( event:KeyEvent ) Override	
 		Select event.Type
@@ -329,7 +356,7 @@ Class VPaint Extends Window
 				pane.EndSegment()
 			End
 				
-			If event.Modifiers & Modifier.Control
+			If event.Modifiers & CommandKey
 				Select event.Key
 				Case Key.Left
 					panxSpeed+=1.0/4			
@@ -354,7 +381,7 @@ Class VPaint Extends Window
 			End
 			
 		End
-		RefreshTitle()		
+		RefreshStatus()		
 	End
 		
 	Field history:=New Vec2f[4]
@@ -401,15 +428,19 @@ Class VPaint Extends Window
 			zoom-=w/8.0
 			If zoom<1.0/8 zoom=1.0/8
 				
+		Case EventType.MouseUp
+			pane.EndSegment()
+			drawcount=0
+			
 		Case EventType.MouseDown
 			pane.EndSegment()
-			
-		Case EventType.MouseMove
-			history[0]=history[1]
-			history[1]=history[2]
-			history[2]=history[3]
-			history[3]=New Vec2f(x,y)
+			drawcount=0
 		End
+
+		history[0]=history[1]
+		history[1]=history[2]
+		history[2]=history[3]
+		history[3]=New Vec2f(x,y)
 		
 		Select tool
 			Case Tool.Line
@@ -417,7 +448,7 @@ Class VPaint Extends Window
 					pane.StraightLine(mousex,mousey,x,y,radius)		
 				Endif
 			Case Tool.Curve
-				If drawcount>2 And Not b
+				If drawcount>3 And Not b
 '			pane.FatCurve(mx[0],my[0],mx[1],my[1],mx[2],my[2],mx[3],my[3])				
 					pane.OpenCurve(history[0],history[1],history[2],history[3],radius)				
 				Endif
