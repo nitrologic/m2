@@ -4,25 +4,27 @@
 
 #Import "audiopipe.monkey2"
 
+' 
+
 Using std..
 Using mojo..
 Using sdl2..
 
-Global AppTitle:String="VSynth 0.01 Bells of Big Ben Release"	
-
-Global Contact:="Latest Source: github.com/nitrologic/m2"
+Global AppTitle:String="VSynth 0.01 Big Ben Release"	
+Global Contact:="Latest Source=github.com/nitrologic/m2"
 
 Global About:="VSynth Control"
 Global Octave1:= "Sharps=    W   E       T   Y   U      "
 Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
+Global Controls:="Reset Keys=Space,Quit=Escape"
 
 Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise")
 Global EnvelopeNames:=New String[]("Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random")
 
-Alias V:Double	' Voltage(volts)
-Alias T:Double ' Time(seconds)
+Alias V:Double ' Voltage(volts)
 Alias F:Double ' Frequency(hz)
+Alias T:Double ' Time(seconds)
 
 Alias Note:Int
 Alias K:Key
@@ -128,17 +130,15 @@ End
 
 Class Noise Extends Oscillator
 	Field a:V
-	Field b:V
 	Method Sample:V(hz:F) Override
 		Local t:T=hz/AudioFrequency
 		Local delta0:=delta
 		delta+=t		
 		Local f:=delta Mod 1				
 		If Int(delta0)<>Int(delta)
-			a=b		
-			b=1-2*Rnd()
+			a=Rnd()
 		Endif	
-		Return a+f*(b-a)		
+		Return 1-2*a	'(a+f*(b-a)		
 	End
 End
 
@@ -159,6 +159,7 @@ Class Voice
 			Case 4 oscillator=New Noise
 		End
 	End
+	
 	Method SetEnvelope(env:Int)
 		Select env
 			Case 0 
@@ -225,8 +226,12 @@ Class VSynth
 		OpenAudio()
 	End
 	
-	Method Bend(bend:V)
-		detune=Log(bend)
+	Method Detune(bend:V)
+		detune=bend
+	End
+	
+	Method ClearKeys()
+		voices.Clear()
 	End
 
 	Method UpdateAudio()
@@ -317,9 +322,9 @@ Class VSynthWindow Extends Window
 	
 	Field oscillator:Int
 	Field envelope:Int
-	Field octave:Int=4
+	Field octave:Int=5
 	
-	Field bend:V
+	Field pitchbend:V
 	
 	Field keyNoteMap:=New Map<Key,Int>
 
@@ -334,15 +339,15 @@ Class VSynthWindow Extends Window
 	Method OnRender( display:Canvas ) Override	
 		App.RequestRender()	
 
-		vsynth.Bend(bend)
+		vsynth.Detune(Pow(2,pitchbend))
 		vsynth.UpdateAudio()
 
 		Local text:String = About+",,"+Octave1+","+Octave0+","
 		text+="Octave : "+octave+"= < >,,"
 		text+="Oscillator : "+OscillatorNames[oscillator]+"=1-5,"
 		text+="Envelope : "+EnvelopeNames[envelope]+"=[ ],"
-		text+="PitchBend : "+bend+"=Mouse Wheel"
-		text+=","+Contact
+		text+="PitchBend : "+FloatString(pitchbend)+"=Mouse Wheel"
+		text+=",,"+Controls+",,"+Contact
 
 		Local cy:=40
 		For Local line:=Eachin text.Split(",")
@@ -408,9 +413,11 @@ Class VSynthWindow Extends Window
 			Case Key.RightBracket
 				envelope=Wrap(envelope+1,0,EnvelopeNames.Length)				
 			Case Key.Comma
-				octave=Clamp(octave-1,0,8)
+				octave=Clamp(octave-1,0,12)
 			Case Key.Period
-				octave=Clamp(octave+1,0,8)
+				octave=Clamp(octave+1,0,12)
+			Case Key.Space
+				vsynth.ClearKeys()
 			Default
 				KeyDown(event.Key)
 			End
@@ -426,9 +433,22 @@ Class VSynthWindow Extends Window
 	Method OnMouseEvent( event:MouseEvent ) Override	
 		mousex=event.Location.X
 		mousey=event.Location.Y
-		bend+=event.Wheel.Y*0.1
+		pitchbend+=event.Wheel.Y/24.0
 	End
 	
+End
+
+Function FloatString:String(value:Float,dp:Int=2)
+	Local sign:String
+	If value<0 
+		sign="-"
+		value=-value
+	Endif
+	Local a:String=Int(value*(Pow(10,dp)))
+	Local l:=dp+1-a.Length
+	If l>0 a="000000".Slice(0,l)+a
+	Local r:=a.Length
+	Return sign+a.Slice(0,r-dp)+"."+a.Slice(r-dp)
 End
 
 Function Wrap:Int(value:Int,lower:Int,upper:Int)
