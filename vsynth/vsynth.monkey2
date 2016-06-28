@@ -2,39 +2,40 @@
 
 ' instance chain audio component synth
 
-' voice per panel UI 
-
-' [class ] 
-' [instance 1]
-' [instance 2]
-' [instance 3]
-
-' [OSC]
-' [*    ]
-' [ *   ]
-' [  *  ]
-' [   * ]
-
 #Import "<std>"
 #Import "<mojo>"
 #Import "<sdl2>"
 
-' release mode only!!!
+#Import "audiopipe.h"
 
 Using std..
 Using mojo..
 Using sdl2..
 
+Alias V:Double	' Voltage(volts)
+Alias T:Double ' Time(seconds)
+Alias F:Double ' Frequency(hz)
+
+Extern
+
+Class AudioPipe Extends Void 
+	Field readPointer:Int
+	Field writePointer:Int
+	Method Handle:Void Ptr()
+	Method WriteSamples(samples:Double Ptr,sampleCount:Int)
+	Function Callback(a:Void Ptr, b:UByte Ptr, byteCount:Int)
+	Function Create:AudioPipe()
+End
+
+Public
+
 Global instance:AppInstance
 Global vsynth:VSynth
 
-Global Pos:Float
+Global Duration:=0
 Global FragmentSize:=32
+Global WriteAhead:=8192
 Global AudioFrequency:=44100
-
-Alias V:Double	' Voltage
-Alias T:Double ' Time
-Alias F:Double ' Frequency
 
 Class Envelope
 	Field p:V
@@ -151,7 +152,7 @@ Class Voice
 		noteOn=False
 	End
 	
-	Method Mix(buffer:Float[],samples:Int)
+	Method Mix(buffer:Double[],samples:Int)
 		Local left:=1.0
 		Local right:=1.0
 		If pan<0 right+=pan
@@ -168,19 +169,27 @@ End
 
 Class VSynth Extends Window
 
+	Field audioPipe:=AudioPipe.Create()
+
 	Method New(title:String)
 		Super.New(title,720,560,WindowFlags.Resizable)				
 		vsynth=Self
+		UpdateAudio()					
+		Print audioPipe.readPointer
 		OpenAudio()
 	End
 	
 	Method OnRender( display:Canvas ) Override	
 		App.RequestRender()	
-'		UpdateSequence()
+		UpdateAudio()
 	End
 	
 	Field frame:Int
 	Field tick:Int
+	
+	Const MusicKeys:=New Key[]( Key.A,Key.W,Key.S,Key.E,Key.D,  Key.F,Key.T,Key.G,Key.Y,Key.H,Key.U,Key.J,Key.K)
+	
+	Field keyNoteMap:=New Map<Key,Int>
 		
 	Method UpdateSequence()
 		frame+=1
@@ -198,7 +207,9 @@ Class VSynth Extends Window
 	End
 	
 	Field audioSpec:SDL_AudioSpec
-	Field buffer:Float[]
+
+	Field buffer:=New Double[FragmentSize*2]
+
 	Field mousex:Int
 	Field mousey:Int
 	
@@ -206,13 +217,14 @@ Class VSynth Extends Window
 	Field tone:=New Voice
 
 	Method OpenAudio()
-		buffer=New Float[FragmentSize*2]
 		Local spec:SDL_AudioSpec
 		spec.freq=AudioFrequency	
 		spec.format = AUDIO_S16
 		spec.channels = 2
 		spec.samples = FragmentSize
-		spec.callback = audio_callback
+		spec.callback = AudioPipe.Callback
+		spec.userdata = audioPipe.Handle()
+		
 		Mix_CloseAudio()		
 		Local error:Int = SDL_OpenAudio(Varptr spec,Varptr audioSpec)		
 		If error
@@ -222,24 +234,30 @@ Class VSynth Extends Window
 			AudioFrequency=audioSpec.freq
 		Endif
 		
+		For Local i:=0 Until MusicKeys.Length
+			keyNoteMap.Set(MusicKeys[i],60+i)
+		Next
+		
 		tone.SetOscillator(New Square)
 '		tone.SetEnvelope(New Envelope)
 		tone.SetEnvelope(New ADSR(0.06,0.01,0.92,0.5))
 		voices.AddLast(tone)
-					
+		
 		SDL_PauseAudio(0)
 	End
-		
-'	Field left:=New Sine()
-'	Field right:=New Sine()
-	Field left:=New Sawtooth()
-	Field right:=New Sawtooth()
-'	Field left:=New Square()
-'	Field right:=New Square()
-'	Field left:=New Triangle()
-'	Field right:=New Triangle()
 
-	Method FillAudioBuffer:Float[](samples:Int)	
+	Method UpdateAudio()
+		While True
+			Local buffered:=audioPipe.writePointer-audioPipe.readPointer
+			If buffered>=WriteAhead Exit
+			Local samples:=FragmentSize
+			Local buffer:=vsynth.FillAudioBuffer(samples)			
+			Local pointer:=Varptr buffer[0]
+			audioPipe.WriteSamples(pointer,samples*2)
+		Wend
+	End
+		
+	Method FillAudioBuffer:Double[](samples:Int)	
 		For Local i:=0 Until samples
 			buffer[i*2+0]=0
 			buffer[i*2+1]=0
@@ -248,50 +266,28 @@ Class VSynth Extends Window
 			voice.Mix(buffer,samples)
 		Next
 		
-		Pos+=samples
+		Duration+=samples
 		Return buffer
 	End
-
-	
-	Method FillAudioBuffer2:Float[](samples:Int)	
-		Local p0:Float=mousey
-		Local p1:Float=mousex
-		For Local i:=0 Until samples
-			Local sleft:=left.Sample(p0)
-			Local sright:=right.Sample(p1)
-			buffer[i*2+0]=sleft
-			buffer[i*2+1]=sright
-		Next			
-		Pos+=samples
-		Return buffer
-	End
-	
+		
 	Function Limit:Int(value:Int, lo:Int, hi:Int)
 		If value<lo Return lo
 		If value>hi Return hi
 		Return value
 	End
-			
-	Function audio_callback(a:Void Ptr, b:UByte Ptr, byteCount:Int)
-		Local samples:Int=byteCount/4
-		If samples>FragmentSize
-			Print "Audio Overrun"
-			samples=FragmentSize
-		Endif
+				
+	Field monoKey:Key
+	
+	Method KeyDown(key:Key)
+		Local note:=keyNoteMap[key]
+		tone.NoteOn(note)
+		monoKey=key
+	End
 
-		vsynth.UpdateSequence()
-		
-		Local buffer:=vsynth.FillAudioBuffer(samples)
-		For Local i:=0 Until samples
-			Local s0:Int=buffer[i*2+0]*2000			
-			s0=Limit(s0,-32767,32767)
-			b[i*4+0]=s0 & 255
-			b[i*4+1]=s0 Shr 8
-			Local s1:Int=buffer[i*2+1]*2000			
-			s1=Limit(s1,-32767,32767)
-			b[i*4+2]=s1 & 255
-			b[i*4+3]=s1 Shr 8 
-		Next
+	Method KeyUp(key:Key)
+		If key<>monoKey Return
+		Local note:=keyNoteMap[key]
+		tone.NoteOff()
 	End
 
 	Method OnKeyEvent( event:KeyEvent ) Override	
@@ -300,6 +296,14 @@ Class VSynth Extends Window
 			Select event.Key
 			Case Key.Escape
 				instance.Terminate()
+			Default
+				KeyDown(event.Key)
+			End
+		Case EventType.KeyUp
+			Select event.Key
+			Case Key.Escape
+			Default
+				KeyUp(event.Key)
 			End
 		End
 	End
