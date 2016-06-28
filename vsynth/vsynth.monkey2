@@ -1,7 +1,8 @@
 #Import "<std>"
 #Import "<mojo>"
 #Import "<sdl2>"
-#Import "audiopipe.h"
+
+#Import "audiopipe.monkey2"
 
 Using std..
 Using mojo..
@@ -9,12 +10,15 @@ Using sdl2..
 
 Global AppTitle:String="VSynth 0.01 Bells of Big Ben Release"	
 
-Global About:="VSynth Control"
-Global Octave1:= "Sharps=       W   E       T   Y   U      "
-Global Octave0:= "Notes=Q  A   S   D  F   G   H    J  K"
 Global Contact:="Latest Source: github.com/nitrologic/m2"
 
+Global About:="VSynth Control"
+Global Octave1:= "Sharps=    W   E       T   Y   U      "
+Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
+
 Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise")
+Global EnvelopeNames:=New String[]("Plain","Punchy","SlowOut","SlowIn")
+Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random")
 
 Alias V:Double	' Voltage(volts)
 Alias T:Double ' Time(seconds)
@@ -22,17 +26,6 @@ Alias F:Double ' Frequency(hz)
 
 Alias Note:Int
 Alias K:Key
-
-Extern
-
-Class AudioPipe Extends Void 
-	Field readPointer:Int
-	Field writePointer:Int
-	Method Handle:Void Ptr()
-	Method WriteSamples(samples:Double Ptr,sampleCount:Int)
-	Function Callback(a:Void Ptr, b:UByte Ptr, byteCount:Int)
-	Function Create:AudioPipe()
-End
 
 Public
 
@@ -134,10 +127,18 @@ Class Square Extends Oscillator
 End
 
 Class Noise Extends Oscillator
+	Field a:V
+	Field b:V
 	Method Sample:V(hz:F) Override
 		Local t:T=hz/AudioFrequency
-		delta+=t
-		Return 1-2*Rnd()
+		Local delta0:=delta
+		delta+=t		
+		Local f:=delta Mod 1				
+		If Int(delta0)<>Int(delta)
+			a=b		
+			b=1-2*Rnd()
+		Endif	
+		Return a+f*(b-a)		
 	End
 End
 
@@ -147,7 +148,7 @@ Class Voice
 	Field noteOn:Bool
 	Field hz:F
 	Field pan:V
-	Field gain:V=0.3
+	Field gain:V=0.12
 	
 	Method SetOscillator(osc:Int)
 		Select osc
@@ -158,11 +159,16 @@ Class Voice
 			Case 4 oscillator=New Noise
 		End
 	End
-	
 	Method SetEnvelope(env:Int)
 		Select env
 			Case 0 
-				envelope=New ADSR(0.06,0.01,0.92,0.5)
+				envelope=New ADSR(0.05,1.5,0.2,0.3)
+			Case 1
+				envelope=New ADSR(0.06,0.01,0.92,0.2)
+			Case 2 
+				envelope=New ADSR(0.06,2.0,0.2,1.2)
+			Case 3
+				envelope=New ADSR(0.2,0.2,0.92,0.4)
 		End
 	End
 
@@ -188,13 +194,13 @@ Class Voice
 		noteOn=False
 	End
 	
-	Method Mix(buffer:Double[],samples:Int)
+	Method Mix(buffer:Double[],samples:Int,detune:V)
 		Local left:=1.0
 		Local right:=1.0
 		If pan<0 right+=pan
 		If pan>0 left-=pan		
 		For Local i:=0 Until samples
-			Local v:=oscillator.Sample(hz)			
+			Local v:=oscillator.Sample(hz*detune)			
 			Local e:V
 			If noteOn e=envelope.On() Else e=envelope.Off()
 			e*=gain
@@ -204,137 +210,23 @@ Class Voice
 	End
 End
 
-Class VSynth Extends Window
+Class VSynth
 
+	Field audioSpec:SDL_AudioSpec
+	Field buffer:=New Double[FragmentSize*2]
 	Field audioPipe:=AudioPipe.Create()
-
-	Method New(title:String)
-		Super.New(title,720,560,WindowFlags.Resizable)				
-		vsynth=Self
-		OpenAudio()
-	End
-	
-	Method OnRender( display:Canvas ) Override	
-		App.RequestRender()	
-		UpdateAudio()
-
-		Local text:String = About+",,"+Octave1+","+Octave0+","+"Oscillator : "+OscillatorNames[oscillator]+"=1-5,,"+Contact
-
-		Local cy:=40
-		For Local line:=Eachin text.Split(",")
-			Local cx:=50
-			For Local tab:=Eachin line.Split("=")
-				display.DrawText(tab,cx,cy)
-				cx+=200
-			Next
-			cy+=20
-		Next
-
-	End
-	
-	Field frame:Int
-	Field tick:Int
-	
-	Const MusicKeys:=New Key[]( Key.Q,Key.A,Key.W,Key.S,Key.E,Key.D,  Key.F,Key.T,Key.G,Key.Y,Key.H,Key.U,Key.J,  Key.K,Key.O,Key.L,Key.P,Key.Semicolon,Key.Apostrophe )
-	
-	Field keyNoteMap:=New Map<Key,Int>
-
 	Field voices:=New Stack<Voice>
 	Field polyList:=New List<Voice>
 	Field polyMap:=New Map<Int,Voice>
-	
-	Method NoteOn(note:Int)
-		NoteOff(note)
-		If polyList.Empty Return
-		Local voice:=polyList.RemoveFirst()
-		voice.SetEnvelope(envelope)
-		voice.SetOscillator(oscillator)
-		voice.NoteOn(note)
-		polyMap[note]=voice
-		polyList.Remove(voice)
-		If Not voices.Contains(voice)
-			voices.Add(voice)
-		endif	
-	End
 
-	Method NoteOff(note:Int)	
-		Local voice:=polyMap[note]
-		If voice
-			voice.Stop()
-			polyMap.Remove(note)
-			polyList.AddLast(voice)
-		Endif
-	End
-		
-	Field monoKey:Key
-	
-	Method KeyDown(key:Key)
-		Local note:=keyNoteMap[key]
-		NoteOn(note)
-		monoKey=key
-	End
+	Field detune:V
 
-	Method KeyUp(key:Key)
-'		If key<>monoKey Return
-		Local note:=keyNoteMap[key]
-		NoteOff(note)
-	End
-
-	Method UpdateSequence()
-		frame+=1
-		Local t:Int=(frame/20)	
-		If t<>tick
-			Local note:=((t Shr 1)&15)*3+40
-			If t&1
-				NoteOn(note)
-			Else
-				NoteOff(note)			
-			Endif
-			tick=t
-		Endif				
-'		Print "tick d="+d
+	Method New()
+		OpenAudio()
 	End
 	
-	Field audioSpec:SDL_AudioSpec
-
-	Field buffer:=New Double[FragmentSize*2]
-
-	Field mousex:Int
-	Field mousey:Int
-	
-	Field oscillator:Int
-	Field envelope:Int
-	
-	Method OpenAudio()
-		Local spec:SDL_AudioSpec
-		spec.freq=AudioFrequency	
-		spec.format = AUDIO_S16
-		spec.channels = 2
-		spec.samples = FragmentSize
-		spec.callback = AudioPipe.Callback
-		spec.userdata = audioPipe.Handle()
-		
-		Mix_CloseAudio()		
-		Local error:Int = SDL_OpenAudio(Varptr spec,Varptr audioSpec)		
-		If error
-			Print "error="+error+" "+String.FromCString(SDL_GetError())
-		Else
-			Print "Audio Open freq="+audioSpec.freq
-			AudioFrequency=audioSpec.freq
-		Endif
-		
-		For Local i:=0 Until MusicKeys.Length
-			keyNoteMap.Set(MusicKeys[i],59+i)
-		Next
-		
-		For Local i:=0 Until MaxPolyphony
-			Local tone:=New Voice
-			tone.SetOscillator(0)
-			tone.SetEnvelope(0)
-			polyList.AddLast(tone)
-		Next
-		
-		SDL_PauseAudio(0)
+	Method Bend(bend:V)
+		detune=Log(bend)
 	End
 
 	Method UpdateAudio()
@@ -354,13 +246,141 @@ Class VSynth Extends Window
 			buffer[i*2+1]=0
 		Next			
 		For Local voice:=Eachin voices
-			voice.Mix(buffer,samples)
+			voice.Mix(buffer,samples,detune)
 		Next
 		
 		Duration+=samples
 		Return buffer
 	End
+	
+	Method OpenAudio()
+		Local spec:SDL_AudioSpec
+		spec.freq=AudioFrequency	
+		spec.format = AUDIO_S16
+		spec.channels = 2
+		spec.samples = FragmentSize
+		spec.callback = AudioPipe.Callback
+		spec.userdata = audioPipe.Handle()
 		
+		Mix_CloseAudio()		
+		Local error:Int = SDL_OpenAudio(Varptr spec,Varptr audioSpec)		
+		If error
+			Print "error="+error+" "+String.FromCString(SDL_GetError())
+		Else
+			Print "Audio Open freq="+audioSpec.freq
+			AudioFrequency=audioSpec.freq
+		Endif
+				
+		For Local i:=0 Until MaxPolyphony
+			Local tone:=New Voice
+			tone.SetOscillator(0)
+			tone.SetEnvelope(0)
+			polyList.AddLast(tone)
+		Next
+		
+		SDL_PauseAudio(0)
+	End
+
+	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
+		NoteOff(note)
+		If polyList.Empty Return
+		Local voice:=polyList.RemoveFirst()
+		voice.SetEnvelope(envelope)
+		voice.SetOscillator(oscillator)
+		voice.NoteOn(note)
+		polyMap[note]=voice
+		polyList.Remove(voice)
+		If Not voices.Contains(voice)
+			voices.Add(voice)
+		Endif	
+	End
+
+	Method NoteOff(note:Int)	
+		Local voice:=polyMap[note]
+		If voice
+			voice.Stop()
+			polyMap.Remove(note)
+			polyList.AddLast(voice)
+		Endif
+	End
+
+End	
+
+Class VSynthWindow Extends Window
+
+	Const MusicKeys:=New Key[]( Key.Q,Key.A,Key.W,Key.S,Key.E,Key.D,  Key.F,Key.T,Key.G,Key.Y,Key.H,Key.U,Key.J,  Key.K,Key.O,Key.L,Key.P,Key.Semicolon,Key.Apostrophe )
+
+	Field frame:Int
+	Field tick:Int
+	Field mousex:Int
+	Field mousey:Int
+	
+	Field oscillator:Int
+	Field envelope:Int
+	Field octave:Int=4
+	
+	Field bend:V
+	
+	Field keyNoteMap:=New Map<Key,Int>
+
+	Method New(title:String)
+		Super.New(title,720,560,WindowFlags.Resizable)				
+		For Local i:=0 Until MusicKeys.Length
+			keyNoteMap.Set(MusicKeys[i],i-1)
+		Next
+		vsynth=New VSynth
+	End
+	
+	Method OnRender( display:Canvas ) Override	
+		App.RequestRender()	
+
+		vsynth.Bend(bend)
+		vsynth.UpdateAudio()
+
+		Local text:String = About+",,"+Octave1+","+Octave0+","
+		text+="Octave : "+octave+"= < >,,"
+		text+="Oscillator : "+OscillatorNames[oscillator]+"=1-5,"
+		text+="Envelope : "+EnvelopeNames[envelope]+"=[ ],"
+		text+="PitchBend : "+bend+"=Mouse Wheel"
+		text+=","+Contact
+
+		Local cy:=40
+		For Local line:=Eachin text.Split(",")
+			Local cx:=50
+			For Local tab:=Eachin line.Split("=")
+				display.DrawText(tab,cx,cy)
+				cx+=200
+			Next
+			cy+=20
+		Next
+
+	End				
+	
+	Method KeyDown(key:Key)
+		Local note:=keyNoteMap[key]+octave*12
+		vsynth.NoteOn(note,oscillator,envelope)
+	End
+
+	Method KeyUp(key:Key)
+		Local note:=keyNoteMap[key]+octave*12
+		vsynth.NoteOff(note)
+	End
+
+	Method UpdateSequence()
+		frame+=1
+		Local t:Int=(frame/20)	
+		If t<>tick
+			Local note:=((t Shr 1)&15)*3+40
+			If t&1
+				vsynth.NoteOn(note,oscillator,envelope)
+			Else
+				vsynth.NoteOff(note)			
+			Endif
+			tick=t
+		Endif				
+'		Print "tick d="+d
+	End
+			
 	Function Limit:Int(value:Int, lo:Int, hi:Int)
 		If value<lo Return lo
 		If value>hi Return hi
@@ -383,6 +403,14 @@ Class VSynth Extends Window
 				oscillator=4
 			Case Key.Escape
 				instance.Terminate()
+			Case Key.LeftBracket
+				envelope=Wrap(envelope-1,0,EnvelopeNames.Length)
+			Case Key.RightBracket
+				envelope=Wrap(envelope+1,0,EnvelopeNames.Length)				
+			Case Key.Comma
+				octave=Clamp(octave-1,0,8)
+			Case Key.Period
+				octave=Clamp(octave+1,0,8)
 			Default
 				KeyDown(event.Key)
 			End
@@ -398,12 +426,19 @@ Class VSynth Extends Window
 	Method OnMouseEvent( event:MouseEvent ) Override	
 		mousex=event.Location.X
 		mousey=event.Location.Y
+		bend+=event.Wheel.Y*0.1
 	End
 	
 End
 
+Function Wrap:Int(value:Int,lower:Int,upper:Int)
+	If value<lower value=upper-1
+	If value>=upper value=lower
+	Return value
+End
+
 Function Main()
 	instance = New AppInstance	
-	New VSynth(AppTitle)	
+	New VSynthWindow(AppTitle)	
 	App.Run()	
 End
