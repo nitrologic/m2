@@ -1,20 +1,27 @@
-' class 1
-
-' instance chain audio component synth
-
 #Import "<std>"
 #Import "<mojo>"
 #Import "<sdl2>"
-
 #Import "audiopipe.h"
 
 Using std..
 Using mojo..
 Using sdl2..
 
+Global AppTitle:String="VSynth 0.01 Bells of Big Ben Release"	
+
+Global About:="VSynth Control"
+Global Octave1:= "Sharps=       W   E       T   Y   U      "
+Global Octave0:= "Notes=Q  A   S   D  F   G   H    J  K"
+Global Contact:="Latest Source: github.com/nitrologic/m2"
+
+Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise")
+
 Alias V:Double	' Voltage(volts)
 Alias T:Double ' Time(seconds)
 Alias F:Double ' Frequency(hz)
+
+Alias Note:Int
+Alias K:Key
 
 Extern
 
@@ -36,6 +43,8 @@ Global Duration:=0
 Global FragmentSize:=32
 Global WriteAhead:=8192
 Global AudioFrequency:=44100
+
+Const MaxPolyphony:=16
 
 Class Envelope
 	Field p:V
@@ -92,7 +101,7 @@ Class Oscillator
 	End
 End
 
-Class Sine Extends Oscillator
+Class Sine Extends Oscillator	
 	Method Sample:V(hz:F) Override
 		Local t:T=hz/AudioFrequency
 		delta+=t
@@ -110,7 +119,7 @@ End
 
 Class Triangle Extends Oscillator
 	Method Sample:V(hz:F) Override
-		Local t:T=hz/AudioFrequency
+		Local t:T=2*hz/AudioFrequency
 		delta+=t
 		Return (Abs(delta Mod 4)-2)-1
 	End
@@ -124,24 +133,51 @@ Class Square Extends Oscillator
 	End
 End
 
+Class Noise Extends Oscillator
+	Method Sample:V(hz:F) Override
+		Local t:T=hz/AudioFrequency
+		delta+=t
+		Return 1-2*Rnd()
+	End
+End
+
 Class Voice
 	Field oscillator:Oscillator
 	Field envelope:Envelope
 	Field noteOn:Bool
 	Field hz:F
 	Field pan:V
+	Field gain:V=0.3
 	
-	Method SetOscillator(osc:Oscillator)
-		oscillator=osc
+	Method SetOscillator(osc:Int)
+		Select osc
+			Case 0 oscillator=New Square
+			Case 1 oscillator=New Sine
+			Case 2 oscillator=New Sawtooth
+			Case 3 oscillator=New Triangle
+			Case 4 oscillator=New Noise
+		End
 	End
 	
-	Method SetEnvelope(env:Envelope)
-		envelope=env
+	Method SetEnvelope(env:Int)
+		Select env
+			Case 0 
+				envelope=New ADSR(0.06,0.01,0.92,0.5)
+		End
 	End
 
 	Method SetPan(value:V)
 		pan=value
 	End
+	
+	Method SetGain(value:V)
+		gain=value
+	End
+
+	Method Stop()
+		NoteOff()
+		envelope.Off()
+	End	
 	
 	Method NoteOn(note:Int)
 		hz=440.0*Pow(2.0,(note-67.0)/12)
@@ -161,6 +197,7 @@ Class Voice
 			Local v:=oscillator.Sample(hz)			
 			Local e:V
 			If noteOn e=envelope.On() Else e=envelope.Off()
+			e*=gain
 			buffer[i*2+0]+=e*left*v
 			buffer[i*2+1]+=e*right*v
 		Next
@@ -174,35 +211,87 @@ Class VSynth Extends Window
 	Method New(title:String)
 		Super.New(title,720,560,WindowFlags.Resizable)				
 		vsynth=Self
-		UpdateAudio()					
-		Print audioPipe.readPointer
 		OpenAudio()
 	End
 	
 	Method OnRender( display:Canvas ) Override	
 		App.RequestRender()	
 		UpdateAudio()
+
+		Local text:String = About+",,"+Octave1+","+Octave0+","+"Oscillator : "+OscillatorNames[oscillator]+"=1-5,,"+Contact
+
+		Local cy:=40
+		For Local line:=Eachin text.Split(",")
+			Local cx:=50
+			For Local tab:=Eachin line.Split("=")
+				display.DrawText(tab,cx,cy)
+				cx+=200
+			Next
+			cy+=20
+		Next
+
 	End
 	
 	Field frame:Int
 	Field tick:Int
 	
-	Const MusicKeys:=New Key[]( Key.A,Key.W,Key.S,Key.E,Key.D,  Key.F,Key.T,Key.G,Key.Y,Key.H,Key.U,Key.J,Key.K)
+	Const MusicKeys:=New Key[]( Key.Q,Key.A,Key.W,Key.S,Key.E,Key.D,  Key.F,Key.T,Key.G,Key.Y,Key.H,Key.U,Key.J,  Key.K,Key.O,Key.L,Key.P,Key.Semicolon,Key.Apostrophe )
 	
 	Field keyNoteMap:=New Map<Key,Int>
+
+	Field voices:=New Stack<Voice>
+	Field polyList:=New List<Voice>
+	Field polyMap:=New Map<Int,Voice>
+	
+	Method NoteOn(note:Int)
+		NoteOff(note)
+		If polyList.Empty Return
+		Local voice:=polyList.RemoveFirst()
+		voice.SetEnvelope(envelope)
+		voice.SetOscillator(oscillator)
+		voice.NoteOn(note)
+		polyMap[note]=voice
+		polyList.Remove(voice)
+		If Not voices.Contains(voice)
+			voices.Add(voice)
+		endif	
+	End
+
+	Method NoteOff(note:Int)	
+		Local voice:=polyMap[note]
+		If voice
+			voice.Stop()
+			polyMap.Remove(note)
+			polyList.AddLast(voice)
+		Endif
+	End
 		
+	Field monoKey:Key
+	
+	Method KeyDown(key:Key)
+		Local note:=keyNoteMap[key]
+		NoteOn(note)
+		monoKey=key
+	End
+
+	Method KeyUp(key:Key)
+'		If key<>monoKey Return
+		Local note:=keyNoteMap[key]
+		NoteOff(note)
+	End
+
 	Method UpdateSequence()
 		frame+=1
-		Local t:Int=(frame/20)
+		Local t:Int=(frame/20)	
 		If t<>tick
+			Local note:=((t Shr 1)&15)*3+40
 			If t&1
-				tone.NoteOn((t&15)*3+40)
+				NoteOn(note)
 			Else
-				tone.NoteOff()			
+				NoteOff(note)			
 			Endif
 			tick=t
-		Endif		
-		
+		Endif				
 '		Print "tick d="+d
 	End
 	
@@ -213,9 +302,9 @@ Class VSynth Extends Window
 	Field mousex:Int
 	Field mousey:Int
 	
-	Field voices:=New List<Voice>
-	Field tone:=New Voice
-
+	Field oscillator:Int
+	Field envelope:Int
+	
 	Method OpenAudio()
 		Local spec:SDL_AudioSpec
 		spec.freq=AudioFrequency	
@@ -235,13 +324,15 @@ Class VSynth Extends Window
 		Endif
 		
 		For Local i:=0 Until MusicKeys.Length
-			keyNoteMap.Set(MusicKeys[i],60+i)
+			keyNoteMap.Set(MusicKeys[i],59+i)
 		Next
 		
-		tone.SetOscillator(New Square)
-'		tone.SetEnvelope(New Envelope)
-		tone.SetEnvelope(New ADSR(0.06,0.01,0.92,0.5))
-		voices.AddLast(tone)
+		For Local i:=0 Until MaxPolyphony
+			Local tone:=New Voice
+			tone.SetOscillator(0)
+			tone.SetEnvelope(0)
+			polyList.AddLast(tone)
+		Next
 		
 		SDL_PauseAudio(0)
 	End
@@ -276,24 +367,20 @@ Class VSynth Extends Window
 		Return value
 	End
 				
-	Field monoKey:Key
-	
-	Method KeyDown(key:Key)
-		Local note:=keyNoteMap[key]
-		tone.NoteOn(note)
-		monoKey=key
-	End
-
-	Method KeyUp(key:Key)
-		If key<>monoKey Return
-		Local note:=keyNoteMap[key]
-		tone.NoteOff()
-	End
-
 	Method OnKeyEvent( event:KeyEvent ) Override	
 		Select event.Type
 		Case EventType.KeyDown
 			Select event.Key
+			Case Key.Key1
+				oscillator=0
+			Case Key.Key2
+				oscillator=1
+			Case Key.Key3
+				oscillator=2
+			Case Key.Key4
+				oscillator=3
+			Case Key.Key5
+				oscillator=4
 			Case Key.Escape
 				instance.Terminate()
 			Default
@@ -317,6 +404,6 @@ End
 
 Function Main()
 	instance = New AppInstance	
-	New VSynth("VSynth0.01")	
+	New VSynth(AppTitle)	
 	App.Run()	
 End
