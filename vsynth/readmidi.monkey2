@@ -1,222 +1,227 @@
 #Import "<std>"
+#Import "assets/chopin.mid"
 
 Using std..
 
-Global RIFF:=$46464952
-Global RMID:=$44494d52
+Global HexDigits:=New String[]("0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F")
 
-Global MThd:=$6468544d
-Global MTrk:=$6b72544d
+Function HexByte:String(value:Int)
+	Local v0:=(value Shr 4)&15
+	Local v1:=value&15
+	Return HexDigits[v0]+HexDigits[v1]
+End
 
-Function readTime:Int(p:UByte Ptr)
-	Local t:Int	
-	While True
-		Local u8:=p[0]
-		t=(t Shl 7) + u8
-		If u8&128 Exit
-		p+=1
-	Wend
-	Return t
+Function HexList:String(binary:Int[])
+	Local h:String
+	For Local i:=0 Until binary.Length
+		h+=HexByte(i)+","	
+	Next
+	Return h
+End
+
+Class RingBuffer
+	Method New(size:Int)
+	End
+	Method Available:Int()
+		Return 0
+	End
+	Method Read(dest:Byte[])
+	End
+	Method Write(src:Byte[])
+	End
+End
+
+Class MidiFile
+	Private 
+	
+	Field stream:FileStream		
+	Field clock:Int	
+
+	Field databuffer:=New DataBuffer(256)
+	Field midibuffer:=New RingBuffer(65536*4)
+		
+	Method Available:Int()
+		Return midibuffer.Available()
+	End
+	
+	Method Read(dest:Byte[])
+		midibuffer.Read(dest)
+	End
+	
+	Function ReadBigInt:Int(stream:FileStream)
+		Local b0:=$ff&stream.ReadByte()
+		Local b1:=$ff&stream.ReadByte()
+		Local b2:=$ff&stream.ReadByte()
+		Local b3:=$ff&stream.ReadByte()
+		Return (b0 Shl 24)|(b1 Shl 16)|(b2 Shl 8)|b3
+	End
+	
+	Function ReadBigShort:Short(stream:FileStream)
+		Local b0:=$ff&stream.ReadByte()
+		Local b1:=$ff&stream.ReadByte()
+		Return (b0 Shl 8)|b1
+	End
+	
+	Method Reset()	
+	
+		stream=FileStream.Open("/Users/simon/nitrologic/m2/vsynth/assets/chopin.mid","r")	
+		
+		If Not stream
+			Print "Could not open file"
+			Return
+		Endif
+		
+		Local hdr:=New Byte[4]
+		Local chunksize:Int
+		Local fileformat:Int
+		Local trackcount:Int
+		Local timediv:Int
+		
+		hdr[0]=stream.ReadByte()
+		hdr[1]=stream.ReadByte()
+		hdr[2]=stream.ReadByte()
+		hdr[3]=stream.ReadByte()
+		
+		If Not (hdr[0]=$4d And hdr[1]=$54 And hdr[2]=$68 And hdr[3]=$64)
+			Print "Not a valid midi file"
+			Return
+		Endif
+		
+		chunksize=ReadBigInt(stream)
+
+		fileformat=ReadBigShort(stream)
+		trackcount=ReadBigShort(stream)
+		timediv=ReadBigShort(stream)
+		
+		Print "chopin.mid "+chunksize+","+fileformat+","+trackcount+","+timediv
+								
+		For Local i:=0 Until trackcount
+		
+			hdr[0]=stream.ReadByte()
+			hdr[1]=stream.ReadByte()
+			hdr[2]=stream.ReadByte()
+			hdr[3]=stream.ReadByte()
+			
+			If Not (hdr[0]=$4d And hdr[1]=$54 And hdr[2]=$72 And hdr[3]=$6B)
+				Print "Error#"
+				Exit				
+			Endif
+			
+			chunksize=ReadBigInt(stream)		
+			
+			Print "track#"+i+" "+chunksize			
+
+			Local p:=0
+			Local status:=0
+			
+			While p<chunksize
+				
+				Local t:Int
+				Local b:Int
+				
+				While True
+					b=stream.ReadByte()
+					p+=1
+					t=(t Shl 7) | (b & $7f)
+					If (b&$80)=0 Exit
+				Wend
+				
+				Local cmd:Int,channel:Int,p0:Byte,p1:Byte,p2:Byte,p3:Byte,p4:Byte,n:Int
+				
+				cmd=stream.ReadByte()
+				cmd&=$ff
+				
+				If cmd&$80=0
+					p0=cmd
+					cmd=status
+					p+=1
+				Else	
+					status=cmd			
+					p0=stream.ReadByte()				
+					p+=2
+				Endif				
+				
+				Select cmd
+				
+					Case 255
+						Select p0
+							Case 47
+								n=stream.ReadByte()
+								p+=1
+								Print ":"+t+" [ END TRACK ] "+n
+								
+							Case 81
+								n=stream.ReadByte()
+								p1=stream.ReadByte()								
+								p2=stream.ReadByte()								
+								p3=stream.ReadByte()	
+								p+=4
+								Print ":"+t+" [ TEMPO ] "+HexByte(p1)+","+HexByte(p2)+","+HexByte(p3)
+							Case 88
+								n=stream.ReadByte()
+								p1=stream.ReadByte()								
+								p2=stream.ReadByte()								
+								p3=stream.ReadByte()	
+								p4=stream.ReadByte()							
+								p+=5				
+								Print ":"+t+" [ TIMESIG ] "+p1+","+p2+","+p3+","+p4
+							Case 89
+								n=stream.ReadByte()
+								p1=stream.ReadByte()								
+								p2=stream.ReadByte()								
+								p+=3				
+								Print ":"+t+" [ KEYSIG ] "+p1+","+p2
+							Default
+								p1=stream.ReadByte()								
+								stream.Read(databuffer,0,p1)	
+								Local text:String				
+								For Local i:=0 Until p1
+									Local char:=databuffer.PeekByte(i) & $ff
+									text+=String.FromChar(char)
+								Next					
+								p+=1+p1				
+								Print ":"+t+" [ META ] "+p0+","+p1+":"+text
+						End
+
+					Case 240,247
+						Local t2:Int
+						While True
+							t2=(t2 Shl 7) | (p0 & $7f)
+							If (p0&$80)=0 Exit
+							p0=stream.ReadByte()
+							p+=1
+						Wend						
+						Print ":"+t+" [ SYSEX ] "+t2
+					
+					Default
+						channel=cmd & $f
+						cmd=cmd Shr 4
+					
+						Select cmd
+					
+							Case 12
+								Print " ["+cmd+"] #"+channel+","+p0+" +"+t					
+							
+							Case 13
+								Print " ["+cmd+"] #"+channel+","+p0+" +"+t					
+	
+							Default				
+								p1=stream.ReadByte()								
+								p+=1
+'								print "["+cmd+"] #"+channel+","+p0+","+p1+" +"+t
+								midibuffer.Write(New Byte[](cmd Shl 4,p0,p1))								
+						End
+				End
+				
+			Wend				
+		
+		Next		
+				
+	End
+
 End
 
 Function Main()
-	Print "readmidi v0.0"
+	Print "readmidi v0.0"	
+	New MidiFile().Reset()
 End
-
-#rem
-
-struct synth;
-struct track;
-struct mtrak;
-
-uint readtime(uchar *&ptr)
-{
-	uint	t=0;
-	do {t=(t<<7)+(*ptr&0x7f);}while (*ptr++&0x80);
-	return t;
-}
-
-struct mtrak
-{
-	int		size;
-	uchar	*start,*end,*a,cmd;
-	uint	stime,ptime;		//sequence time && previous time
-
-	mtrak(uchar *pos,int len)
-	{
-		uint	t;
-		uchar	meta;
-
-		start=pos;
-		end=start+len;
-		size=0;
-		a=start;
-		
-		while (a<end)
-		{
-			readtime(a);
-			switch (*a)
-			{
-			case 0xf0:
-				a++;t=readtime(a);a+=t;break;
-			case 0xff:
-				a++;meta=*a++;t=readtime(a);
-				switch (meta)
-				{
-					case (0x51):size+=3;break;
-				}
-				a+=t;
-				break;
-			default:
-				if (*a & 0x80) cmd=*a++;
-				a++;
-				if (cmd<0xc0 || cmd>0xdf) a++;
-				size+=3;
-				break;
-			}
-		}
-		a=start;stime=0;	//running sequencer variables
-	}
-
-	uint sequence(uint *data,int &i,uint time,uint &gap)
-	{
-		uint	etime,t;
-		uchar	*bakup,*c,meta;
-
-		while (a<end)
-		{
-			bakup=a;
-			etime=readtime(a)+stime;
-			if (etime>time) {a=bakup;return (etime);}
-			stime=etime;
-
-			switch (*a)
-			{
-			case 0xf0:
-				a++;t=readtime(a);a+=t;break;
-			case 0xff:
-				a++;meta=*a++;t=readtime(a);
-				switch (meta)
-				{
-				case (0x51):
-					data[i+0]=gap;		//time;
-					data[i+1]=0;
-					data[i+2]=(MEVT_TEMPO<<24)+(a[0]<<16)+(a[1]<<8)+(a[2]);
-					gap=0;i+=3;
-					break;
-				}
-				a+=t;
-				break;
-			default:
-				data[i+0]=gap;			//time;
-				data[i+1]=0;
-				data[i+2]=0;
-				c=(uchar *)&data[i+2];
-				if (*a & 0x80) {cmd=*a;a++;}
-				*c++=cmd;
-				*c++=*a++;
-				if (cmd<0xc0 || cmd>0xdf) *c++=*a++;
-				gap=0;i+=3;
-				break;
-			}
-		}
-		return (0xffffffff);
-	}
-};
-
-int getlong(uchar *h) {return (h[3])+(h[2]<<8)+(h[1]<<16)+(h[0]<<24);}
-int getword(uchar *h) {return (h[1])+(h[0]<<8);}
-
-struct track
-{
-	int		length;
-	uint	*data;
-	int		format,tcount,division;
-	int		filesize;
-
-	track(int len)
-	{
-		length=len;data=new uint[len];
-	}
-	
-	track(char *filename)
-	{
-		uchar	*buffer,*ptr;
-		int		len,i,dpos;
-		uint	time,ctime,ntime,gap;
-		mtrak	*trax[16];
-		int		numtrax;
-
-		data=0;length=0;
-
-		buffer=(uchar *)loadfile(filename);
-		if (buffer==0) return;
-
-		ptr=buffer;
-
-		if (*(int *)ptr==RIFF && *(int *)(ptr+8)==RMID) ptr+=20;
-
-		numtrax=0;
-
-		while (ptr<buffer+filesize)
-		{
-			len=getlong(ptr+4);
-
-			switch(*(uint *)ptr)
-			{
-			case MThd:
-				format=getword(ptr+8);
-				tcount=getword(ptr+10);
-				division=getword(ptr+12);
-				break;
-			case MTrk:
-				trax[numtrax++]=new mtrak(ptr+8,len);
-				break;
-			}
-			ptr+=len+8;
-		}
-
-		length=0;for (i=0;i<numtrax;i++) length+=trax[i]->size;
-		data=new uint[length];
-		
-		dpos=0;time=0;gap=0;
-		
-		while (dpos<length)
-		{
-			ctime=0xffffffff;
-			for (i=0;i<numtrax;i++)
-			{
-				ntime=trax[i]->sequence(data,dpos,time,gap);
-				if (ntime<ctime) ctime=ntime;
-			}
-			if (ctime==0xffffffff) break;
-			gap+=(ctime-time);
-			time=ctime;
-		}
-
-		for (i=0;i<numtrax;i++) delete trax[i];
-	}
-
-	void *loadfile(const char *name,void *dest=0)
-	{
-		FILE    *file;
-		ulong   len;
-		char    *start=NULL;
-
-		file=fopen(name,"rb");
-		if (!file) return NULL;
-		fseek(file,0,SEEK_END);
-		len=ftell(file);
-		filesize=len;
-		if (len)
-		{
-			rewind(file);
-			start=(char*)(dest?dest:malloc(len));
-			if (start) fread(start,1,len,file);
-		}
-		fclose(file);
-		return start;
-	}
-};
-
-#end
