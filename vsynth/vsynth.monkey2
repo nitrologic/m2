@@ -4,8 +4,6 @@
 
 #Import "audiopipe.monkey2"
 
-' 
-
 Using std..
 Using mojo..
 Using sdl2..
@@ -35,7 +33,7 @@ Global instance:AppInstance
 Global vsynth:VSynth
 
 Global Duration:=0
-Global FragmentSize:=32
+Global FragmentSize:=1024
 Global WriteAhead:=8192
 Global AudioFrequency:=44100
 
@@ -313,7 +311,7 @@ End
 
 Class VSynthWindow Extends Window
 
-	Const MusicKeys:=New Key[]( Key.Q,Key.A,Key.W,Key.S,Key.E,Key.D,  Key.F,Key.T,Key.G,Key.Y,Key.H,Key.U,Key.J,  Key.K,Key.O,Key.L,Key.P,Key.Semicolon,Key.Apostrophe )
+	Const MusicKeys:=New Key[]( Key.Q,Key.A,Key.W,Key.S,Key.E,Key.D,  Key.F,Key.T,Key.G,Key.Y,Key.H,Key.U,Key.J,  Key.K,Key.O,Key.L,Key.P,Key.Semicolon)',Key.Apostrophe )
 
 	Field frame:Int
 	Field tick:Int
@@ -343,10 +341,10 @@ Class VSynthWindow Extends Window
 		vsynth.UpdateAudio()
 
 		Local text:String = About+",,"+Octave1+","+Octave0+","
-		text+="Octave : "+octave+"= < >,,"
-		text+="Oscillator : "+OscillatorNames[oscillator]+"=1-5,"
-		text+="Envelope : "+EnvelopeNames[envelope]+"=[ ],"
-		text+="PitchBend : "+FloatString(pitchbend)+"=Mouse Wheel"
+		text+="Octave=< >="+octave
+		text+=",Oscillator=1-5="+OscillatorNames[oscillator]
+		text+=",Envelope=[]="+EnvelopeNames[envelope]
+		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)
 		text+=",,"+Controls+",,"+Contact
 
 		Local cy:=40
@@ -354,7 +352,7 @@ Class VSynthWindow Extends Window
 			Local cx:=50
 			For Local tab:=Eachin line.Split("=")
 				display.DrawText(tab,cx,cy)
-				cx+=200
+				cx+=100
 			Next
 			cy+=20
 		Next
