@@ -17,7 +17,7 @@ Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
 Global Controls:="Reset Keys=Space,Quit=Escape"
 
 Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise")
-Global EnvelopeNames:=New String[]("Plain","Punchy","SlowOut","SlowIn")
+Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random")
 
 Alias V:Double ' Voltage(volts)
@@ -37,7 +37,7 @@ Global FragmentSize:=1024
 Global WriteAhead:=8192
 Global AudioFrequency:=44100
 
-Const MaxPolyphony:=16
+Const MaxPolyphony:=32
 
 Class Envelope
 	Field p:V
@@ -140,7 +140,18 @@ Class Noise Extends Oscillator
 	End
 End
 
-Class Voice
+Interface NotePlayer
+	Method SetOscillator(osc:Int)
+	Method SetEnvelope(env:Int)
+	Method SetPan(value:V)
+	Method SetGain(value:V)
+	Method Stop()
+	Method NoteOn(note:Int)
+	Method NoteOff()
+End
+
+
+Class Voice Implements NotePlayer
 	Field oscillator:Oscillator
 	Field envelope:Envelope
 	Field noteOn:Bool
@@ -161,12 +172,14 @@ Class Voice
 	Method SetEnvelope(env:Int)
 		Select env
 			Case 0 
+				envelope=New Envelope()
+			Case 1 
 				envelope=New ADSR(0.05,1.5,0.2,0.3)
-			Case 1
+			Case 2
 				envelope=New ADSR(0.06,0.01,0.92,0.2)
-			Case 2 
+			Case 3 
 				envelope=New ADSR(0.06,2.0,0.2,1.2)
-			Case 3
+			Case 4
 				envelope=New ADSR(0.2,0.2,0.92,0.4)
 		End
 	End
@@ -209,6 +222,13 @@ Class Voice
 	End
 End
 
+
+Class PolySynth Implements NotePlayer
+End
+
+Class MonoSynth Implements NotePlayer
+End
+
 Class VSynth
 
 	Field audioSpec:SDL_AudioSpec
@@ -236,10 +256,9 @@ Class VSynth
 		While True
 			Local buffered:=audioPipe.writePointer-audioPipe.readPointer
 			If buffered>=WriteAhead Exit
-			Local samples:=FragmentSize
-			Local buffer:=vsynth.FillAudioBuffer(samples)			
+			Local buffer:=vsynth.FillAudioBuffer(FragmentSize)			
 			Local pointer:=Varptr buffer[0]
-			audioPipe.WriteSamples(pointer,samples*2)
+			audioPipe.WriteSamples(pointer,FragmentSize*2)
 		Wend
 	End
 		
@@ -431,18 +450,19 @@ Class VSynthWindow Extends Window
 	Method OnMouseEvent( event:MouseEvent ) Override	
 		mousex=event.Location.X
 		mousey=event.Location.Y
-		pitchbend+=event.Wheel.Y/24.0
+		pitchbend+=event.Wheel.Y/48.0
 	End
 	
 End
 
 Function FloatString:String(value:Float,dp:Int=2)
 	Local sign:String
-	If value<0 
+	Local integral:=Int(value*(Pow(10,dp)))
+	If integral<0 
 		sign="-"
-		value=-value
+		integral=-integral
 	Endif
-	Local a:String=Int(value*(Pow(10,dp)))
+	Local a:String=integral
 	Local l:=dp+1-a.Length
 	If l>0 a="000000".Slice(0,l)+a
 	Local r:=a.Length
