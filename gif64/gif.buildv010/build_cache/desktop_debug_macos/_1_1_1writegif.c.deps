@@ -1,0 +1,2 @@
+writegif.o: /Users/simon/nitrologic/m2/gif64/writegif.c \
+  /Users/simon/nitrologic/m2/gif64/gif.h

@@ -8,7 +8,7 @@ Using std..
 Using mojo..
 Using sdl2..
 
-Global AppTitle:String="VSynth 0.01 Big Ben Release"	
+Global AppTitle:String="VSynth 0.02"	
 Global Contact:="Latest Source=github.com/nitrologic/m2"
 
 Global About:="VSynth Control"
@@ -222,85 +222,29 @@ Class Voice Implements NotePlayer
 	End
 End
 
-
-Class PolySynth Implements NotePlayer
+Interface Synth
+	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
+	Method NoteOff(node:Int)
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
 End
 
-Class MonoSynth Implements NotePlayer
-End
+Class PolySynth Implements Synth
 
-Class VSynth
-
-	Field audioSpec:SDL_AudioSpec
-	Field buffer:=New Double[FragmentSize*2]
-	Field audioPipe:=AudioPipe.Create()
-	Field voices:=New Stack<Voice>
 	Field polyList:=New List<Voice>
 	Field polyMap:=New Map<Int,Voice>
-
-	Field detune:V
-
+	Field voices:=New Stack<Voice>
+	
 	Method New()
-		OpenAudio()
-	End
-	
-	Method Detune(bend:V)
-		detune=bend
-	End
-	
-	Method ClearKeys()
-		voices.Clear()
-	End
-
-	Method UpdateAudio()
-		While True
-			Local buffered:=audioPipe.writePointer-audioPipe.readPointer
-			If buffered>=WriteAhead Exit
-			Local buffer:=vsynth.FillAudioBuffer(FragmentSize)			
-			Local pointer:=Varptr buffer[0]
-			audioPipe.WriteSamples(pointer,FragmentSize*2)
-		Wend
-	End
-		
-	Method FillAudioBuffer:Double[](samples:Int)	
-		For Local i:=0 Until samples
-			buffer[i*2+0]=0
-			buffer[i*2+1]=0
-		Next			
-		For Local voice:=Eachin voices
-			voice.Mix(buffer,samples,detune)
-		Next
-		
-		Duration+=samples
-		Return buffer
-	End
-	
-	Method OpenAudio()
-		Local spec:SDL_AudioSpec
-		spec.freq=AudioFrequency	
-		spec.format = AUDIO_S16
-		spec.channels = 2
-		spec.samples = FragmentSize
-		spec.callback = AudioPipe.Callback
-		spec.userdata = audioPipe.Handle()
-		
-		Mix_CloseAudio()		
-		Local error:Int = SDL_OpenAudio(Varptr spec,Varptr audioSpec)		
-		If error
-			Print "error="+error+" "+String.FromCString(SDL_GetError())
-		Else
-			Print "Audio Open freq="+audioSpec.freq
-			AudioFrequency=audioSpec.freq
-		Endif
-				
 		For Local i:=0 Until MaxPolyphony
 			Local tone:=New Voice
 			tone.SetOscillator(0)
 			tone.SetEnvelope(0)
 			polyList.AddLast(tone)
 		Next
-		
-		SDL_PauseAudio(0)
+	End
+	
+	Method Panic()
+		voices.Clear()
 	End
 
 	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
@@ -326,6 +270,117 @@ Class VSynth
 		Endif
 	End
 
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
+		For Local voice:=Eachin voices
+			voice.Mix(buffer,samples,detune)
+		Next		
+	End
+	
+End
+
+Class MonoSynth Implements Synth
+	Field tone:Voice
+	Field monoNote:Int
+
+	Method New()
+		tone=New Voice
+		tone.SetOscillator(0)
+		tone.SetEnvelope(0)
+	End
+	
+	Method Panic()
+		tone.NoteOff()
+	End
+
+	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
+		monoNote=note
+		tone.SetOscillator(oscillator)
+		tone.SetEnvelope(envelope)
+		tone.NoteOn(note)
+	End
+
+	Method NoteOff(note:Int)	
+		If note=monoNote
+			tone.NoteOff()
+		Endif
+	End
+
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
+		tone.Mix(buffer,samples,detune)
+	End
+
+End
+
+Class VSynth
+
+	Field audioSpec:SDL_AudioSpec
+	Field audioPipe:=AudioPipe.Create()
+	Field detune:V
+
+'	Field root:=New PolySynth()
+	Field root:=New MonoSynth()
+
+	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
+		root.NoteOn(note,oscillator,envelope)
+	End
+
+	Method NoteOff(note:Int)	
+		root.NoteOff(note)
+	End
+
+	Method New()
+		OpenAudio()
+	End
+	
+	Method Detune(bend:V)
+		detune=bend
+	End
+	
+	Method ClearKeys()
+		root.Panic()
+	End
+
+	Field buffer:=New Double[FragmentSize*2]
+
+	Method UpdateAudio()
+		While True
+			Local buffered:=audioPipe.writePointer-audioPipe.readPointer
+			If buffered>=WriteAhead Exit
+			For Local i:=0 Until FragmentSize*2
+				buffer[i]=0
+			Next	
+
+			Local samples:=FragmentSize
+			vsynth.root.FillAudioBuffer(buffer,samples,detune)			
+			Duration+=samples
+
+			Local pointer:=Varptr buffer[0]
+			audioPipe.WriteSamples(pointer,FragmentSize*2)
+		Wend
+	End
+			
+	Method OpenAudio()
+		Local spec:SDL_AudioSpec
+		spec.freq=AudioFrequency	
+		spec.format = AUDIO_S16
+		spec.channels = 2
+		spec.samples = FragmentSize
+		spec.callback = AudioPipe.Callback
+		spec.userdata = audioPipe.Handle()
+		
+		Mix_CloseAudio()		
+		Local error:Int = SDL_OpenAudio(Varptr spec,Varptr audioSpec)		
+		If error
+			Print "error="+error+" "+String.FromCString(SDL_GetError())
+		Else
+			Print "Audio Open freq="+audioSpec.freq
+			AudioFrequency=audioSpec.freq
+		Endif
+						
+		SDL_PauseAudio(0)
+	End
+
+
 End	
 
 Class VSynthWindow Extends Window
@@ -342,6 +397,9 @@ Class VSynthWindow Extends Window
 	Field octave:Int=5
 	
 	Field pitchbend:V
+
+	Field arp:Int
+	Field tempo:Int=120
 	
 	Field keyNoteMap:=New Map<Key,Int>
 
@@ -363,8 +421,11 @@ Class VSynthWindow Extends Window
 		text+="Octave=< >="+octave
 		text+=",Oscillator=1-5="+OscillatorNames[oscillator]
 		text+=",Envelope=[]="+EnvelopeNames[envelope]
-		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)
+		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
+		text+=",,Arpeggiator=F5-F8="+ArpNames[arp]
+		text+=",,Tempo=- +="+tempo
 		text+=",,"+Controls+",,"+Contact
+		
 
 		Local cy:=40
 		For Local line:=Eachin text.Split(",")
@@ -413,6 +474,20 @@ Class VSynthWindow Extends Window
 		Select event.Type
 		Case EventType.KeyDown
 			Select event.Key
+			Case Key.Minus
+				tempo-=1
+			Case Key.Key0
+				tempo+=1
+			Case Key.F5
+				arp=0
+			Case Key.F6
+				arp=1
+			Case Key.F7
+				arp=2
+			Case Key.F8
+				arp=3
+			Case Key.F9
+				arp=4
 			Case Key.Key1
 				oscillator=0
 			Case Key.Key2

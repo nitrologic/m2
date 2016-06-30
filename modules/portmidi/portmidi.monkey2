@@ -32,9 +32,14 @@ Namespace portmidi
 
 #Endif
 
-'#import "pm_linux/*.c"
-'#Import "pm_linux/*.h"
-'#import "porttime/ptlinux.c"
+#If __HOSTOS__="linux"
+
+#import "pm_linux/finddefault.c"
+#import "pm_linux/pmlinux.c"
+#import "pm_linux/pmlinuxalsa.c"
+#import "porttime/ptlinux.c"
+
+#Endif
 
 #Import "mididriver.h"
 

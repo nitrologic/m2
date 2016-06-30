@@ -1,0 +1,15 @@
+vsynth_monkey_math.o: \
+  /Users/simon/nitrologic/m2/vsynth/vsynth.buildv011/build_cache/desktop_debug_macos/vsynth_monkey_math.cpp \
+  /Users/simon/nitrologic/m2/vsynth/vsynth.buildv011/build_cache/desktop_debug_macos/vsynth_monkey_math.h \
+  /Users/simon/monkey2/modules/monkey/native/bbmonkey.h \
+  /Users/simon/monkey2/modules/monkey/native/bbstd.h \
+  /Users/simon/monkey2/modules/monkey/native/bbtypes.h \
+  /Users/simon/monkey2/modules/monkey/native/bbmemory.h \
+  /Users/simon/monkey2/modules/monkey/native/bbstring.h \
+  /Users/simon/monkey2/modules/monkey/native/bbdebug.h \
+  /Users/simon/monkey2/modules/monkey/native/bbgc.h \
+  /Users/simon/monkey2/modules/monkey/native/bbarray.h \
+  /Users/simon/monkey2/modules/monkey/native/bbfunction.h \
+  /Users/simon/monkey2/modules/monkey/native/bbobject.h \
+  /Users/simon/monkey2/modules/monkey/native/bbinit.h \
+  /Users/simon/nitrologic/m2/vsynth/vsynth.buildv011/build_cache/desktop_debug_macos/../../../../../../monkey2/modules/monkey/monkey.buildv011/desktop_debug_macos/monkey_math.h
