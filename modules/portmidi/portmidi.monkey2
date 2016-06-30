@@ -2,8 +2,6 @@ Namespace portmidi
 
 #Import "<std>"
 
-#Import "<CoreMIDI.framework>"
-
 #Import "pm_common/*.h"
 #Import "porttime/*.h"
 
@@ -14,20 +12,29 @@ Namespace portmidi
 #Import "porttime/porttime.h"
 #Import "porttime/porttime.c"
 
+#If __HOSTOS__="windows"
+
+#Import "pm_win/pmwin.c"
+#Import "pm_win/pmwinmm.c"
+#Import "porttime/ptwinmm.c"
+
+#Endif
+
+#If __HOSTOS__="macos"
+
+#Import "<CoreMIDI.framework>"
+
 #Import "pm_mac/finddefault.c"
 #Import "pm_mac/pmmac.c"
 #Import "pm_mac/pmmacosxcm.c"
 #Import "pm_mac/readbinaryplist.c"
-'#Import "pm_mac/*.h"
 #Import "porttime/ptmac.c"
+
+#Endif
 
 '#import "pm_linux/*.c"
 '#Import "pm_linux/*.h"
 '#import "porttime/ptlinux.c"
-
-'#import "pm_win/*.c"
-'#import "pm_win/*.h"
-'#import "porttime/ptwinmm.c"
 
 #Import "mididriver.h"
 
