@@ -1,6 +1,9 @@
-PortMIDI module for monkey2
+##PortMIDI module for monkey2
 
 A work in progress API for communication between desktop computers and MIDI instruments. 
+
+[PortMidi Documentation](portmidi.txt)
+
 
 ``` monkey
 
@@ -31,6 +34,3 @@ Function Main()
 End
 
 ```
-
-
-[PortMidi Documentation](portmidi.txt)
