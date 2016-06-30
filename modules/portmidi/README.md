@@ -2,7 +2,7 @@
 
 A work in progress API for communication between desktop computers and MIDI instruments. 
 
-[PortMidi Documentation](portmidi.txt)
+[PortMidi Documentation](README.txt)
 
 
 ``` monkey
