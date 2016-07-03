@@ -18,6 +18,7 @@ cd monkey2/scripts
 - sort of working keyboard input events
 - not working mouse input events
 - not currently XWindows friendly 
+- not working native requesters and Ted2
 
 [monkey2-pi-01.tar.gz](https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-01.tar.gz)
 
