@@ -19,6 +19,7 @@ Global Controls:="Reset Keys=Space,Quit=Escape"
 Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise")
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random")
+Global SynthNames:=New String[]("Mono1","Poly32")
 
 Alias V:Double ' Voltage(volts)
 Alias F:Double ' Frequency(hz)
@@ -226,6 +227,7 @@ Interface Synth
 	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
 	Method NoteOff(node:Int)
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
+	Method Panic()
 End
 
 Class PolySynth Implements Synth
@@ -281,6 +283,7 @@ End
 Class MonoSynth Implements Synth
 	Field tone:Voice
 	Field monoNote:Int
+	Field notes:=New Stack<Int>
 
 	Method New()
 		tone=New Voice
@@ -294,14 +297,21 @@ Class MonoSynth Implements Synth
 
 	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
 		monoNote=note
+		notes.Push(note)
 		tone.SetOscillator(oscillator)
 		tone.SetEnvelope(envelope)
 		tone.NoteOn(note)
 	End
 
-	Method NoteOff(note:Int)	
-		If note=monoNote
-			tone.NoteOff()
+	Method NoteOff(note:Int)
+		notes.Remove(note)
+		If notes.Empty
+			tone.NoteOff()		
+		Else
+			note=notes.Pop()
+			monoNote=note
+			notes.Push(note)
+			tone.NoteOn(note)
 		Endif
 	End
 
@@ -318,7 +328,7 @@ Class VSynth
 	Field detune:V
 
 '	Field root:=New PolySynth()
-	Field root:=New MonoSynth()
+	Field root:Synth=New MonoSynth()
 
 	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
 		root.NoteOn(note,oscillator,envelope)
@@ -330,6 +340,15 @@ Class VSynth
 
 	Method New()
 		OpenAudio()
+	End
+	
+	Method SetSynth(synth:Int)
+		Select synth
+			Case 0
+				root=New MonoSynth
+			Case 1
+				root=New PolySynth
+		end
 	End
 	
 	Method Detune(bend:V)
@@ -392,6 +411,7 @@ Class VSynthWindow Extends Window
 	Field mousex:Int
 	Field mousey:Int
 	
+	Field synth:Int
 	Field oscillator:Int
 	Field envelope:Int
 	Field octave:Int=5
@@ -423,6 +443,7 @@ Class VSynthWindow Extends Window
 		text+=",Envelope=[]="+EnvelopeNames[envelope]
 		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
 		text+=",,Arpeggiator=F5-F8="+ArpNames[arp]
+		text+=",,Synth=Enter Key="+SynthNames[synth]
 		text+=",,Tempo=- +="+tempo
 		text+=",,"+Controls+",,"+Contact
 		
@@ -438,7 +459,7 @@ Class VSynthWindow Extends Window
 		Next
 
 	End				
-	
+		
 	Method KeyDown(key:Key)
 		Local note:=keyNoteMap[key]+octave*12
 		vsynth.NoteOn(note,oscillator,envelope)
@@ -504,6 +525,9 @@ Class VSynthWindow Extends Window
 				envelope=Wrap(envelope-1,0,EnvelopeNames.Length)
 			Case Key.RightBracket
 				envelope=Wrap(envelope+1,0,EnvelopeNames.Length)				
+			Case Key.Enter
+				synth=Wrap(synth+1,0,SynthNames.Length)				
+				vsynth.SetSynth(synth)
 			Case Key.Comma
 				octave=Clamp(octave-1,0,12)
 			Case Key.Period
