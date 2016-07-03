@@ -2,7 +2,7 @@
 
 ##Monkey2 For Raspberry Pi
 
-First unofficial release of Monkey2 for raspberry pi.
+First unofficial alpha of Monkey2 for raspberry pi.
 
 From /home/pi
 
