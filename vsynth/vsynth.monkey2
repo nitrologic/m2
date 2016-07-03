@@ -39,6 +39,7 @@ Global WriteAhead:=8192
 Global AudioFrequency:=44100
 
 Const MaxPolyphony:=32
+Const MaxOctave:=12
 
 Class Envelope
 	Field p:V
@@ -459,15 +460,28 @@ Class VSynthWindow Extends Window
 		Next
 
 	End				
+	
+	Field noteMap:=New IntMap<Bool>
 		
 	Method KeyDown(key:Key)
-		Local note:=keyNoteMap[key]+octave*12
-		vsynth.NoteOn(note,oscillator,envelope)
+		If keyNoteMap.Contains(key)
+			KeyUp(key)
+			Local note:=keyNoteMap[key]+octave*12
+			noteMap[note]=True
+			vsynth.NoteOn(note,oscillator,envelope)
+		endif
 	End
 
-	Method KeyUp(key:Key)
-		Local note:=keyNoteMap[key]+octave*12
-		vsynth.NoteOff(note)
+	Method KeyUp(key:Key)		
+		If keyNoteMap.Contains(key)
+			For Local octave:=0 Until MaxOctave
+				Local note:=keyNoteMap[key]+octave*12
+				If noteMap.Contains(note)	
+					vsynth.NoteOff(note)
+					noteMap.Remove(note)
+				Endif
+			Next
+		endif
 	End
 
 	Method UpdateSequence()
@@ -529,9 +543,9 @@ Class VSynthWindow Extends Window
 				synth=Wrap(synth+1,0,SynthNames.Length)				
 				vsynth.SetSynth(synth)
 			Case Key.Comma
-				octave=Clamp(octave-1,0,12)
+				octave=Clamp(octave-1,0,MaxOctave)
 			Case Key.Period
-				octave=Clamp(octave+1,0,12)
+				octave=Clamp(octave+1,0,MaxOctave)
 			Case Key.Space
 				vsynth.ClearKeys()
 			Default
