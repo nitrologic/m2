@@ -1,4 +1,24 @@
-##Nitrologic m2 Public Binaries
+#Nitrologic m2 Public Binaries
+
+##Monkey2 For Raspberry Pi
+
+First unofficial release of Monkey2 for raspberry pi.
+
+/home/pi
+
+wget https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-01.tar.gz
+tar -xvf monkey2-pi-01.tar.gz
+cd monkey2/scripts
+./rebuildmods.sh
+
+- working mojo2 on SDL2 broadcom egl2 display
+- working SDL alsa audio and vsynth demo
+- not working keyboard input events
+- not currently XWindows friendly 
+
+[monkey2-pi-01.tar.gz](https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-01.tar.gz)
+
+##VPaint
 
 ###Operation
 
