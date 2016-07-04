@@ -2,11 +2,35 @@
 #Import "<mojo>"
 #Import "<sdl2>"
 
+#Import "<portmidi>"
+
 #Import "audiopipe.monkey2"
 
 Using std..
 Using mojo..
 Using sdl2..
+Using portmidi..
+
+
+global portMidi:PortMidi
+
+Function InitMidi()
+
+	Print "PortMidi test 0.1"
+
+	Print "Scanning Midi Bus, please wait."
+
+	portMidi=New PortMidi()
+	
+	Local inputs:=portMidi.inputDevices.Length
+	
+	Print "inputs="+inputs
+	
+	For Local i:=0 Until inputs
+		portMidi.OpenInput(i)
+		'Print "Open #"+i+" handle="+h 
+	next
+End
 
 Global AppTitle:String="VSynth 0.02"	
 Global Contact:="Latest Source=github.com/nitrologic/m2"
@@ -301,7 +325,7 @@ Class Arpeggiator extends BeatGenerator
 	End
 	
 	Method NoteOff(note:Int) Override
-		Super.NoteOff(note)
+		output.NoteOff(note)
 		notes.Remove(note)
 	End
 	
@@ -388,7 +412,9 @@ Class MonoSynth Implements Synth
 
 	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
 		monoNote=note
-		notes.Push(note)
+		If Not notes.Contains(note)
+			notes.Push(note)
+		endif
 		tone.SetOscillator(oscillator)
 		tone.SetEnvelope(envelope)
 		tone.NoteOn(note)
@@ -534,8 +560,31 @@ Class VSynthWindow Extends Window
 		Next
 		vsynth=New VSynth
 	End
+
+	method PollMidi()
+		Const NoteOn:=144
+		Const NoteOff:=128
+
+		While portMidi.HasEvent()
+			Local b:=portMidi.EventDataBytes()
+			Print b[0]+" "+b[1]+" "+b[2]+" "+b[3]
+			Local note:=b[1]
+			Local velocity:=b[2]
+			Select b[0]
+				Case NoteOn
+					vsynth.NoteOn(note,oscillator,envelope)
+				Case NoteOff
+					vsynth.NoteOff(note)
+			End					
+		Wend
+'		portMidi.Sleep(1.0/60)
+	end
+
 	
 	Method OnRender( display:Canvas ) Override	
+	
+		PollMidi()
+	
 		App.RequestRender()	
 
 		vsynth.Detune(Pow(2,pitchbend))
@@ -697,6 +746,7 @@ End
 
 Function Main()
 	instance = New AppInstance	
+	InitMidi()
 	New VSynthWindow(AppTitle)	
 	App.Run()	
 End
