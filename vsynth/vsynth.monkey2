@@ -20,12 +20,14 @@ Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Nois
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random")
 Global SynthNames:=New String[]("Mono1","Poly32")
+Global DivisorNames:=New String[]("Whole","Half","Third","Quarter","Fifth","Sixth","Seventh","Eighth")
 
 Alias V:Double ' Voltage(volts)
 Alias F:Double ' Frequency(hz)
 Alias T:Double ' Time(seconds)
 
 Alias Note:Int
+Alias Tempo:Int ' BeatsPerMinute
 Alias K:Key
 
 Public
@@ -225,11 +227,93 @@ Class Voice Implements NotePlayer
 End
 
 Interface Synth
+	Method SetTempo(tempo:Tempo,divisor:Int)
 	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
-	Method NoteOff(node:Int)
+	Method NoteOff(note:Int)
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
 	Method Panic()
 End
+
+Class BeatGenerator Implements Synth
+
+	Field bpm:=120
+	Field divisor:=3
+	Field output:Synth
+	Field time:T
+	Field clock:T
+	Field oscillator:Int
+	Field envelope:Int
+	Field recent:Note
+	
+	Method SetTempo(tempo:Tempo,div:Int)
+		bpm=tempo
+		divisor=div
+	End
+	
+	Method SetSynth(synth:Synth)
+		output=synth
+	End
+
+	Method NoteOn(note:Int,osc:Int,env:Int) Virtual
+		recent=note
+		oscillator=osc
+		envelope=env
+	End
+	
+	Method NoteOff(note:Int) virtual
+		output.NoteOff(note)
+	End
+	
+	Method Beat() Virtual
+		If recent
+			NoteOn(recent,oscillator,envelope)
+		Endif
+	End
+	
+	Method Update(duration:T)
+		time+=duration
+		While clock<time
+			Beat()			
+			clock+=60.0/(bpm*divisor)		
+		Wend
+	end
+	
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
+		Update(2.0*samples/AudioFrequency)
+		output.FillAudioBuffer(buffer,samples,detune)
+	End
+	
+	Method Panic()
+		output.Panic()
+	end
+end
+
+
+Class Arpeggiator extends BeatGenerator
+
+	Field notes:=New Stack<Note>
+	Field index:Int
+		
+	Method NoteOn(note:Int,osc:Int,env:Int) Override
+		Super.NoteOn(note,osc,env)
+		index=notes.Length
+		notes.Push(note)
+	End
+	
+	Method NoteOff(note:Int) Override
+		Super.NoteOff(note)
+		notes.Remove(note)
+	End
+	
+	Method Beat() Override
+		If notes.Length
+			index=index Mod notes.Length
+			Local note:=notes[index]
+			output.NoteOn(note,oscillator,envelope)
+		Endif
+		index+=1
+	End
+end
 
 Class PolySynth Implements Synth
 
@@ -244,6 +328,9 @@ Class PolySynth Implements Synth
 			tone.SetEnvelope(0)
 			polyList.AddLast(tone)
 		Next
+	End
+	
+	Method SetTempo(tempo:Tempo,divisor:Int)
 	End
 	
 	Method Panic()
@@ -292,6 +379,9 @@ Class MonoSynth Implements Synth
 		tone.SetEnvelope(0)
 	End
 	
+	Method SetTempo(tempo:Tempo,divisor:Int)
+	end
+	
 	Method Panic()
 		tone.NoteOff()
 	End
@@ -329,7 +419,19 @@ Class VSynth
 	Field detune:V
 
 '	Field root:=New PolySynth()
-	Field root:Synth=New MonoSynth()
+
+	Field poly:Synth=New PolySynth()
+	Field mono:Synth=New MonoSynth()
+	
+	Field root:Synth
+
+	Field arp:=New Arpeggiator()
+	
+	Method New()
+		OpenAudio()
+		arp.SetSynth(mono)
+		root=arp
+	End
 
 	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
 		root.NoteOn(note,oscillator,envelope)
@@ -338,18 +440,18 @@ Class VSynth
 	Method NoteOff(note:Int)	
 		root.NoteOff(note)
 	End
-
-	Method New()
-		OpenAudio()
-	End
 	
 	Method SetSynth(synth:Int)
 		Select synth
 			Case 0
-				root=New MonoSynth
+				arp.SetSynth(mono)
 			Case 1
-				root=New PolySynth
+				arp.SetSynth(poly)
 		end
+	End
+	
+	Method SetTempo(tempo:Tempo,divisor:Int)
+		arp.SetTempo(tempo,divisor)
 	End
 	
 	Method Detune(bend:V)
@@ -420,7 +522,8 @@ Class VSynthWindow Extends Window
 	Field pitchbend:V
 
 	Field arp:Int
-	Field tempo:Int=120
+	Field div:Int
+	Field tempo:Tempo=120
 	
 	Field keyNoteMap:=New Map<Key,Int>
 
@@ -436,6 +539,7 @@ Class VSynthWindow Extends Window
 		App.RequestRender()	
 
 		vsynth.Detune(Pow(2,pitchbend))
+		vsynth.SetTempo(tempo,1+div)
 		vsynth.UpdateAudio()
 
 		Local text:String = About+",,"+Octave1+","+Octave0+","
@@ -444,6 +548,7 @@ Class VSynthWindow Extends Window
 		text+=",Envelope=[]="+EnvelopeNames[envelope]
 		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
 		text+=",,Arpeggiator=F5-F8="+ArpNames[arp]
+		text+=",Note Divisor=/="+DivisorNames[div]
 		text+=",,Synth=Enter Key="+SynthNames[synth]
 		text+=",,Tempo=- +="+tempo
 		text+=",,"+Controls+",,"+Contact
@@ -509,6 +614,8 @@ Class VSynthWindow Extends Window
 		Select event.Type
 		Case EventType.KeyDown
 			Select event.Key
+			Case Key.Slash
+				div=Wrap(div+1,0,DivisorNames.Length)				
 			Case Key.Minus
 				tempo-=1
 			Case Key.Key0
