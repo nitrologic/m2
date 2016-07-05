@@ -1,5 +1,6 @@
 #Import "<std>"
 #Import "<mojo>"
+#Import "<portmidi>"
 
 #Import "assets/thrust.wav"
 #Import "assets/engine1.wav"
@@ -8,6 +9,7 @@
 
 Using std..
 Using mojo..
+Using portmidi..
 
 Global title:String="VPaint 0.3"	
 
@@ -226,11 +228,13 @@ Class VPaint Extends Window
 	Method ToggleTwo()	
 	End
 	
+	Global Transparent:=New Color(0,0,0,0)
+	
 	Method New(title:String)
 		Super.New(title,720,560,WindowFlags.Resizable)		
 		zoom=2
 '		pane=New VPane(2048,2048,Color.Black)
-		pane=New VPane(4096,4096,Color.Black)
+		pane=New VPane(4096,4096,Transparent)
 		browse=New VBrowse()
 		ink=New Color
 		radius=2.5
@@ -251,6 +255,48 @@ Class VPaint Extends Window
 		
 		sdl2.SDL_ShowCursor(0)
 		
+		InitMidi()		
+	End
+
+	Field portMidi:PortMidi
+
+	method InitMidi()
+		Print "PortMidi test 0.1"
+		Print "Scanning Midi Bus, please wait."
+		portMidi=New PortMidi()
+		Local inputs:=portMidi.inputDevices.Length
+		Print "inputs="+inputs
+		For Local i:=0 Until inputs
+			portMidi.OpenInput(i)
+			'Print "Open #"+i+" handle="+h 
+		next
+	End
+
+	method PollMidi()
+		Const NoteOn:=144
+		Const NoteOff:=128
+		Const Controller:=176
+		Const PitchWheel:=224
+
+		While portMidi.HasEvent()
+			Local b:=portMidi.EventDataBytes()
+			Local note:=b[1]
+			Local velocity:=b[2]
+			Local word:Int=note+(velocity Shl 7)
+			Select b[0]
+				Case NoteOn
+'					vsynth.NoteOn(note,oscillator,envelope)
+				Case NoteOff
+'					vsynth.NoteOff(note)
+				Case PitchWheel
+'					pitchbend=1.0+(word-8192)/8192.0
+				Case Controller
+					OnControl(b[1],b[2])
+				Default
+					Print b[0]+" "+b[1]+" "+b[2]+" "+b[3]
+			End					
+		Wend
+'		portMidi.Sleep(1.0/60)
 	End
 	
 	Method RefreshStatus()	
@@ -267,6 +313,9 @@ Class VPaint Extends Window
 	Field statusCount:Int
 	
 	Method OnRender( display:Canvas ) Override	
+	
+		PollMidi()
+		
 		App.RequestRender()						
 
 		Select appState
@@ -329,6 +378,28 @@ Class VPaint Extends Window
 		pany=0
 	End
 	
+	Field control:=New Int[128]
+	
+	Method OnControl(index:Int, value:Int)	
+		control[index]=value
+		Select index
+		Case 15
+			radius=value/4.0
+		Case 16
+			ClearColor=New Color(value/128.0,ClearColor.G,ClearColor.B)
+		Case 17
+			ClearColor=New Color(ClearColor.R,value/128.0,ClearColor.B)
+		Case 18
+			ClearColor=New Color(ClearColor.R,ClearColor.G,value/128.0)
+		Case 3
+			zoom=value/8
+		Default
+			Print "OnControl:"+index+" "+value
+		end
+		rotSpeed=(64-control[14])/512.0*control[2]
+
+	End
+	
 	Field CommandKey:=Modifier.Gui
 	
 	Method OnKeyEvent( event:KeyEvent ) Override	
@@ -346,7 +417,7 @@ Class VPaint Extends Window
 				pane.Smile(mousex,mousey,radius)
 				pane.Circle(mousex,mousey,radius)
 			Case Key.C
-				pane.Clear(ink )
+				pane.Clear(Transparent)
 			Case Key.Escape
 				instance.Terminate()
 			Case Key.F1

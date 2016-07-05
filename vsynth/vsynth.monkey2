@@ -11,27 +11,6 @@ Using mojo..
 Using sdl2..
 Using portmidi..
 
-
-global portMidi:PortMidi
-
-Function InitMidi()
-
-	Print "PortMidi test 0.1"
-
-	Print "Scanning Midi Bus, please wait."
-
-	portMidi=New PortMidi()
-	
-	Local inputs:=portMidi.inputDevices.Length
-	
-	Print "inputs="+inputs
-	
-	For Local i:=0 Until inputs
-		portMidi.OpenInput(i)
-		'Print "Open #"+i+" handle="+h 
-	next
-End
-
 Global AppTitle:String="VSynth 0.02"	
 Global Contact:="Latest Source=github.com/nitrologic/m2"
 
@@ -396,6 +375,7 @@ Class MonoSynth Implements Synth
 	Field tone:Voice
 	Field monoNote:Int
 	Field notes:=New Stack<Int>
+	Field oscillator:int
 
 	Method New()
 		tone=New Voice
@@ -410,12 +390,15 @@ Class MonoSynth Implements Synth
 		tone.NoteOff()
 	End
 
-	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
+	Method NoteOn(note:Int,osc:Int,envelope:Int)
 		monoNote=note
 		If Not notes.Contains(note)
 			notes.Push(note)
+		Endif
+		If osc<>oscillator
+			oscillator=osc
+			tone.SetOscillator(oscillator)
 		endif
-		tone.SetOscillator(oscillator)
 		tone.SetEnvelope(envelope)
 		tone.NoteOn(note)
 	End
@@ -473,7 +456,7 @@ Class VSynth
 				arp.SetSynth(mono)
 			Case 1
 				arp.SetSynth(poly)
-		end
+		End
 	End
 	
 	Method SetTempo(tempo:Tempo,divisor:Int)
@@ -528,7 +511,6 @@ Class VSynth
 		SDL_PauseAudio(0)
 	End
 
-
 End	
 
 Class VSynthWindow Extends Window
@@ -545,6 +527,7 @@ Class VSynthWindow Extends Window
 	Field envelope:Int
 	Field octave:Int=5
 	
+	Field mousebend:V
 	Field pitchbend:V
 
 	Field arp:Int
@@ -555,31 +538,52 @@ Class VSynthWindow Extends Window
 
 	Method New(title:String)
 		Super.New(title,720,560,WindowFlags.Resizable)				
+		InitMidi()
 		For Local i:=0 Until MusicKeys.Length
 			keyNoteMap.Set(MusicKeys[i],i-1)
 		Next
 		vsynth=New VSynth
 	End
 
+	Field portMidi:PortMidi
+
+	method InitMidi()
+		Print "PortMidi test 0.1"
+		Print "Scanning Midi Bus, please wait."
+		portMidi=New PortMidi()
+		Local inputs:=portMidi.inputDevices.Length
+		Print "inputs="+inputs
+		For Local i:=0 Until inputs
+			portMidi.OpenInput(i)
+			'Print "Open #"+i+" handle="+h 
+		next
+	End
+
 	method PollMidi()
 		Const NoteOn:=144
 		Const NoteOff:=128
+		Const Controller:=176
+		Const PitchWheel:=224
 
 		While portMidi.HasEvent()
 			Local b:=portMidi.EventDataBytes()
-			Print b[0]+" "+b[1]+" "+b[2]+" "+b[3]
 			Local note:=b[1]
 			Local velocity:=b[2]
+			Local word:Int=note+(velocity Shl 7)
 			Select b[0]
 				Case NoteOn
 					vsynth.NoteOn(note,oscillator,envelope)
 				Case NoteOff
 					vsynth.NoteOff(note)
+				Case PitchWheel
+					pitchbend=1.0+(word-8192)/8192.0
+				Case Controller
+				default
+					Print b[0]+" "+b[1]+" "+b[2]+" "+b[3]
 			End					
 		Wend
 '		portMidi.Sleep(1.0/60)
-	end
-
+	End
 	
 	Method OnRender( display:Canvas ) Override	
 	
@@ -587,7 +591,7 @@ Class VSynthWindow Extends Window
 	
 		App.RequestRender()	
 
-		vsynth.Detune(Pow(2,pitchbend))
+		vsynth.Detune(pitchbend)
 		vsynth.SetTempo(tempo,1+div)
 		vsynth.UpdateAudio()
 
@@ -635,7 +639,7 @@ Class VSynthWindow Extends Window
 					noteMap.Remove(note)
 				Endif
 			Next
-		endif
+		Endif
 	End
 
 	Method UpdateSequence()
@@ -719,7 +723,8 @@ Class VSynthWindow Extends Window
 	Method OnMouseEvent( event:MouseEvent ) Override	
 		mousex=event.Location.X
 		mousey=event.Location.Y
-		pitchbend+=event.Wheel.Y/48.0
+		mousebend+=event.Wheel.Y/48.0
+		pitchbend=Pow(2,mousebend)
 	End
 	
 End
@@ -733,9 +738,9 @@ Function FloatString:String(value:Float,dp:Int=2)
 	Endif
 	Local a:String=integral
 	Local l:=dp+1-a.Length
-	If l>0 a="000000".Slice(0,l)+a
-	Local r:=a.Length
-	Return sign+a.Slice(0,r-dp)+"."+a.Slice(r-dp)
+	If l>0 a="0000000000000".Slice(0,l)+a
+	Local r:=a.Length 
+	Return sign+a.Slice(0,r-dp)+"."+a.Slice(r-dp,r)
 End
 
 Function Wrap:Int(value:Int,lower:Int,upper:Int)
@@ -746,7 +751,6 @@ End
 
 Function Main()
 	instance = New AppInstance	
-	InitMidi()
 	New VSynthWindow(AppTitle)	
 	App.Run()	
 End
