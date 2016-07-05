@@ -14,13 +14,13 @@ cd monkey2/scripts
 ```
 
 - working mojo2 on SDL2 broadcom egl2 display
-- working SDL alsa audio and vsynth demo
-- sort of working keyboard input events
-- not working mouse input events
+- working SDL alsa audio, vpaint (with reduced canvas size) and vsynth demos
+- working keyboard and mouse input events
 - not currently XWindows friendly 
-- not working native requesters and Ted2
+- not working native requesters
+- not working Ted2 launch process
 
-[monkey2-pi-01.tar.gz](https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-01.tar.gz)
+[monkey2-pi-02.tar.gz](https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-02.tar.gz)
 
 ##VPaint
 
