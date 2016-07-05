@@ -88,7 +88,7 @@ Class PortMidi
 	Field inputDevices:=New IntStack()
 	Field outputDevices:=New IntStack()
 	
-	Field openDevices:=New IntStack()
+	Field openInputs:=New IntStack()
 	
 	Method Sleep(seconds:Double)
 		driver.Sleep(seconds)
@@ -98,6 +98,8 @@ Class PortMidi
 		Print "PortMidi"							
 		driver=New MidiDriver()
 		Print "countDevices="+driver.deviceCount
+		
+		If driver.deviceCount=0 Return
 		
 		For Local id:=0 Until driver.deviceCount
 			driver.GetInfo(id)
@@ -109,18 +111,18 @@ Class PortMidi
 			If driver.info.input inputDevices.Push(id)
 			If driver.info.output outputDevices.Push(id)
 		Next
-		
-		Local input0:=inputDevices.Get(0)		
-		Local in0:=driver.OpenInput(input0)
-
-		Print "in0="+in0
-		
-		openDevices.Push(in0)
 	End	
+	
+	Method OpenInput(index:Int)
+		Local inputDevice:=inputDevices.Get(index)		
+		Local input:=driver.OpenInput(inputDevice)
+		Print "PortMidi input="+input
+		openInputs.Push(input)
+	end
 		
-	Method Poll:Int()
+	Method HasEvent:Int()
 		Local count:Int
-		For Local device:=Eachin openDevices
+		For Local device:=Eachin openInputs
 			count+=driver.PollDevice(device)
 		Next
 		Return count
@@ -129,5 +131,12 @@ Class PortMidi
 	Method EventData:Int()
 		Return driver.MidiEventData()
 	End
+
+	Method EventDataBytes:UByte[]()
+		Local i:=EventData()
+		Return new UByte[](i&$ff,(i Shr 8)&$ff,(i Shr 16)&$ff,(i Shr 24)&$ff)
+	End
+
+
 End
 
