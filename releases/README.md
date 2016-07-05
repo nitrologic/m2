@@ -7,7 +7,7 @@ First unofficial alpha of Monkey2 for raspberry pi.
 From /home/pi
 
 ```
-wget https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-01.tar.gz
+wget https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-02.tar.gz
 tar -xvf monkey2-pi-01.tar.gz
 cd monkey2/scripts
 ./rebuildmods.sh
