@@ -39,6 +39,9 @@ Class MainWindowInstance Extends Window
 	Field _editSelectAll:Action
 	Field _editFind:Action
 	
+	Field _editSearch:Action
+	Field _quickHelp:Action
+
 	Field _buildDebug:Action
 	Field _buildRelease:Action
 	Field _buildForceStop:Action
@@ -303,6 +306,11 @@ Class MainWindowInstance Extends Window
 	Method OnEditSearch()
 	
 		_searchDialog.Open()
+	End
+
+	Method OnQuickHelp()
+		local tag:=_currentTextView.TagUnderCursor()
+		Notify("Quick Help!"+tag)
 	End
 
 	Method OnBuildDebug()
@@ -616,9 +624,10 @@ Class MainWindowInstance Extends Window
 		_findReplaceAll=New Action( "Replace All" )
 		_findReplaceAll.Triggered=OnFindReplaceAll
 
-		_editFind=New Action( "Search" )
-		_editFind.HotKey=Key.F1
-		_editFind.Triggered=OnEditSearch
+		_editSearch=New Action( "Search" )
+		_editSearch.HotKey=Key.F
+		_editSearch.HotKeyModifiers=ModifierControl|Modifier.Shift
+		_editSearch.Triggered=OnEditSearch
 
 		_buildDebug=New Action( "Debug" )
 		_buildDebug.HotKey=Key.F5
@@ -642,6 +651,10 @@ Class MainWindowInstance Extends Window
 		_buildNextError.HotKey=Key.F4
 		_buildNextError.Triggered=OnBuildNextError
 		
+		_quickHelp=New Action( "Quick Help" )
+		_quickHelp.HotKey=Key.F1
+		_quickHelp.Triggered=OnQuickHelp
+
 		_helpOnlineHelp=New Action( "Online Help" )
 		_helpOnlineHelp.Triggered=OnHelpOnlineHelp
 

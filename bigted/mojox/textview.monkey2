@@ -595,6 +595,14 @@ Class TextView Extends View
 		If text ReplaceText( text )
 	End
 	
+	Method ColorUnderCursor:int()
+		return _doc.Colors[_cursor]
+	End
+
+	Method TagUnderCursor:String()
+		return _doc.Tags[_cursor]
+	End
+	
 	Private
 	
 	Class UndoOp
