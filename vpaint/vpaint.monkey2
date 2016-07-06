@@ -233,8 +233,8 @@ Class VPaint Extends Window
 	Method New(title:String)
 		Super.New(title,720,560,WindowFlags.Resizable)		
 		zoom=2
-'		pane=New VPane(2048,2048,Color.Black)
-		pane=New VPane(4096,4096,Transparent)
+		pane=New VPane(2048,2048,Transparent)
+'		pane=New VPane(4096,4096,Transparent)
 		browse=New VBrowse()
 		ink=New Color
 		radius=2.5
@@ -253,7 +253,7 @@ Class VPaint Extends Window
 			Print "Sample not found"
 		Endif
 		
-		sdl2.SDL_ShowCursor(0)
+'		sdl2.SDL_ShowCursor(0)
 		
 		InitMidi()		
 	End
@@ -345,8 +345,10 @@ Class VPaint Extends Window
 				cx=Width/2-panx
 				cy=Height/2-pany
 				display.Translate(cx,cy)
-				Local scale:=-1.0/zoom
-				display.Scale(scale,scale)
+				if zoom
+					Local scale:=-1.0/zoom
+					display.Scale(scale,scale)
+				endif
 				display.Rotate(rot)		
 				
 				pane.Draw(display)		
@@ -381,22 +383,31 @@ Class VPaint Extends Window
 	Field control:=New Int[128]
 	
 	Method OnControl(index:Int, value:Int)	
+
+		If appState=AppState.Title
+			DrawMode()
+			Return
+		Endif
+
+		local f:=value/128.0
+		value-=64
+
 		control[index]=value
 		Select index
 		Case 15
-			radius=value/4.0
+			radius=(value+65)/4.0
 		Case 16
-			ClearColor=New Color(value/128.0,ClearColor.G,ClearColor.B)
+			ClearColor=New Color(f,ClearColor.G,ClearColor.B)
 		Case 17
-			ClearColor=New Color(ClearColor.R,value/128.0,ClearColor.B)
+			ClearColor=New Color(ClearColor.R,f,ClearColor.B)
 		Case 18
-			ClearColor=New Color(ClearColor.R,ClearColor.G,value/128.0)
+			ClearColor=New Color(ClearColor.R,ClearColor.G,f)
 		Case 3
-			zoom=value/8
+			zoom=f/8
 		Default
-			Print "OnControl:"+index+" "+value
+	'		Print "OnControl:"+index+" "+value
 		end
-		rotSpeed=(64-control[14])/512.0*control[2]
+		rotSpeed=-control[14]/512.0*(control[2]+64)
 
 	End
 	
