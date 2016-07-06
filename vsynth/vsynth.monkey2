@@ -21,7 +21,7 @@ Global Controls:="Reset Keys=Space,Quit=Escape"
 
 Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise")
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
-Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random")
+Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random1","Random2")
 Global SynthNames:=New String[]("Mono1","Poly32")
 Global DivisorNames:=New String[]("Whole","Half","Third","Quarter","Fifth","Sixth","Seventh","Eighth")
 
@@ -297,40 +297,82 @@ end
 
 
 Class Arpeggiator extends BeatGenerator
-
-	Field notes:Stack<Note>
 	Field natural:=New Stack<Note>
+	Field sorted:Stack<Note>
 	Field index:Int
+	Field algorithm:Int
+	Field hold:bool
+
+	Method SetArpeggiation(mode:Int)
+		algorithm=mode
+	End
+	
+	Method SetHold(down:Bool)
+		hold=down
+	end
 		
 	Method NoteOn(note:Int,osc:Int,env:Int) Override
-		Super.NoteOn(note,osc,env)
-		index=notes.Length
-		natural.Push(note)
+		If algorithm=0
+			output.NoteOn(note,osc,env)
+		else		
+			Super.NoteOn(note,osc,env)
+			If natural.Contains(note) natural.Remove(note)
+			natural.Push(note)
+			sorted=New Stack<Note>(natural)
+			sorted.Sort()
+		endif
 	End
 	
 	Method NoteOff(note:Int) Override
 		output.NoteOff(note)
-		natural.Remove(note)
+		If Not hold
+			natural.Remove(note)
+			sorted=New Stack<Note>(natural)
+			sorted.Sort()
+		endif
 	End
 	
 	Method Beat() Override
-		If notes.Length
-			index=index Mod notes.Length
-			Local note:=notes[index]
-			output.NoteOn(note,oscillator,envelope)
+		Local note:Int
+		
+		If natural.Length=0
+			index=0
+			return
 		Endif
-		index+=1
-	End
-	
-	Method SetMode(mode:Int)
-		Select mode
-			Case 0
-				notes=Null
+		
+		Select algorithm
 			Case 1
-				notes=natural
+				index=index Mod natural.Length
+				note=natural[index]
 			Case 2			
-				notes.Sort()
+				index=index Mod sorted.Length
+				note=sorted[index]
+			Case 3
+				index=index Mod sorted.Length
+				note=sorted[sorted.Length-index-1]
+			Case 4			
+				If sorted.Length>1
+					Local bounce:=sorted.Length-2
+					index=index Mod (sorted.Length+bounce)
+					Local i:=index
+					If i>bounce i=sorted.Length+bounce-index
+					note=sorted[i]
+				Else
+					note=sorted[0]
+				Endif
+			Case 5
+				index=index Mod sorted.Length
+				if RndULong() & 1
+					index-=2
+					If index<0 index+=sorted.Length
+				Endif
+				note=sorted[index]
+			Case 6
+				index=Rnd()*sorted.Length
+				note=sorted[index]
 		End
+		If note output.NoteOn(note,oscillator,envelope)
+		index+=1
 	End
 end
 
@@ -450,12 +492,13 @@ Class VSynth
 	
 	Field root:Synth
 
-	Field arp:=New Arpeggiator()
+	Field arpeggiator:=New Arpeggiator()
 	
 	Method New()
 		OpenAudio()
-		arp.SetSynth(mono)
-		root=arp
+		arpeggiator.SetSynth(mono)
+		arpeggiator.SetArpeggiation(1)
+		root=arpeggiator
 	End
 
 	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
@@ -469,20 +512,24 @@ Class VSynth
 	Method SetSynth(synth:Int)
 		Select synth
 			Case 0
-				arp.SetSynth(mono)
+				arpeggiator.SetSynth(mono)
 			Case 1
-				arp.SetSynth(poly)
+				arpeggiator.SetSynth(poly)
 		End
 	End
 	
 	Method SetTempo(tempo:Tempo,divisor:Int)
-		arp.SetTempo(tempo,divisor)
+		arpeggiator.SetTempo(tempo,divisor)
 	End
 	
 	Method SetArp(arpmode:Int)
-		arp.SetMode(arpmode)
-	end
+		arpeggiator.SetArpeggiation(arpmode)
+	End
 	
+	Method SetHold(hold:Bool)
+		arpeggiator.SetHold(hold)
+	End
+
 	Method Detune(bend:V)
 		detune=bend
 	End
@@ -551,6 +598,7 @@ Class VSynthWindow Extends Window
 	Field pitchbend:V=1.0
 
 	Field arp:Int
+	Field hold:Bool
 	Field div:Int
 	Field tempo:Tempo=120
 	
@@ -613,6 +661,8 @@ Class VSynthWindow Extends Window
 		App.RequestRender()	
 
 		vsynth.Detune(pitchbend)
+		vsynth.SetArp(arp)
+		vsynth.SetHold(hold)
 		vsynth.SetTempo(tempo,1+div)
 		vsynth.UpdateAudio()
 
@@ -621,7 +671,8 @@ Class VSynthWindow Extends Window
 		text+=",Oscillator=1-5="+OscillatorNames[oscillator]
 		text+=",Envelope=[]="+EnvelopeNames[envelope]
 		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
-		text+=",,Arpeggiator=F5-F8="+ArpNames[arp]
+		text+=",,Arpeggiator=F5-F11="+ArpNames[arp]
+		text+=",,Hold=Tab="+hold
 		text+=",Note Divisor=/="+DivisorNames[div]
 		text+=",,Synth=Enter Key="+SynthNames[synth]
 		text+=",,Tempo=- +="+tempo
@@ -704,6 +755,12 @@ Class VSynthWindow Extends Window
 				arp=3
 			Case Key.F9
 				arp=4
+			Case Key.F10
+				arp=5
+			Case Key.F11
+				arp=6
+			Case Key.Tab
+				hold=Not hold
 			Case Key.Key1
 				oscillator=0
 			Case Key.Key2
