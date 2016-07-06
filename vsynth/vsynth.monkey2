@@ -39,8 +39,9 @@ Global instance:AppInstance
 Global vsynth:VSynth
 
 Global Duration:=0
-Global FragmentSize:=1024
-Global WriteAhead:=8192
+Global FragmentSize:=512
+Global WriteAhead:=2048
+
 Global AudioFrequency:=44100
 
 Const MaxPolyphony:=32
@@ -275,10 +276,13 @@ Class BeatGenerator Implements Synth
 	
 	Method Update(duration:T)
 		time+=duration
-		While clock<time
-			Beat()			
-			clock+=60.0/(bpm*divisor)		
-		Wend
+		If bpm*divisor
+			Local period:=60.0/(bpm*divisor)
+			While clock<time
+				Beat()			
+				clock+=period		
+			Wend
+		Endif
 	end
 	
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
@@ -294,18 +298,19 @@ end
 
 Class Arpeggiator extends BeatGenerator
 
-	Field notes:=New Stack<Note>
+	Field notes:Stack<Note>
+	Field natural:=New Stack<Note>
 	Field index:Int
 		
 	Method NoteOn(note:Int,osc:Int,env:Int) Override
 		Super.NoteOn(note,osc,env)
 		index=notes.Length
-		notes.Push(note)
+		natural.Push(note)
 	End
 	
 	Method NoteOff(note:Int) Override
 		output.NoteOff(note)
-		notes.Remove(note)
+		natural.Remove(note)
 	End
 	
 	Method Beat() Override
@@ -315,6 +320,17 @@ Class Arpeggiator extends BeatGenerator
 			output.NoteOn(note,oscillator,envelope)
 		Endif
 		index+=1
+	End
+	
+	Method SetMode(mode:Int)
+		Select mode
+			Case 0
+				notes=Null
+			Case 1
+				notes=natural
+			Case 2			
+				notes.Sort()
+		End
 	End
 end
 
@@ -463,6 +479,10 @@ Class VSynth
 		arp.SetTempo(tempo,divisor)
 	End
 	
+	Method SetArp(arpmode:Int)
+		arp.SetMode(arpmode)
+	end
+	
 	Method Detune(bend:V)
 		detune=bend
 	End
@@ -528,7 +548,7 @@ Class VSynthWindow Extends Window
 	Field octave:Int=5
 	
 	Field mousebend:V
-	Field pitchbend:V
+	Field pitchbend:V=1.0
 
 	Field arp:Int
 	Field div:Int
@@ -578,6 +598,7 @@ Class VSynthWindow Extends Window
 				Case PitchWheel
 					pitchbend=1.0+(word-8192)/8192.0
 				Case Controller
+					OnControl(b[1],b[2])
 				default
 					Print b[0]+" "+b[1]+" "+b[2]+" "+b[3]
 			End					
@@ -720,6 +741,30 @@ Class VSynthWindow Extends Window
 		End
 	End
 
+	Field control:=New Int[128]
+	
+	Method OnControl(index:Int, value:Int)	
+	
+		local f:=value/128.0
+		value-=64
+
+		control[index]=value
+		Select index
+		Case 14
+			tempo=f*256
+		Case 16
+			ClearColor=New Color(f,ClearColor.G,ClearColor.B)
+		Case 17
+			ClearColor=New Color(ClearColor.R,f,ClearColor.B)
+		Case 18
+			ClearColor=New Color(ClearColor.R,ClearColor.G,f)
+		Case 3
+'			zoom=f/8
+		Default
+	'		Print "OnControl:"+index+" "+value
+		end
+	End
+	
 	Method OnMouseEvent( event:MouseEvent ) Override	
 		mousex=event.Location.X
 		mousey=event.Location.Y
