@@ -74,6 +74,22 @@ Class HelpView Extends DockingView
 		ContentView=New ScrollView( _htmlView )
 	End
 	
+	field _index:Int
+
+	Method Find(findText:String)
+		if _findField.Text=findText
+			_index+=1
+		else
+			_findField.Text=findText
+			_index=0
+			UpdateMatches( _findField.Text )
+		endif
+		If _matches.Length 
+			_index=_index mod _matches.Length
+			Go( _matches[_index] )
+		endif
+	End method
+	
 	Property HelpTree:HelpTree()
 		Return _helpTree
 	End

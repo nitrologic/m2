@@ -310,7 +310,9 @@ Class MainWindowInstance Extends Window
 
 	Method OnQuickHelp()
 		local tag:=_currentTextView.TagUnderCursor()
-		Notify("Quick Help!"+tag)
+		_browser.CurrentView=_helpView
+		_helpView.Find(tag)
+
 	End
 
 	Method OnBuildDebug()
