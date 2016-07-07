@@ -1095,7 +1095,7 @@ Class MainWindowInstance Extends Window
 			Case ".monkey2"
 			Case ".png",".jpg",".bmp"
 			Case ".h",".hpp",".hxx",".c",".cpp",".cxx",".m",".mm"
-			Case ".html",".md",".json",".xml"
+			Case ".html",".css",".md",".json",".xml"
 			Case ".sh",".bat"
 			Case ".glsl"
 			Case ".txt"

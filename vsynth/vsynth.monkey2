@@ -25,6 +25,7 @@ Global HoldNames:=New String[]("Off","On")
 Global DivisorNames:=New String[]("Whole","Half","Third","Quarter","Fifth","Sixth","Seventh","Eighth")
 Global DutyNames:=New String[]("1:2","3:4","1:4","7:8","1:8","5:8","3:8")
 Global DutyCycle:=New Double[](0.5,0.75,0.25,0.875,0.125,0.625,0.375)
+Global RepeatNames:=New String[]("1x","2x","3x","4x")
 
 Alias V:Double ' Voltage(volts)
 Alias F:Double ' Frequency(hz)
@@ -232,7 +233,7 @@ Class Voice Implements NotePlayer
 End
 
 Interface Synth
-	Method SetTempo(tempo:Tempo,divisor:Int,duty:V)
+	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
 	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
 	Method NoteOff(note:Int)
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
@@ -249,17 +250,20 @@ Class BeatGenerator Implements Synth
 	Field clock:T
 	Field oscillator:Int
 	Field envelope:Int
+	Field repeats:Int
 	Field recent:Note
+	Field count:int
 	
 	Field notePeriod:T
 	Field dutyPeriod:T
 	
-	Method SetTempo(tempo:Tempo,div:Int,duty:V)
+	Method SetTempo(tempo:Tempo,div:Int,duty:V,rept:int)
 		bpm=tempo
 		divisor=div
 		dutycycle=duty
 		notePeriod=60.0/(bpm*divisor)
 		dutyPeriod=duty*notePeriod
+		repeats=rept
 	End
 	
 	Method SetSynth(synth:Synth)
@@ -319,8 +323,15 @@ Class BeatGenerator Implements Synth
 		output.NoteOn(note,oscillator,envelope)
 		noteDuration[note]=dutyPeriod
 	End
+	
+	Method ReleaseAll() Virtual
+		For Local note:=Eachin noteDuration.Keys			
+			output.NoteOff(note)
+		Next	
+		noteDuration.Clear()
+	End
 
-end
+End
 
 Class Arpeggiator extends BeatGenerator
 	Field natural:=New Stack<Note>
@@ -328,14 +339,16 @@ Class Arpeggiator extends BeatGenerator
 	Field index:Int
 	Field algorithm:Int
 	Field hold:Bool
+	Field noteCount:Int
+	field note:Int
 
 	Method SetArpeggiation(mode:Int)
 		algorithm=mode
 	End
 		
-	Method ReleaseAll()
+	Method ReleaseAll() Override
+		Super.ReleaseAll()
 		natural.Clear()
-		noteDuration.Clear()
 	end
 	
 	Method SetHold(down:Bool)
@@ -346,6 +359,10 @@ Class Arpeggiator extends BeatGenerator
 	end
 		
 	Method NoteOn(note:Int,osc:Int,env:Int) Override
+		If hold and noteCount=0
+			ReleaseAll()
+		endif
+		noteCount+=1
 		If algorithm=0			
 			output.NoteOn(note,osc,env)
 		else		
@@ -358,6 +375,7 @@ Class Arpeggiator extends BeatGenerator
 	End
 	
 	Method NoteOff(note:Int) Override
+		noteCount-=1
 		output.NoteOff(note)
 		If Not hold
 			natural.Remove(note)
@@ -367,13 +385,18 @@ Class Arpeggiator extends BeatGenerator
 	End
 	
 	Method Beat() Override
-		Local note:Int
 		
 		If natural.Length=0
 			index=0
 			return
 		Endif
 		
+		If count>0
+			count-=1
+			If note TriggerNote(note)
+			return
+		endif
+
 		Select algorithm
 			Case 1
 				index=index Mod natural.Length
@@ -412,6 +435,7 @@ Class Arpeggiator extends BeatGenerator
 				note=sorted[index]
 		End
 		If note TriggerNote(note)
+		count=repeats
 	End
 end
 
@@ -430,7 +454,7 @@ Class PolySynth Implements Synth
 		Next
 	End
 	
-	Method SetTempo(tempo:Tempo,divisor:Int,duty:V)
+	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
 	End
 	
 	Method Panic()
@@ -480,7 +504,7 @@ Class MonoSynth Implements Synth
 		tone.SetEnvelope(0)
 	End
 	
-	Method SetTempo(tempo:Tempo,divisor:Int,duty:V)
+	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
 	end
 	
 	Method Panic()
@@ -551,8 +575,8 @@ Class VSynth
 		End
 	End
 	
-	Method SetTempo(tempo:Tempo,divisor:Int,duty:V)
-		arpeggiator.SetTempo(tempo,divisor,duty)
+	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
+		arpeggiator.SetTempo(tempo,divisor,duty,rept)
 	End
 	
 	Method SetArp(arpmode:Int)
@@ -613,6 +637,26 @@ Class VSynth
 
 End	
 
+Function FloatString:String(value:Float,dp:Int=2)
+	Local sign:String
+	Local integral:=Int(value*(Pow(10,dp)))
+	If integral<0 
+		sign="-"
+		integral=-integral
+	Endif
+	Local a:String=integral
+	Local l:=dp+1-a.Length
+	If l>0 a="0000000000000".Slice(0,l)+a
+	Local r:=a.Length 
+	Return sign+a.Slice(0,r-dp)+"."+a.Slice(r-dp,r)
+End
+
+Function Wrap:Int(value:Int,lower:Int,upper:Int)
+	If value<lower value=upper-1
+	If value>=upper value=lower
+	Return value
+End
+
 Class VSynthWindow Extends Window
 
 	Const MusicKeys:=New Key[]( Key.Q,Key.A,Key.W,Key.S,Key.E,Key.D,  Key.F,Key.T,Key.G,Key.Y,Key.H,Key.U,Key.J,  Key.K,Key.O,Key.L,Key.P,Key.Semicolon)',Key.Apostrophe )
@@ -634,12 +678,13 @@ Class VSynthWindow Extends Window
 	Field hold:Bool
 	Field div:Int
 	Field duty:Int
+	Field rept:int
 	Field tempo:Tempo=96
 	
 	Field keyNoteMap:=New Map<Key,Int>
 	
 	Field midiInputs:Int
-	Field midiOutputs:int
+	Field midiOutputs:Int
 
 	Method New(title:String)
 		Super.New(title,1280,720,WindowFlags.Resizable)				
@@ -692,51 +737,7 @@ Class VSynthWindow Extends Window
 		Wend
 '		portMidi.Sleep(1.0/60)
 	End
-	
-	Method OnRender( display:Canvas ) Override	
-	
-		PollMidi()
-	
-		App.RequestRender()	
-
-		vsynth.Detune(pitchbend)
-		vsynth.SetArp(arp)
-		vsynth.SetHold(hold)
-		vsynth.SetTempo(tempo,1+div,DutyCycle[duty])
-		vsynth.UpdateAudio()
-
-		Local text:String = About+",,"+Octave1+","+Octave0
-		text+=",,Octave=< >="+octave
-		text+=",Oscillator=1-5="+OscillatorNames[oscillator]
-		text+=",Envelope=[]="+EnvelopeNames[envelope]
-		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
-		text+=",,Arpeggiator=F5-F11="+ArpNames[arp]
-		text+=",Hold=Tab="+HoldNames[hold]
-		text+=",Note Divisor=/="+DivisorNames[div]
-		text+=",DutyCycle=Insert="+DutyNames[duty]
-		text+=",,Tempo=- +="+tempo
-		text+=",,Synth=Enter Key="+SynthNames[synth]
-		text+=",,"+Controls		
-		text+=",,Midi Inputs "+midiInputs
-		text+= ",Midi Outputs "+midiOutputs
-		text+=",,"+Contact
 		
-		display.Color=Color.Black
-		display.DrawRect(0,0,400,Height)
-		display.Color=Color.Grey
-
-		Local cy:=40
-		For Local line:=Eachin text.Split(",")
-			Local cx:=50
-			For Local tab:=Eachin line.Split("=")
-				display.DrawText(tab,cx,cy)
-				cx+=100
-			Next
-			cy+=20
-		Next
-
-	End				
-	
 	Field noteMap:=New IntMap<Bool>
 		
 	Method KeyDown(key:Key)
@@ -789,6 +790,8 @@ Class VSynthWindow Extends Window
 				div=Wrap(div+1,0,DivisorNames.Length)				
 			Case Key.Insert
 				duty=Wrap(duty+1,0,DutyNames.Length)				
+			Case Key.Home
+				rept=Wrap(rept+1,0,RepeatNames.Length)				
 			Case Key.Minus
 				tempo-=1
 			Case Key.Key0
@@ -880,30 +883,126 @@ Class VSynthWindow Extends Window
 		mousex=event.Location.X
 		mousey=event.Location.Y
 		mousebend+=event.Wheel.Y/48.0
-		pitchbend=Pow(2,mousebend)
+		pitchbend=Pow(2,mousebend)		
+		Select event.Type
+			Case EventType.MouseDown
+				pixels.Click(mousex,mousey)
+		End
 	End
 	
+
+	Method OnRender( display:Canvas ) Override	
+	
+		PollMidi()
+	
+		App.RequestRender()	
+
+		vsynth.Detune(pitchbend)
+		vsynth.SetArp(arp)
+		vsynth.SetHold(hold)
+		vsynth.SetTempo(tempo,1+div,DutyCycle[duty],rept)
+		vsynth.UpdateAudio()
+
+		Local text:String = About+",,"+Octave1+","+Octave0
+		text+=",,Octave=< >="+octave
+		text+=",Oscillator=1-5="+OscillatorNames[oscillator]
+		text+=",Envelope=[]="+EnvelopeNames[envelope]
+		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
+		text+=",,Arpeggiator=F5-F11="+ArpNames[arp]
+		text+=",Hold=Tab="+HoldNames[hold]
+		text+=",Note Divisor=/="+DivisorNames[div]
+		text+=",DutyCycle=Insert="+DutyNames[duty]
+		text+=",Note Repeat=Home="+RepeatNames[rept]
+		text+=",,Tempo=- +="+tempo
+		text+=",,Synth=Enter Key="+SynthNames[synth]
+		text+=",,"+Controls		
+		text+=",,Midi Inputs "+midiInputs
+		text+= ",Midi Outputs "+midiOutputs
+		text+=",,"+Contact
+		
+		display.Color=Color.Black
+		display.DrawRect(0,0,400,Height)
+		display.Color=Color.Grey
+
+		Local cy:=40
+		For Local line:=Eachin text.Split(",")
+			Local cx:=50
+			For Local tab:=Eachin line.Split("=")
+				display.DrawText(tab,cx,cy)
+				cx+=100
+			Next
+			cy+=20
+		Next
+		
+		pixels.Draw(display)	
+	End				
+	
+	Field pixels:=New ColorMap(8,8)	
 End
 
-Function FloatString:String(value:Float,dp:Int=2)
-	Local sign:String
-	Local integral:=Int(value*(Pow(10,dp)))
-	If integral<0 
-		sign="-"
-		integral=-integral
-	Endif
-	Local a:String=integral
-	Local l:=dp+1-a.Length
-	If l>0 a="0000000000000".Slice(0,l)+a
-	Local r:=a.Length 
-	Return sign+a.Slice(0,r-dp)+"."+a.Slice(r-dp,r)
-End
+class ColorMap
+	Field colors:Int[]
+	Field width:Int
+	Field height:Int
+	Field palette:=new Color[](Color.Black,Color.Blue)
 
-Function Wrap:Int(value:Int,lower:Int,upper:Int)
-	If value<lower value=upper-1
-	If value>=upper value=lower
-	Return value
-End
+	Method New(w:Int,h:Int)
+		width=w
+		height=h
+		colors=New Int[w*h]
+	End
+	
+	Method Plot(x:Int,y:Int,c:Int)
+		colors[y*width+x]=c
+	end
+
+	Method Toggle(x:Int,y:Int)
+		Local index:=y*width+x
+		colors[index]=1-colors[index]
+		Print "colors "+index+" = "+colors[index]
+	end
+
+	Method Clear(c:Int)
+		For Local i:=0 Until width*height
+			colors[i]=c
+		next
+	End
+
+	Field tx:=450
+	Field ty:=200
+	Field tw:=32
+	Field th:=32
+	Field padding:=2
+	Field margin:=2
+	
+	Method Click(x:int,y:int)
+		x=(x-tx)/tw
+		y=(y-ty)/th
+		If x>=0 And y>=0 And x<width And y<height
+			Toggle(x,y)
+		endif
+	end
+
+	Method DrawPad(canvas:Canvas,x:Int,y:Int)		
+		canvas.Color=Color.Black
+		canvas.DrawRect(tx+x*tw+padding,ty+y*th+padding,tw-padding*2,th-padding*2)
+		Local c:=colors[y*width+x]
+		c=c Mod palette.Length
+		canvas.Color=palette[c]
+		canvas.DrawRect(tx+x*tw+padding+margin,ty+y*th+padding+margin,tw-(padding+margin)*2,th-(padding+margin)*2)
+	End
+	
+	Method Draw(canvas:Canvas)
+		canvas.Color=Color.DarkGrey
+		canvas.DrawRect(tx,ty,tw*width,th*height)
+		For Local y:=0 Until height
+			For Local x:=0 Until width
+				DrawPad(canvas,x,y)
+			Next
+		next
+	end
+end
+
 
 Function Main()
 	instance = New AppInstance	
