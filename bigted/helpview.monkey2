@@ -4,7 +4,16 @@ Namespace ted2
 Function EnumModules:String[]()
 
 	Local mods:=New StringStack
-	
+	local path:="modules/"
+	for local file:=eachin LoadDir(path)
+		if GetFileType(path+file)=FileType.Directory
+			If GetFileType(path+file+"/docs/__PAGES__")=FileType.Directory
+				mods.Push(file)
+			endif
+		endif
+	next
+
+#rem
 	For Local line:=Eachin stringio.LoadString( "modules/modules.txt" ).Split( "~n" )
 	
 		Local i:=line.Find( "'" )
@@ -14,6 +23,7 @@ Function EnumModules:String[]()
 		If line mods.Push( line )
 		
 	Next
+#end
 	
 	Return mods.ToArray()
 End

@@ -9,7 +9,7 @@ Using mojo..
 Using sdl2..
 Using portmidi..
 
-Global AppTitle:String="VSynth 0.02"	
+Global AppTitle:String="VSynth 0.03"	
 Global Contact:="Latest Source=github.com/nitrologic/m2"
 
 Global About:="VSynth Control"
@@ -519,18 +519,12 @@ Class MonoSynth Implements Synth
 End
 
 Class VSynth
-
 	Field audioSpec:SDL_AudioSpec
 	Field audioPipe:=AudioPipe.Create()
 	Field detune:V
-
-'	Field root:=New PolySynth()
-
 	Field poly:Synth=New PolySynth()
 	Field mono:Synth=New MonoSynth()
-	
 	Field root:Synth
-
 	Field arpeggiator:=New Arpeggiator()
 	
 	Method New()
