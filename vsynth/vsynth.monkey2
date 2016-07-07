@@ -15,13 +15,13 @@ Global Contact:="Latest Source=github.com/nitrologic/m2"
 Global About:="VSynth Control"
 Global Octave1:= "Sharps=    W   E       T   Y   U      "
 Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
-Global Controls:="Reset Keys=Space,ResetMidi=Backspace,Quit=Escape"
+Global Controls:="Reset Keys=Space,Quit=Escape,,Scan Midi Bus=Backspace"
 
 Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise")
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random1","Random2")
 Global SynthNames:=New String[]("Mono1","Poly32")
-Global HoldNames:=New String[]("Off","Om")
+Global HoldNames:=New String[]("Off","On")
 Global DivisorNames:=New String[]("Whole","Half","Third","Quarter","Fifth","Sixth","Seventh","Eighth")
 Global DutyNames:=New String[]("1:2","3:4","1:4","7:8","1:8","5:8","3:8")
 Global DutyCycle:=New Double[](0.5,0.75,0.25,0.875,0.125,0.625,0.375)
@@ -643,10 +643,12 @@ Class VSynthWindow Extends Window
 	Field tempo:Tempo=96
 	
 	Field keyNoteMap:=New Map<Key,Int>
+	
+	Field midiInputs:Int
+	Field midiOutputs:int
 
 	Method New(title:String)
 		Super.New(title,1280,720,WindowFlags.Resizable)				
-		InitMidi()
 		For Local i:=0 Until MusicKeys.Length
 			keyNoteMap.Set(MusicKeys[i],i-1)
 		Next
@@ -654,22 +656,17 @@ Class VSynthWindow Extends Window
 	End
 
 	Field portMidi:PortMidi
-
-	Method InitMidi()
-		Print "PortMidi test 0.1"
-		Print "Scanning Midi Bus, please wait."
-		portMidi=New PortMidi()
-		Local inputs:=portMidi.inputDevices.Length
-		Print "inputs="+inputs
-		For Local i:=0 Until inputs
-			portMidi.OpenInput(i)
-			'Print "Open #"+i+" handle="+h 
-		next
-	End
 	
 	Method ResetMidi()
-		portMidi.CloseAll()
-		InitMidi()
+		if portMidi portMidi.CloseAll()
+		Print "Scanning Midi Bus, please wait."
+		portMidi=New PortMidi()
+		midiInputs=portMidi.inputDevices.Length
+		midiOutputs=portMidi.outputDevices.Length
+		Print "Midi bus found "+midiInputs+" inputs and "+midiOutputs+" outputs"
+		For Local i:=0 Until midiInputs
+			portMidi.OpenInput(i)
+		next
 	End
 
 	method PollMidi()
@@ -678,7 +675,7 @@ Class VSynthWindow Extends Window
 		Const Controller:=176
 		Const PitchWheel:=224
 
-		While portMidi.HasEvent()
+		While portMidi and portMidi.HasEvent()
 			Local b:=portMidi.EventDataBytes()
 			Local note:=b[1]
 			Local velocity:=b[2]
@@ -722,9 +719,9 @@ Class VSynthWindow Extends Window
 		text+=",DutyCycle=Insert="+DutyNames[duty]
 		text+=",,Tempo=- +="+tempo
 		text+=",,Synth=Enter Key="+SynthNames[synth]
-		text+=",,"+Controls
-		text+=",,Midi Inputs "+portMidi.inputDevices.Length
-		text+= ",Midi Outputs "+portMidi.outputDevices.Length
+		text+=",,"+Controls		
+		text+=",,Midi Inputs "+midiInputs
+		text+= ",Midi Outputs "+midiOutputs
 		text+=",,"+Contact
 		
 		display.Color=Color.Black
