@@ -653,6 +653,9 @@ Class VSynthWindow Extends Window
 			keyNoteMap.Set(MusicKeys[i],i-1)
 		Next
 		vsynth=New VSynth
+#If __HOSTOS__="pi"
+		ResetMidi()
+#endif
 	End
 
 	Field portMidi:PortMidi
@@ -868,10 +871,14 @@ Class VSynthWindow Extends Window
 			ClearColor=New Color(ClearColor.R,f,ClearColor.B)
 		Case 18
 			ClearColor=New Color(ClearColor.R,ClearColor.G,f)
+		case 84
+			if value>0 oscillator=Wrap(oscillator+1,0,OscillatorNames.Length)
+		case 85
+			if value>0 oscillator=Wrap(oscillator-1,0,OscillatorNames.Length)
 		Case 3
 '			zoom=f/8
 		Default
-	'		Print "OnControl:"+index+" "+value
+			Print "OnControl:"+index+" "+value
 		end
 	End
 	
