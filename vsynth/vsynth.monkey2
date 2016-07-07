@@ -1,9 +1,7 @@
 #Import "<std>"
 #Import "<mojo>"
 #Import "<sdl2>"
-
 #Import "<portmidi>"
-
 #Import "audiopipe.monkey2"
 
 Using std..
@@ -17,13 +15,16 @@ Global Contact:="Latest Source=github.com/nitrologic/m2"
 Global About:="VSynth Control"
 Global Octave1:= "Sharps=    W   E       T   Y   U      "
 Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
-Global Controls:="Reset Keys=Space,Quit=Escape"
+Global Controls:="Reset Keys=Space,ResetMidi=Backspace,Quit=Escape"
 
 Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise")
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random1","Random2")
 Global SynthNames:=New String[]("Mono1","Poly32")
+Global HoldNames:=New String[]("Off","Om")
 Global DivisorNames:=New String[]("Whole","Half","Third","Quarter","Fifth","Sixth","Seventh","Eighth")
+Global DutyNames:=New String[]("1:2","3:4","1:4","7:8","1:8","5:8","3:8")
+Global DutyCycle:=New Double[](0.5,0.75,0.25,0.875,0.125,0.625,0.375)
 
 Alias V:Double ' Voltage(volts)
 Alias F:Double ' Frequency(hz)
@@ -231,7 +232,7 @@ Class Voice Implements NotePlayer
 End
 
 Interface Synth
-	Method SetTempo(tempo:Tempo,divisor:Int)
+	Method SetTempo(tempo:Tempo,divisor:Int,duty:V)
 	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
 	Method NoteOff(note:Int)
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
@@ -242,6 +243,7 @@ Class BeatGenerator Implements Synth
 
 	Field bpm:=120
 	Field divisor:=3
+	Field dutycycle:=0.5
 	Field output:Synth
 	Field time:T
 	Field clock:T
@@ -249,9 +251,15 @@ Class BeatGenerator Implements Synth
 	Field envelope:Int
 	Field recent:Note
 	
-	Method SetTempo(tempo:Tempo,div:Int)
+	Field notePeriod:T
+	Field dutyPeriod:T
+	
+	Method SetTempo(tempo:Tempo,div:Int,duty:V)
 		bpm=tempo
 		divisor=div
+		dutycycle=duty
+		notePeriod=60.0/(bpm*divisor)
+		dutyPeriod=duty*notePeriod
 	End
 	
 	Method SetSynth(synth:Synth)
@@ -276,15 +284,28 @@ Class BeatGenerator Implements Synth
 	
 	Method Update(duration:T)
 		time+=duration
-		If bpm*divisor
-			Local period:=60.0/(bpm*divisor)
+		If notePeriod>0
 			While clock<time
-				Beat()			
-				clock+=period		
+				Beat()
+				clock+=notePeriod
 			Wend
+			StepDuration(duration)
 		Endif
 	end
+
+	Field noteDuration:=new Map<Int,T>
 	
+	Method StepDuration(duration:T)
+		For Local note:=Eachin noteDuration.Keys			
+			If noteDuration[note]>0
+				noteDuration[note]-=duration
+				If noteDuration[note]<=0
+					output.NoteOff(note)
+				Endif
+			Endif
+		Next
+	end
+
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
 		Update(2.0*samples/AudioFrequency)
 		output.FillAudioBuffer(buffer,samples,detune)
@@ -293,26 +314,39 @@ Class BeatGenerator Implements Synth
 	Method Panic()
 		output.Panic()
 	end
-end
 
+	Method TriggerNote(note:Int)	
+		output.NoteOn(note,oscillator,envelope)
+		noteDuration[note]=dutyPeriod
+	End
+
+end
 
 Class Arpeggiator extends BeatGenerator
 	Field natural:=New Stack<Note>
 	Field sorted:Stack<Note>
 	Field index:Int
 	Field algorithm:Int
-	Field hold:bool
+	Field hold:Bool
 
 	Method SetArpeggiation(mode:Int)
 		algorithm=mode
 	End
+		
+	Method ReleaseAll()
+		natural.Clear()
+		noteDuration.Clear()
+	end
 	
 	Method SetHold(down:Bool)
+		If hold And Not down 
+			ReleaseAll()
+		end
 		hold=down
 	end
 		
 	Method NoteOn(note:Int,osc:Int,env:Int) Override
-		If algorithm=0
+		If algorithm=0			
 			output.NoteOn(note,osc,env)
 		else		
 			Super.NoteOn(note,osc,env)
@@ -344,12 +378,15 @@ Class Arpeggiator extends BeatGenerator
 			Case 1
 				index=index Mod natural.Length
 				note=natural[index]
+				index+=1
 			Case 2			
 				index=index Mod sorted.Length
 				note=sorted[index]
+				index+=1
 			Case 3
 				index=index Mod sorted.Length
 				note=sorted[sorted.Length-index-1]
+				index+=1
 			Case 4			
 				If sorted.Length>1
 					Local bounce:=sorted.Length-2
@@ -360,19 +397,21 @@ Class Arpeggiator extends BeatGenerator
 				Else
 					note=sorted[0]
 				Endif
+				index+=1
 			Case 5
 				index=index Mod sorted.Length
-				if RndULong() & 1
-					index-=2
-					If index<0 index+=sorted.Length
-				Endif
 				note=sorted[index]
+				if RndULong() & 1
+					index+=1
+				Else
+					index-=1
+					If index<0 index=sorted.Length-1
+				Endif
 			Case 6
 				index=Rnd()*sorted.Length
 				note=sorted[index]
 		End
-		If note output.NoteOn(note,oscillator,envelope)
-		index+=1
+		If note TriggerNote(note)
 	End
 end
 
@@ -391,7 +430,7 @@ Class PolySynth Implements Synth
 		Next
 	End
 	
-	Method SetTempo(tempo:Tempo,divisor:Int)
+	Method SetTempo(tempo:Tempo,divisor:Int,duty:V)
 	End
 	
 	Method Panic()
@@ -441,7 +480,7 @@ Class MonoSynth Implements Synth
 		tone.SetEnvelope(0)
 	End
 	
-	Method SetTempo(tempo:Tempo,divisor:Int)
+	Method SetTempo(tempo:Tempo,divisor:Int,duty:V)
 	end
 	
 	Method Panic()
@@ -518,8 +557,8 @@ Class VSynth
 		End
 	End
 	
-	Method SetTempo(tempo:Tempo,divisor:Int)
-		arpeggiator.SetTempo(tempo,divisor)
+	Method SetTempo(tempo:Tempo,divisor:Int,duty:V)
+		arpeggiator.SetTempo(tempo,divisor,duty)
 	End
 	
 	Method SetArp(arpmode:Int)
@@ -600,12 +639,13 @@ Class VSynthWindow Extends Window
 	Field arp:Int
 	Field hold:Bool
 	Field div:Int
-	Field tempo:Tempo=120
+	Field duty:Int
+	Field tempo:Tempo=96
 	
 	Field keyNoteMap:=New Map<Key,Int>
 
 	Method New(title:String)
-		Super.New(title,720,560,WindowFlags.Resizable)				
+		Super.New(title,1280,720,WindowFlags.Resizable)				
 		InitMidi()
 		For Local i:=0 Until MusicKeys.Length
 			keyNoteMap.Set(MusicKeys[i],i-1)
@@ -615,7 +655,7 @@ Class VSynthWindow Extends Window
 
 	Field portMidi:PortMidi
 
-	method InitMidi()
+	Method InitMidi()
 		Print "PortMidi test 0.1"
 		Print "Scanning Midi Bus, please wait."
 		portMidi=New PortMidi()
@@ -625,6 +665,11 @@ Class VSynthWindow Extends Window
 			portMidi.OpenInput(i)
 			'Print "Open #"+i+" handle="+h 
 		next
+	End
+	
+	Method ResetMidi()
+		portMidi.CloseAll()
+		InitMidi()
 	End
 
 	method PollMidi()
@@ -663,21 +708,28 @@ Class VSynthWindow Extends Window
 		vsynth.Detune(pitchbend)
 		vsynth.SetArp(arp)
 		vsynth.SetHold(hold)
-		vsynth.SetTempo(tempo,1+div)
+		vsynth.SetTempo(tempo,1+div,DutyCycle[duty])
 		vsynth.UpdateAudio()
 
-		Local text:String = About+",,"+Octave1+","+Octave0+","
-		text+="Octave=< >="+octave
+		Local text:String = About+",,"+Octave1+","+Octave0
+		text+=",,Octave=< >="+octave
 		text+=",Oscillator=1-5="+OscillatorNames[oscillator]
 		text+=",Envelope=[]="+EnvelopeNames[envelope]
 		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
 		text+=",,Arpeggiator=F5-F11="+ArpNames[arp]
-		text+=",,Hold=Tab="+hold
+		text+=",Hold=Tab="+HoldNames[hold]
 		text+=",Note Divisor=/="+DivisorNames[div]
-		text+=",,Synth=Enter Key="+SynthNames[synth]
+		text+=",DutyCycle=Insert="+DutyNames[duty]
 		text+=",,Tempo=- +="+tempo
-		text+=",,"+Controls+",,"+Contact
+		text+=",,Synth=Enter Key="+SynthNames[synth]
+		text+=",,"+Controls
+		text+=",,Midi Inputs "+portMidi.inputDevices.Length
+		text+= ",Midi Outputs "+portMidi.outputDevices.Length
+		text+=",,"+Contact
 		
+		display.Color=Color.Black
+		display.DrawRect(0,0,400,Height)
+		display.Color=Color.Grey
 
 		Local cy:=40
 		For Local line:=Eachin text.Split(",")
@@ -699,7 +751,7 @@ Class VSynthWindow Extends Window
 			Local note:=keyNoteMap[key]+octave*12
 			noteMap[note]=True
 			vsynth.NoteOn(note,oscillator,envelope)
-		endif
+		Endif
 	End
 
 	Method KeyUp(key:Key)		
@@ -739,8 +791,10 @@ Class VSynthWindow Extends Window
 		Select event.Type
 		Case EventType.KeyDown
 			Select event.Key
-			Case Key.Slash
+			Case Key.Slash						
 				div=Wrap(div+1,0,DivisorNames.Length)				
+			Case Key.Insert
+				duty=Wrap(duty+1,0,DutyNames.Length)				
 			Case Key.Minus
 				tempo-=1
 			Case Key.Key0
@@ -759,6 +813,8 @@ Class VSynthWindow Extends Window
 				arp=5
 			Case Key.F11
 				arp=6
+			Case Key.Backspace
+				ResetMidi()
 			Case Key.Tab
 				hold=Not hold
 			Case Key.Key1
