@@ -243,8 +243,8 @@ Class VPaint Extends Window
 		
 '		sample=Sound.Load("asset::bang.wav")
 '		sample=Sound.Load("asset::whale52hz.wav")
-'		sample=Sound.Load("asset::whale52hz.wav")
-		sample=Sound.Load("asset::thrust.wav")
+		sample=Sound.Load("asset::whale52hz.wav")
+'		sample=Sound.Load("asset::thrust.wav")
 
 		If sample
 			wheel=sample.Play(-1)
@@ -403,7 +403,7 @@ Class VPaint Extends Window
 		Case 18
 			ClearColor=New Color(ClearColor.R,ClearColor.G,f)
 		Case 3
-			zoom=f/8
+			if f>0 zoom=0.125/f
 		Default
 	'		Print "OnControl:"+index+" "+value
 		end
