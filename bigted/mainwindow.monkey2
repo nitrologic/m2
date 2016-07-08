@@ -65,12 +65,12 @@ Class MainWindowInstance Extends Window
 	Field _newFiles:Menu
 	Field _recentFiles:Menu
 	Field _closeProject:Menu
-	Field _scripts:Menu
 	
 	Field _fileMenu:Menu
 	Field _editMenu:Menu
 	Field _viewMenu:Menu
 	Field _buildMenu:Menu
+	Field _scriptMenu:Menu
 	Field _helpMenu:Menu
 	
 	Field _recent:=New Stack<String>
@@ -670,6 +670,7 @@ Class MainWindowInstance Extends Window
 		_escape.HotKey=Key.Escape
 		_escape.Triggered=OnEscape
 	End
+	Const FunctionKeys:=New Key[](Key.F1,Key.F2,Key.F3,Key.F4,Key.F5,Key.F6,Key.F7,Key.F8,Key.F9,Key.F10)
 	
 	Method InitMenus()
 	
@@ -686,13 +687,21 @@ Class MainWindowInstance Extends Window
 			End
 		Next
 		
-		_scripts=New Menu( "Scripts..." )
+		_scriptMenu=New Menu( "Script" )
 		Local obj:=JsonObject.Load( "asset::ted2/scripts.json" )
+		Local hotkey:=0
 		If obj
 			For Local obj2:=Eachin obj["scripts"].ToArray()
 				Local name:=obj2.ToObject()["name"].ToString()
 				Local script:=obj2.ToObject()["script"].ToString()
-				Local action:=_scripts.AddAction( name )
+
+				Local action:=_scriptMenu.AddAction( name )
+				If hotkey<FunctionKeys.Length
+					action.HotKey=FunctionKeys[hotkey]
+					action.HotKeyModifiers=Modifier.Shift
+				endif
+				hotkey+=1
+
 				action.Triggered=Lambda()
 					RunScript( script )
 				End
@@ -748,8 +757,6 @@ Class MainWindowInstance Extends Window
 		_buildMenu.AddSeparator()
 		_buildMenu.AddAction( _buildLockFile )
 		_buildMenu.AddSeparator()
-		_buildMenu.AddSubMenu( _scripts )
-		_buildMenu.AddSeparator()
 		_buildMenu.AddAction( _buildForceStop )
 		
 		_helpMenu=New Menu( "Help" )
@@ -761,6 +768,7 @@ Class MainWindowInstance Extends Window
 		_menuBar.AddMenu( _fileMenu )
 		_menuBar.AddMenu( _editMenu )
 		_menuBar.AddMenu( _buildMenu )
+		_menuBar.AddMenu( _scriptMenu )
 		_menuBar.AddMenu( _helpMenu )
 	End
 	
@@ -1357,12 +1365,14 @@ Class MainWindowInstance Extends Window
 		_console.Clear()
 
 #If __HOSTOS__="windows"
-		script+=".bat"
+        script+=".bat"
+#Else If __HOSTOS__="macos"
+        script="/bin/bash -l "+script+".sh"
 #Else
-		script+=".sh"
+        script="/bin/bash -l -c "+script+".sh"
 #Endif
-		Local cmd:=script
-		
+        Local cmd:=script
+				
 		Local cd:=CurrentDir()
 		ChangeDir( "scripts" )
 		Local r:=_console.Start( cmd )
@@ -1440,7 +1450,7 @@ Class MainWindowInstance Extends Window
 		_buildForceStop.Enabled=_console.Running
 		_buildNextError.Enabled=Not _errors.Empty
 		
-		_scripts.Enabled=Not _console.Running
+		_scriptMenu.Enabled=Not _console.Running
 	End
 	
 	Method AppIdle()
