@@ -15,7 +15,7 @@ Global Contact:="Latest Source=github.com/nitrologic/m2"
 Global About:="VSynth Control"
 Global Octave1:= "Sharps=    W   E       T   Y   U      "
 Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
-Global Controls:="Reset Keys=Space,Quit=Escape,,Scan Midi Bus=Backspace"
+Global Controls:="Reset Keys=Space,Quit=Escape,,Enable MIDI=Backspace"
 
 Global SustainNames:=New String[]("Up","Down")
 Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise")
@@ -712,6 +712,7 @@ Class VSynthWindow Extends Window
 	Field duty:Int
 	Field rept:int
 	Field tempo:Tempo=96
+	field reset:int
 	
 	Field keyNoteMap:=New Map<Key,Int>
 	
@@ -733,18 +734,18 @@ Class VSynthWindow Extends Window
 	Field portMidi:PortMidi
 	
 	Method ResetMidi()
+		reset=0
 		if portMidi 
-			Return
+'			Return
 			portMidi.CloseAll()
 		Endif				
-		Print "Scanning Midi Bus, please wait."
 		portMidi=New PortMidi()
 		midiInputs=portMidi.inputDevices.Length
 		midiOutputs=portMidi.outputDevices.Length
-		Print "Midi bus found "+midiInputs+" inputs and "+midiOutputs+" outputs"
+		Title="Found "+midiInputs+" MIDI in and "+midiOutputs+" MIDI out"
 		For Local i:=0 Until midiInputs
 			portMidi.OpenInput(i)
-		next
+		Next
 	End
 	
 #rem
@@ -779,11 +780,11 @@ RPN LSB/MSB (cc#100/101)
 		Const NoteOff:=128
 		Const Controller:=176
 		Const PitchWheel:=224
-		Const Clock:=248
-		
+		Const Clock:=248	
 		Const Start:=250
 		Const Resume:=251		
 		Const Fin:=252
+		Const Cry:=191
 
 		While portMidi and portMidi.HasEvent()
 			Local b:=portMidi.EventDataBytes()
@@ -791,15 +792,15 @@ RPN LSB/MSB (cc#100/101)
 			Local note:=b[1]
 			Local velocity:=b[2]
 			Local word:Int=note+(velocity Shl 7)
-			
-			If b[0]>176 And b[0]<192
-				Continue
-			endif
-			
+						
 			Select b[0]
 				Case NoteOn
-					vsynth.NoteOn(note,oscillator,envelope)
-				Case NoteOff
+					If velocity=0
+						vsynth.NoteOff(note)
+					else
+						vsynth.NoteOn(note,oscillator,envelope)
+					endif
+				Case NoteOff					
 					vsynth.NoteOff(note)
 				Case PitchWheel
 					pitchbend=1.0+(word-8192)/8192.0
@@ -817,6 +818,7 @@ RPN LSB/MSB (cc#100/101)
 				Case Fin
 					Assert(b[1]=0 And b[2]=0)
 					OnMidiPlay(3,t)
+				Case Cry
 				Default
 					Print b[0]+" "+b[1]+" "+b[2]+" "+b[3]
 			End					
@@ -826,7 +828,7 @@ RPN LSB/MSB (cc#100/101)
 	Field control:=New Int[128]
 	
 	Method OnControl(index:Int, value:Int)	
-return	
+	
 		local f:=value/128.0
 		value-=64
 
@@ -849,7 +851,9 @@ return
 		Case 121
 			Print "."
 		Case 123
-			Print "_"
+			Print "_"			
+		Case 64
+			sustain=value>=0
 		Default
 			Print "OnControl:"+index+" "+value
 		end
@@ -955,7 +959,8 @@ return
 			Case Key.F11
 				arp=6
 			Case Key.Backspace
-				ResetMidi()
+				Title="Scanning Midi Bus, please wait."
+				reset=1
 			Case Key.Tab
 				hold=Not hold
 			Case Key.Key1
@@ -1014,6 +1019,10 @@ return
 	
 
 	Method OnRender( display:Canvas ) Override	
+	
+		If reset
+			ResetMidi()
+		endif
 	
 		PollMidi()
 	
