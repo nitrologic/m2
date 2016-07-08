@@ -1392,6 +1392,8 @@ Class MainWindowInstance Extends Window
 		Forever
 			
 		_console.Write( "Done.~n" )
+
+		MakeKeyView()
 	End
 	
 	Method RequestDir:String( title:String,dir:String )

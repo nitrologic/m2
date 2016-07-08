@@ -244,6 +244,7 @@ Class ScrollView Extends View
 	
 		Select event.Type
 		Case EventType.MouseWheel
+			_scroll.x+=event.Wheel.X*16
 			_scroll.y-=event.Wheel.Y*16
 		End
 		
