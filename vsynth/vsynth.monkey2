@@ -109,7 +109,7 @@ Class Sine Extends Oscillator
 	Method Sample:V(hz:F) Override
 		Local t:T=hz/AudioFrequency
 		delta+=t
-		Return Sin(Pi*delta)
+		Return 2*Pi*Sin(Pi*delta)
 	End
 End
 
@@ -238,7 +238,8 @@ End
 
 Interface Synth
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
-	Method NoteOn(note:Int,velocity:int,oscillator:Int,envelope:Int)
+	method SetTone(oscillator:Int,envelope:Int)
+	Method NoteOn(note:Int,velocity:int)
 	Method NoteOff(note:Int)
 	Method SetSustain(sustain:Bool)
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
@@ -278,13 +279,18 @@ Class BeatGenerator Implements Synth
 
 	Method SetSynth(synth:Synth)
 		output=synth
+		output.SetTone(oscillator,envelope)
 	End
 
-	Method NoteOn(note:Int,vel:int,osc:Int,env:Int) Virtual
-		recent=note
-		velocity=vel
+	Method SetTone(osc:Int,env:Int)
 		oscillator=osc
 		envelope=env
+		output.SetTone(oscillator,envelope)
+	end
+
+	Method NoteOn(note:Int,vel:Int) Virtual
+		recent=note
+		velocity=vel
 	End
 	
 	Method NoteOff(note:Int) virtual
@@ -293,7 +299,7 @@ Class BeatGenerator Implements Synth
 	
 	Method Beat() Virtual
 		If recent
-			NoteOn(recent,velocity,oscillator,envelope)
+			NoteOn(recent,velocity)
 		Endif
 	End
 	
@@ -331,7 +337,7 @@ Class BeatGenerator Implements Synth
 	end
 
 	Method TriggerNote(note:Int)	
-		output.NoteOn(note,velocity,oscillator,envelope)
+		output.NoteOn(note,velocity)
 		noteDuration[note]=dutyPeriod
 	End
 	
@@ -369,16 +375,16 @@ Class Arpeggiator extends BeatGenerator
 		End
 		hold=down
 	End
-		
-	Method NoteOn(note:Int,vel:int,osc:Int,env:Int) Override
+
+	Method NoteOn(note:Int,vel:Int) Override
 		If hold and noteCount=0
 			ReleaseAll()
 		Endif
 		noteCount+=1
 		If algorithm=0			
-			output.NoteOn(note,vel,osc,env)
+			output.NoteOn(note,vel)
 		else		
-			Super.NoteOn(note,vel,osc,env)
+			Super.NoteOn(note,vel)
 			If natural.Contains(note) natural.Remove(note)
 			natural.Push(note)
 			sorted=New Stack<Note>(natural)
@@ -458,8 +464,10 @@ Class PolySynth Implements Synth
 	Field polyList:=New List<Voice>
 	Field polyMap:=New Map<Int,Voice>
 	Field voices:=New Stack<Voice>
-	
 	Field sustained:bool
+	Field oscillator:Int
+	Field envelope:Int
+	Field sustainedVoices:=New List<Voice>
 	
 	Method New()
 		For Local i:=0 Until MaxPolyphony
@@ -470,11 +478,13 @@ Class PolySynth Implements Synth
 		Next
 	End
 	
+	Method Panic()
+		voices.Clear()
+	End
+
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
 	End
-	
-	Field sustainedVoices:=New List<Voice>
-		
+			
 	Method SetSustain(sustain:Bool)
 		If sustained And Not sustain
 			For Local voice:=Eachin sustainedVoices
@@ -485,11 +495,12 @@ Class PolySynth Implements Synth
 		sustained=sustain
 	End
 
-	Method Panic()
-		voices.Clear()
+	Method SetTone(osc:Int,env:Int)
+		oscillator=osc
+		envelope=env
 	End
-
-	Method NoteOn(note:Int,velocity:int,oscillator:Int,envelope:Int)
+	
+	Method NoteOn(note:Int,velocity:Int)
 		NoteOff(note)
 		If polyList.Empty Return
 		Local voice:=polyList.RemoveFirst()
@@ -508,9 +519,9 @@ Class PolySynth Implements Synth
 		If voice
 			If sustained
 				sustainedVoices.AddLast(voice)
-			else
+			Else
 				voice.Stop()
-			endif
+			Endif
 			polyMap.Remove(note)
 			polyList.AddLast(voice)
 		Endif
@@ -530,6 +541,7 @@ Class MonoSynth Implements Synth
 	Field monoVelocity:int
 	Field notes:=New Stack<Int>
 	Field oscillator:Int
+	Field envelope:Int
 
 	Method New()
 		tone=New Voice
@@ -547,17 +559,23 @@ Class MonoSynth Implements Synth
 		tone.NoteOff()
 	End
 
-	Method NoteOn(note:Int,velocity:int,osc:Int,envelope:Int)
+	Method SetTone(osc:Int,env:Int)
+		If osc<>oscillator
+			oscillator=osc
+			tone.SetOscillator(oscillator)
+		Endif
+		If env<>envelope
+			envelope=env
+			tone.SetEnvelope(envelope)
+		endif
+	End
+
+	Method NoteOn(note:Int,velocity:Int)
 		monoNote=note
 		monoVelocity=velocity
 		If Not notes.Contains(note)
 			notes.Push(note)
 		Endif
-		If osc<>oscillator
-			oscillator=osc
-			tone.SetOscillator(oscillator)
-		Endif
-		tone.SetEnvelope(envelope)
 		tone.NoteOn(note,velocity)
 	End
 
@@ -599,8 +617,12 @@ Class VSynth
 		root.SetSustain(sustain)
 	End
 
-	Method NoteOn(note:Int,velocity:int,oscillator:Int,envelope:Int)
-		root.NoteOn(note,velocity,oscillator,envelope)
+	Method SetTone(oscillator:Int,envelope:Int)
+		root.SetTone(oscillator,envelope)
+	End
+	
+	Method NoteOn(note:Int,velocity:Int)
+		root.NoteOn(note,velocity)
 	End
 
 	Method NoteOff(note:Int)	
@@ -808,7 +830,7 @@ RPN LSB/MSB (cc#100/101)
 					If velocity=0
 						vsynth.NoteOff(note)
 					Else
-						vsynth.NoteOn(note,velocity,oscillator,envelope)
+						vsynth.NoteOn(note,velocity)
 					Endif
 				Case NoteOff					
 					vsynth.NoteOff(note)
@@ -906,7 +928,7 @@ RPN LSB/MSB (cc#100/101)
 			KeyUp(key)
 			Local note:=keyNoteMap[key]+octave*12
 			noteMap[note]=True
-			vsynth.NoteOn(note,KeyVelocity,oscillator,envelope)
+			vsynth.NoteOn(note,KeyVelocity)
 		Endif
 	End
 
@@ -928,7 +950,7 @@ RPN LSB/MSB (cc#100/101)
 		If t<>tick
 			Local note:=((t Shr 1)&15)*3+40
 			If t&1
-				vsynth.NoteOn(note,KeyVelocity,oscillator,envelope)
+				vsynth.NoteOn(note,KeyVelocity)
 			Else
 				vsynth.NoteOff(note)			
 			Endif
@@ -1046,6 +1068,7 @@ RPN LSB/MSB (cc#100/101)
 		vsynth.SetHold(hold)
 		vsynth.SetSustain(sustain)
 		vsynth.SetTempo(tempo,1+div,DutyCycle[duty],rept)
+		vsynth.SetTone(oscillator,envelope)
 		vsynth.UpdateAudio()
 
 		Local text:String = About+",,"+Octave1+","+Octave0

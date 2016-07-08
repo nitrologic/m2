@@ -1,0 +1,22 @@
+.plan
+
+monkey2 developments
+
+Stay Tuned!
+
+
+pi
+vpaint + vsynth release
+filequesters for bigted
+release monkey2-pi-03.tar.gz
+
+vpaint
+midi learn
+toroidal scroll fixes
+vsynth spinning noise
+
+vsynth 
+windows macos pi releases
+
+windows
+vsbuilder
