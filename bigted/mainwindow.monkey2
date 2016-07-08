@@ -1351,7 +1351,19 @@ Class MainWindowInstance Extends Window
 		_console.Write( "Done.~n" )
 
 	End
-	
+
+	method ChangeDirMonkey2:Bool()
+		local monkey2dir:=RealPath(_mx2cc)
+		While GetFileType( "bin" )<>FileType.Directory Or GetFileType( "modules" )<>FileType.Directory
+			If IsRootDir( CurrentDir() )
+				Print "Error Locating Monkey2 Path, please initializing BigTed - can't find working dir!"
+				return false
+			Endif			
+			ChangeDir( ExtractDir( CurrentDir() ) )
+		Wend
+		return true
+	end
+
 	Method RunScript( script:String )
 	
 		If _console.Running Return
@@ -1374,7 +1386,10 @@ Class MainWindowInstance Extends Window
         Local cmd:=script
 				
 		Local cd:=CurrentDir()
+
+		ChangeDirMonkey2()		
 		ChangeDir( "scripts" )
+
 		Local r:=_console.Start( cmd )
 		ChangeDir( cd )
 		
