@@ -17,6 +17,7 @@ Global Octave1:= "Sharps=    W   E       T   Y   U      "
 Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
 Global Controls:="Reset Keys=Space,Quit=Escape,,Scan Midi Bus=Backspace"
 
+Global SustainNames:=New String[]("Up","Down")
 Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise")
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random1","Random2")
@@ -236,6 +237,7 @@ Interface Synth
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
 	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
 	Method NoteOff(note:Int)
+	Method SetSustain(sustain:Bool)
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
 	Method Panic()
 End
@@ -266,6 +268,10 @@ Class BeatGenerator Implements Synth
 		repeats=rept
 	End
 	
+	Method SetSustain(sustain:Bool)
+		output.SetSustain(sustain)
+	End
+
 	Method SetSynth(synth:Synth)
 		output=synth
 	End
@@ -354,9 +360,9 @@ Class Arpeggiator extends BeatGenerator
 	Method SetHold(down:Bool)
 		If hold And Not down 
 			ReleaseAll()
-		end
+		End
 		hold=down
-	end
+	End
 		
 	Method NoteOn(note:Int,osc:Int,env:Int) Override
 		If hold and noteCount=0
@@ -445,6 +451,8 @@ Class PolySynth Implements Synth
 	Field polyMap:=New Map<Int,Voice>
 	Field voices:=New Stack<Voice>
 	
+	Field sustained:bool
+	
 	Method New()
 		For Local i:=0 Until MaxPolyphony
 			Local tone:=New Voice
@@ -457,6 +465,18 @@ Class PolySynth Implements Synth
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
 	End
 	
+	Field sustainedVoices:=New List<Voice>
+		
+	Method SetSustain(sustain:Bool)
+		If sustained And Not sustain
+			For Local voice:=Eachin sustainedVoices
+				voice.Stop()
+			Next
+			sustainedVoices.Clear()		
+		endif
+		sustained=sustain
+	End
+
 	Method Panic()
 		voices.Clear()
 	End
@@ -474,11 +494,15 @@ Class PolySynth Implements Synth
 			voices.Add(voice)
 		Endif	
 	End
-
+		
 	Method NoteOff(note:Int)	
 		Local voice:=polyMap[note]
 		If voice
-			voice.Stop()
+			If sustained
+				sustainedVoices.AddLast(voice)
+			else
+				voice.Stop()
+			endif
 			polyMap.Remove(note)
 			polyList.AddLast(voice)
 		Endif
@@ -505,8 +529,11 @@ Class MonoSynth Implements Synth
 	End
 	
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
-	end
+	End
 	
+	Method SetSustain(sustain:Bool)
+	End
+
 	Method Panic()
 		tone.NoteOff()
 	End
@@ -556,6 +583,10 @@ Class VSynth
 		arpeggiator.SetSynth(mono)
 		arpeggiator.SetArpeggiation(1)
 		root=arpeggiator
+	End
+
+	Method SetSustain(sustain:Bool)
+		root.SetSustain(sustain)
 	End
 
 	Method NoteOn(note:Int,oscillator:Int,envelope:Int)
@@ -670,6 +701,7 @@ Class VSynthWindow Extends Window
 	Field oscillator:Int
 	Field envelope:Int
 	Field octave:Int=5
+	Field sustain:Bool
 	
 	Field mousebend:V
 	Field pitchbend:V=1.0
@@ -695,12 +727,16 @@ Class VSynthWindow Extends Window
 #If __HOSTOS__="pi"
 		ResetMidi()
 #endif
+		ClearColor=new Color(1.0/16,1.0)
 	End
 
 	Field portMidi:PortMidi
 	
 	Method ResetMidi()
-		if portMidi portMidi.CloseAll()
+		if portMidi 
+			Return
+			portMidi.CloseAll()
+		Endif				
 		Print "Scanning Midi Bus, please wait."
 		portMidi=New PortMidi()
 		midiInputs=portMidi.inputDevices.Length
@@ -710,18 +746,56 @@ Class VSynthWindow Extends Window
 			portMidi.OpenInput(i)
 		next
 	End
+	
+#rem
+midi level
+Bank Select (cc#0/32)
+Modulation Depth (cc#1)
+Portamento Time (cc#5)
+Channel Volume (cc#7)
+Pan (cc#10)
+Expression (cc#11)
+Hold1 (Damper) (cc#64)
+Portamento ON/OFF (cc#65)
+Sostenuto (cc#66)
+Soft (cc#67)
+Filter Resonance (Timbre/Harmonic Intensity) (cc#71)
+Release Time (cc#72)
+Attack Time (cc#73)
+Brightness (cc#74)
+Decay Time (cc#75) (new message)
+Vibrato Rate (cc#76) (new message)
+Vibrato Depth (cc#77) (new message)
+Vibrato Delay (cc#78) (new message)
+Reverb Send Level (cc#91)
+Chorus Send Level (cc#93)
+Data Entry (cc#6/38)
+RPN LSB/MSB (cc#100/101)
+#end
+	
 
 	method PollMidi()
 		Const NoteOn:=144
 		Const NoteOff:=128
 		Const Controller:=176
 		Const PitchWheel:=224
+		Const Clock:=248
+		
+		Const Start:=250
+		Const Resume:=251		
+		Const Fin:=252
 
 		While portMidi and portMidi.HasEvent()
 			Local b:=portMidi.EventDataBytes()
+			Local t:=portMidi.EventTime()
 			Local note:=b[1]
 			Local velocity:=b[2]
 			Local word:Int=note+(velocity Shl 7)
+			
+			If b[0]>176 And b[0]<192
+				Continue
+			endif
+			
 			Select b[0]
 				Case NoteOn
 					vsynth.NoteOn(note,oscillator,envelope)
@@ -731,12 +805,82 @@ Class VSynthWindow Extends Window
 					pitchbend=1.0+(word-8192)/8192.0
 				Case Controller
 					OnControl(b[1],b[2])
-				default
+				Case Clock
+					Assert(b[1]=0 And b[2]=0)
+					OnMidiClock(t)
+				Case Start
+					Assert(b[1]=0 And b[2]=0)
+					OnMidiPlay(1,t)
+				Case Resume
+					Assert(b[1]=0 And b[2]=0)
+					OnMidiPlay(2,t)
+				Case Fin
+					Assert(b[1]=0 And b[2]=0)
+					OnMidiPlay(3,t)
+				Default
 					Print b[0]+" "+b[1]+" "+b[2]+" "+b[3]
 			End					
 		Wend
 '		portMidi.Sleep(1.0/60)
 	End
+	Field control:=New Int[128]
+	
+	Method OnControl(index:Int, value:Int)	
+return	
+		local f:=value/128.0
+		value-=64
+
+		control[index]=value
+		Select index
+		Case 14
+			tempo=f*256
+		Case 16
+			ClearColor=New Color(f,ClearColor.G,ClearColor.B)
+		Case 17
+			ClearColor=New Color(ClearColor.R,f,ClearColor.B)
+		Case 18
+			ClearColor=New Color(ClearColor.R,ClearColor.G,f)
+		case 84
+			if value>0 oscillator=Wrap(oscillator+1,0,OscillatorNames.Length)
+		case 85
+			if value>0 oscillator=Wrap(oscillator-1,0,OscillatorNames.Length)
+		Case 3
+'			zoom=f/8
+		Case 121
+			Print "."
+		Case 123
+			Print "_"
+		Default
+			Print "OnControl:"+index+" "+value
+		end
+	End
+	
+	Field midiTicks:Int
+	Field midiTime:Double
+	Field midiTempo:Double
+	Const ppqn:=24
+	Method OnMidiClock(t:Double)
+		If midiTicks>0
+			Local duration:=t-midiTime
+			If duration>0
+				Local bpm:=60.0/(duration*ppqn)
+				If bpm>666 bpm=666
+				midiTempo=(7*midiTempo+bpm)/8
+'				tempo=Int(midiTempo)
+'				Print "tempo="+Int($fffe&int(midiTempo))
+				tempo=$fffe&int(midiTempo)
+			Else
+				midiTempo=0
+'				tempo=0
+			Endif
+		Endif	
+		midiTicks+=1
+		midiTime=t		
+	End
+	
+	Method OnMidiPlay(button:Int,t:Double)
+		Print "Play "+button
+	end
 		
 	Field noteMap:=New IntMap<Bool>
 		
@@ -839,44 +983,22 @@ Class VSynthWindow Extends Window
 				octave=Clamp(octave+1,0,MaxOctave)
 			Case Key.Space
 				vsynth.ClearKeys()
+			Case Key.LeftShift
+				sustain=true
+			Case Key.RightShift
+				sustain=not sustain
 			Default
 				KeyDown(event.Key)
 			End
 		Case EventType.KeyUp
 			Select event.Key
+			Case Key.LeftShift
+				sustain=False
 			Case Key.Escape
 			Default
 				KeyUp(event.Key)
 			End
 		End
-	End
-
-	Field control:=New Int[128]
-	
-	Method OnControl(index:Int, value:Int)	
-	
-		local f:=value/128.0
-		value-=64
-
-		control[index]=value
-		Select index
-		Case 14
-			tempo=f*256
-		Case 16
-			ClearColor=New Color(f,ClearColor.G,ClearColor.B)
-		Case 17
-			ClearColor=New Color(ClearColor.R,f,ClearColor.B)
-		Case 18
-			ClearColor=New Color(ClearColor.R,ClearColor.G,f)
-		case 84
-			if value>0 oscillator=Wrap(oscillator+1,0,OscillatorNames.Length)
-		case 85
-			if value>0 oscillator=Wrap(oscillator-1,0,OscillatorNames.Length)
-		Case 3
-'			zoom=f/8
-		Default
-			Print "OnControl:"+index+" "+value
-		end
 	End
 	
 	Method OnMouseEvent( event:MouseEvent ) Override	
@@ -900,12 +1022,14 @@ Class VSynthWindow Extends Window
 		vsynth.Detune(pitchbend)
 		vsynth.SetArp(arp)
 		vsynth.SetHold(hold)
+		vsynth.SetSustain(sustain)
 		vsynth.SetTempo(tempo,1+div,DutyCycle[duty],rept)
 		vsynth.UpdateAudio()
 
 		Local text:String = About+",,"+Octave1+","+Octave0
 		text+=",,Octave=< >="+octave
-		text+=",Oscillator=1-5="+OscillatorNames[oscillator]
+		text+=",Sustain=Shift="+SustainNames[sustain]
+		text+=",,Oscillator=1-5="+OscillatorNames[oscillator]
 		text+=",Envelope=[]="+EnvelopeNames[envelope]
 		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
 		text+=",,Arpeggiator=F5-F11="+ArpNames[arp]
@@ -933,33 +1057,59 @@ Class VSynthWindow Extends Window
 			Next
 			cy+=20
 		Next
-		
+
+		pixels.Zoom(12)
+		pixels.Dim(32,2)		
 		pixels.Draw(display)	
 	End				
 	
-	Field pixels:=New ColorMap(8,8)	
+	Field pixels:=New ColorMap(420,20)
 End
 
-class ColorMap
+Class Box
+	Field tx:Int
+	Field ty:Int
+	Field tw:=32
+	Field th:=32
+	Field padding:=2
+	Field margin:=2
+end
+
+class ColorMap Extends Box
 	Field colors:Int[]
 	Field width:Int
 	Field height:Int
 	Field palette:=new Color[](Color.Black,Color.Blue)
 
-	Method New(w:Int,h:Int)
+	Method New(x:Int,y:Int)	
+		tx=x
+		ty=y
+	End
+	
+	Method Zoom(size:Int)
+		tw=size
+		th=size
+	end
+	
+	Method Dim(w:Int,h:Int)
+		If w=width And h=height return
 		width=w
 		height=h
 		colors=New Int[w*h]
 	End
 	
 	Method Plot(x:Int,y:Int,c:Int)
-		colors[y*width+x]=c
+		Local index:=y*width+x
+		If index>=0 And index<colors.Length
+			colors[index]=c
+		endif
 	end
 
 	Method Toggle(x:Int,y:Int)
 		Local index:=y*width+x
-		colors[index]=1-colors[index]
-		Print "colors "+index+" = "+colors[index]
+		If index>=0 And index<colors.Length
+			colors[index]=1-colors[index]
+		endif
 	end
 
 	Method Clear(c:Int)
@@ -967,13 +1117,6 @@ class ColorMap
 			colors[i]=c
 		next
 	End
-
-	Field tx:=450
-	Field ty:=200
-	Field tw:=32
-	Field th:=32
-	Field padding:=2
-	Field margin:=2
 	
 	Method Click(x:int,y:int)
 		x=(x-tx)/tw
