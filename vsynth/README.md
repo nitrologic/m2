@@ -8,4 +8,4 @@ Volume control mapped to expressions, warning gain * volume is still work in pro
 v0.2
 Note arpeggiator And what nots
 
-![vicious1](synthalpha.png?raw=true "vsynth alpha")
+![vicious1](vsynthalpha.png?raw=true "vsynth alpha")
