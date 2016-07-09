@@ -11,6 +11,7 @@ Modular Synthesis for Monkey2.
 
 [VSynth Alpha for Raspberry Pi](https://github.com/nitrologic/m2/raw/master/releases/vsynth-pi.tar.gz)
 
+![vsynthalpha](vsynthalpha.png?raw=true "vsynth alpha")
 
 ##VPaint
 
