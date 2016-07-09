@@ -21,8 +21,6 @@ Mac users will need to check their security settings Allow Apps Downloaded From 
 
 Windows use to be advised.
 
-###Downloads
-
 [VPaint 0.2 for Macs](https://github.com/nitrologic/m2/raw/master/releases/VPaint0.2.app.zip)
 
 [VPaint 0.2 for Windows](https://github.com/nitrologic/m2/raw/master/releases/VPaint0.2.zip)
@@ -30,7 +28,5 @@ Windows use to be advised.
 [VPaint 0.2 for Linux](https://github.com/nitrologic/m2/raw/master/releases/vpaint0.2.tar.gz)
 
 [VPaint 0.3 for Raspberry Pi](https://github.com/nitrologic/m2/raw/master/releases/vpaint-pi-0.3.tar.gz)
-
-###Examples
 
 [![IMAGE ALT TEXT](http://img.youtube.com/vi/2Y3zh0FOc00/0.jpg)](http://www.youtube.com/watch?v=2Y3zh0FOc00 "Project VPaint ")
