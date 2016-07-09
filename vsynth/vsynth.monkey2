@@ -42,8 +42,8 @@ Global instance:AppInstance
 Global vsynth:VSynth
 
 Global Duration:=0
-Global FragmentSize:=512
-Global WriteAhead:=2048
+Global FragmentSize:=1024
+Global WriteAhead:=4096
 
 Global AudioFrequency:=44100
 
