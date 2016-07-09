@@ -1,36 +1,23 @@
 #Nitrologic m2 Public Binaries
 
-##Monkey2 For Raspberry Pi
+##VSynth
 
-First unofficial alpha of Monkey2 for raspberry pi.
+Modular Synthesis for Monkey2.
 
-From /home/pi
+* MIDI Control and Instrument input
+* Mono and Poly32 Instruments
+* Arpeggiator with Hold Repeat and 6 Algorithms
+* Work in progress
 
-```
-wget https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-02.tar.gz
-tar -xvf monkey2-pi-01.tar.gz
-cd monkey2/scripts
-./rebuildmods.sh
-```
+[VSynth Alpha for Raspberry Pi](https://github.com/nitrologic/m2/raw/master/releases/vsynth-pi.tar.gz)
 
-- working mojo2 on SDL2 broadcom egl2 display
-- working SDL alsa audio, vpaint (with reduced canvas size) and vsynth demos
-- working keyboard and mouse input events
-- not currently XWindows friendly 
-- not working native requesters
-- not working Ted2 launch process
-
-[monkey2-pi-02.tar.gz](https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-02.tar.gz)
+![vsynthalpha](vsynthalpha.png?raw=true "vsynth alpha")
 
 ##VPaint
 
-###Operation
-
-Mac users will need to check their security settings Allow Apps Downloaded From Anywhere or wait until VPaint is signed and available on the AppStore.
+Mac users check security settings Allow Apps Downloaded From Anywhere or wait until VPaint is signed and available on the AppStore.
 
 Windows use to be advised.
-
-###Downloads
 
 [VPaint 0.2 for Macs](https://github.com/nitrologic/m2/raw/master/releases/VPaint0.2.app.zip)
 
@@ -38,6 +25,6 @@ Windows use to be advised.
 
 [VPaint 0.2 for Linux](https://github.com/nitrologic/m2/raw/master/releases/vpaint0.2.tar.gz)
 
-###Examples
+[VPaint 0.3 for Raspberry Pi](https://github.com/nitrologic/m2/raw/master/releases/vpaint-pi-0.3.tar.gz)
 
 [![IMAGE ALT TEXT](http://img.youtube.com/vi/2Y3zh0FOc00/0.jpg)](http://www.youtube.com/watch?v=2Y3zh0FOc00 "Project VPaint ")

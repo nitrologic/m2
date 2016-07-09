@@ -8,12 +8,81 @@ Namespace ted2
 #Import "assets/newfiles/Simple_Mojo_App.monkey2@/ted2/newfiles"
 #Import "assets/newfiles/Letterboxed_Mojo_App.monkey2@/ted2/newfiles"
 
+'Alias _requesters:mojo.requesters
+
+Class InputDialog Extends Dialog
+
+	Method New(title:String)
+		Super.New(title)
+	
+		_inputField=New TextField		
+		
+		Local input:=New DockingView
+		input.AddView( New Label( "Input:" ),"left",80,False )
+		input.ContentView=_inputField
+				
+		_docker=New DockingView
+		_docker.AddView( input,"top" )
+		_docker.AddView( New Label( " " ),"top" )
+				
+		MaxSize=New Vec2i( 512,0 )
+		
+		ContentView=_docker
+		
+		AddAction( "Close" ).Triggered=Lambda()
+			Close()
+			MainWindow.UpdateKeyView()
+		End
+
+		Opened=Lambda()
+			_inputField.MakeKeyView()
+			_inputField.SelectAll()
+		End
+
+	End
+	
+	Method Open(value:String)
+		_inputField.Text=value
+		Super.Open()
+	end
+	
+	Property InputText:String()	
+		Return _inputField.Text
+	End
+		
+	Private
+	
+	Field _inputField:TextField
+
+	Field _docker:DockingView
+
+End
+
+Class _requesters
+
+	Function OpenUrl(url:String)
+	End
+	
+	Function RequestDir:String( title:String,dir:String )
+		local req:=new InputDialog(title+" - Enter Directory Path")
+		req.Open(dir)
+		Return req.InputText
+	End
+	
+	Function RequestFile:String( title:String,dir:String,Booly:Bool,stringy:String )
+		local req:=new InputDialog(title+" - Enter File Path")
+		req.Open(dir)
+		Return req.InputText
+	End
+end
+
+
 Global MainWindow:MainWindowInstance
 
-Class MainWindowInstance Extends Window
+	Class MainWindowInstance Extends Window
 
 	Field _debugging:String
-	
+		
 	'paths
 	Field _tmp:String
 	Field _mx2cc:String
@@ -351,7 +420,7 @@ Class MainWindowInstance Extends Window
 	Method OnHelpOnlineHelp()
 	
 		App.Idle+=Lambda()
-			requesters.OpenUrl( "http://monkey2.monkey-x.com/modules-reference/" )
+			_requesters.OpenUrl( "http://monkey2.monkey-x.com/modules-reference/" )
 		End
 		
 	End
@@ -359,7 +428,7 @@ Class MainWindowInstance Extends Window
 	Method OnHelpOfflineHelp()
 	
 		App.Idle+=Lambda()
-			requesters.OpenUrl( "file://"+CurrentDir()+"docs/index.html" )
+			_requesters.OpenUrl( "file://"+CurrentDir()+"docs/index.html" )
 		End
 
 	End
@@ -1416,7 +1485,7 @@ Class MainWindowInstance Extends Window
 		Local future:=New Future<String>
 		
 		App.Idle+=Lambda()
-			future.Set( mojo.requesters.RequestDir( title,dir ) )
+			future.Set( _requesters.RequestDir( title,dir ) )
 		End
 		
 		Return future.Get()
@@ -1427,7 +1496,7 @@ Class MainWindowInstance Extends Window
 		Local future:=New Future<String>
 		
 		App.Idle+=Lambda()
-			future.Set( mojo.requesters.RequestFile( title,filters,save,path ) )
+			future.Set( _requesters.RequestFile( title,filters,save,path ) )
 		End
 		
 		Return future.Get()
