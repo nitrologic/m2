@@ -21,6 +21,7 @@ Global SustainNames:=New String[]("Up","Down")
 Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise")
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random1","Random2")
+Global ProgNames:=New String[]("None","Recurse","Ascend","Descend")
 Global SynthNames:=New String[]("Mono1","Poly32")
 Global HoldNames:=New String[]("Off","On")
 Global DivisorNames:=New String[]("Whole","Half","Third","Quarter","Fifth","Sixth","Seventh","Eighth")
@@ -219,7 +220,7 @@ Class Voice Implements NotePlayer
 		noteOn=False
 	End
 	
-	Method Mix(buffer:Double[],samples:Int,detune:V)
+	Method Mix(buffer:Double[],samples:Int,detune:V,volume:V)
 		Local left:=1.0
 		Local right:=1.0
 		If pan<0 right+=pan
@@ -230,6 +231,7 @@ Class Voice Implements NotePlayer
 			If noteOn e=envelope.On() Else e=envelope.Off()
 			e*=gain
 			e*=amp
+			e*=volume
 			buffer[i*2+0]+=e*left*v
 			buffer[i*2+1]+=e*right*v
 		Next
@@ -242,7 +244,7 @@ Interface Synth
 	Method NoteOn(note:Int,velocity:int)
 	Method NoteOff(note:Int)
 	Method SetSustain(sustain:Bool)
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,volume:V)	
 	Method Panic()
 End
 
@@ -327,9 +329,9 @@ Class BeatGenerator Implements Synth
 		Next
 	end
 
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,volume:V)	
 		Update(2.0*samples/AudioFrequency)
-		output.FillAudioBuffer(buffer,samples,detune)
+		output.FillAudioBuffer(buffer,samples,detune,volume)
 	End
 	
 	Method Panic()
@@ -355,12 +357,15 @@ Class Arpeggiator extends BeatGenerator
 	Field sorted:Stack<Note>
 	Field index:Int
 	Field algorithm:Int
+	Field progression:Int
 	Field hold:Bool
 	Field noteCount:Int
 	field note:Int
+	Field cycle:int
 
-	Method SetArpeggiation(mode:Int)
+	Method SetArpeggiation(mode:Int,prog:Int)
 		algorithm=mode
+		progression=prog
 	End
 		
 	Method ReleaseAll() Override
@@ -372,6 +377,7 @@ Class Arpeggiator extends BeatGenerator
 		If hold And Not down 
 			ReleaseAll()
 			noteCount=0
+			cycle=0
 		End
 		hold=down
 	End
@@ -415,7 +421,9 @@ Class Arpeggiator extends BeatGenerator
 			count-=1
 			If note TriggerNote(note)
 			return
-		endif
+		Endif
+		
+		If index>=natural.Length cycle+=1
 
 		Select algorithm
 			Case 1
@@ -454,6 +462,17 @@ Class Arpeggiator extends BeatGenerator
 				index=Rnd()*sorted.Length
 				note=sorted[index]
 		End
+		
+		Select progression
+			Case 1
+				cycle=cycle Mod natural.Length
+				note+=natural[cycle]-natural[0]
+			Case 2		
+				note+=cycle
+			Case 3
+				note-=cycle
+		end
+		
 		If note TriggerNote(note)
 		count=repeats
 	End
@@ -527,9 +546,9 @@ Class PolySynth Implements Synth
 		Endif
 	End
 
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,volume:V)	
 		For Local voice:=Eachin voices
-			voice.Mix(buffer,samples,detune)
+			voice.Mix(buffer,samples,detune,volume)
 		Next		
 	End
 	
@@ -591,8 +610,8 @@ Class MonoSynth Implements Synth
 		Endif
 	End
 
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V)	
-		tone.Mix(buffer,samples,detune)
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,volume:V)	
+		tone.Mix(buffer,samples,detune,volume)
 	End
 
 End
@@ -601,6 +620,7 @@ Class VSynth
 	Field audioSpec:SDL_AudioSpec
 	Field audioPipe:=AudioPipe.Create()
 	Field detune:V
+	Field volume:V
 	Field poly:Synth=New PolySynth()
 	Field mono:Synth=New MonoSynth()
 	Field root:Synth
@@ -609,7 +629,7 @@ Class VSynth
 	Method New()
 		OpenAudio()
 		arpeggiator.SetSynth(mono)
-		arpeggiator.SetArpeggiation(1)
+		arpeggiator.SetArpeggiation(1,0)
 		root=arpeggiator
 	End
 
@@ -642,8 +662,8 @@ Class VSynth
 		arpeggiator.SetTempo(tempo,divisor,duty,rept)
 	End
 	
-	Method SetArp(arpmode:Int)
-		arpeggiator.SetArpeggiation(arpmode)
+	Method SetArp(arpmode:Int,prog:Int)
+		arpeggiator.SetArpeggiation(arpmode,prog)
 	End
 	
 	Method SetHold(hold:Bool)
@@ -652,6 +672,10 @@ Class VSynth
 
 	Method Detune(bend:V)
 		detune=bend
+	End
+
+	Method Volume(vol:V)
+		volume=vol
 	End
 	
 	Method ClearKeys()
@@ -669,7 +693,7 @@ Class VSynth
 			Next	
 
 			Local samples:=FragmentSize
-			vsynth.root.FillAudioBuffer(buffer,samples,detune)			
+			vsynth.root.FillAudioBuffer(buffer,samples,detune,volume)			
 			Duration+=samples
 
 			Local pointer:=Varptr buffer[0]
@@ -729,23 +753,26 @@ Class VSynthWindow Extends Window
 	Field mousex:Int
 	Field mousey:Int
 	
-	Field synth:Int
-	Field oscillator:Int
-	Field envelope:Int
-	Field octave:Int=5
-	Field sustain:Bool
-	Field expression:Int
-	
+	Field volume:V=0.3	
 	Field mousebend:V
 	Field pitchbend:V=1.0
 
-	Field arp:Int
-	Field hold:Bool
+	Field synth:Int
+	Field oscillator:Int=3
+	Field envelope:Int
+	Field octave:Int=4
+	Field sustain:Bool
+	Field expression:V
+
+	Field arp:Int=1
+	Field prog:Int
+
+	Field hold:Bool=True
 	Field div:Int
 	Field duty:Int
-	Field rept:int
-	Field tempo:Tempo=96
-	field reset:int
+	Field rept:Int
+	Field tempo:Tempo=112
+	field reset:Int
 	
 	Field keyNoteMap:=New Map<Key,Int>
 	
@@ -885,7 +912,9 @@ RPN LSB/MSB (cc#100/101)
 		Case 123
 			Print "_"			
 		Case 1
-			expression=value
+			expression=4*f*f
+			Print "Expression="+expression
+			volume=expression
 		Case 64
 			sustain=value>=0
 		Default
@@ -929,6 +958,8 @@ RPN LSB/MSB (cc#100/101)
 			Local note:=keyNoteMap[key]+octave*12
 			noteMap[note]=True
 			vsynth.NoteOn(note,KeyVelocity)
+		Else
+			Print "Unmapped keycode "+Int(key)
 		Endif
 	End
 
@@ -975,6 +1006,8 @@ RPN LSB/MSB (cc#100/101)
 				duty=Wrap(duty+1,0,DutyNames.Length)				
 			Case Key.Home
 				rept=Wrap(rept+1,0,RepeatNames.Length)				
+			Case Key.KeyEnd
+				prog=Wrap(prog+1,0,ProgNames.Length)				
 			Case Key.Minus
 				tempo-=1
 			Case Key.Key0
@@ -1027,6 +1060,10 @@ RPN LSB/MSB (cc#100/101)
 				sustain=true
 			Case Key.RightShift
 				sustain=not sustain
+			Case Key.PageUp
+				volume=1.20*volume
+			Case Key.PageDown
+				volume=0.92*volume
 			Default
 				KeyDown(event.Key)
 			End
@@ -1064,7 +1101,8 @@ RPN LSB/MSB (cc#100/101)
 		App.RequestRender()	
 
 		vsynth.Detune(pitchbend)
-		vsynth.SetArp(arp)
+		vsynth.Volume(volume)
+		vsynth.SetArp(arp,prog)
 		vsynth.SetHold(hold)
 		vsynth.SetSustain(sustain)
 		vsynth.SetTempo(tempo,1+div,DutyCycle[duty],rept)
@@ -1074,13 +1112,15 @@ RPN LSB/MSB (cc#100/101)
 		Local text:String = About+",,"+Octave1+","+Octave0
 		text+=",,Octave=< >="+octave
 		text+=",Sustain=Shift="+SustainNames[sustain]
+		text+=",Volume=PageUpDown="+FloatString(volume)
+		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
 		text+=",,Oscillator=1-5="+OscillatorNames[oscillator]
 		text+=",Envelope=[]="+EnvelopeNames[envelope]
-		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
-		text+=",,Arpeggiator=F5-F11="+ArpNames[arp]
+		text+=",,Arpeggiator=F5-F10="+ArpNames[arp]
 		text+=",Hold=Tab="+HoldNames[hold]
 		text+=",Note Divisor=/="+DivisorNames[div]
 		text+=",DutyCycle=Insert="+DutyNames[duty]
+		text+=",Progression=End="+ProgNames[prog]
 		text+=",Note Repeat=Home="+RepeatNames[rept]
 		text+=",,Tempo=- +="+tempo
 		text+=",,Synth=Enter Key="+SynthNames[synth]
@@ -1093,7 +1133,7 @@ RPN LSB/MSB (cc#100/101)
 		display.DrawRect(0,0,400,Height)
 		display.Color=Color.Grey
 
-		Local cy:=40
+		Local cy:=20
 		For Local line:=Eachin text.Split(",")
 			Local cx:=50
 			For Local tab:=Eachin line.Split("=")
