@@ -33,26 +33,3 @@ Windows use to be advised.
 ###Examples
 
 [![IMAGE ALT TEXT](http://img.youtube.com/vi/2Y3zh0FOc00/0.jpg)](http://www.youtube.com/watch?v=2Y3zh0FOc00 "Project VPaint ")
-
-
-##Monkey2 For Raspberry Pi
-
-First unofficial alpha of Monkey2 for raspberry pi.
-
-From /home/pi
-
-```
-wget https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-02.tar.gz
-tar -xvf monkey2-pi-01.tar.gz
-cd monkey2/scripts
-./rebuildmods.sh
-```
-
-- working mojo2 on SDL2 broadcom egl2 display
-- working SDL alsa audio, vpaint (with reduced canvas size) and vsynth demos
-- working keyboard and mouse input events
-- not currently XWindows friendly 
-- not working native requesters
-- not working Ted2 launch process
-
-[monkey2-pi-02.tar.gz](https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-02.tar.gz)
