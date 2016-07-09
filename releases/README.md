@@ -4,7 +4,7 @@
 
 Modular Synthesis for Monkey2.
 
-* MIDI Controller and Instrument Playable
+* MIDI Control and Instrument input
 * Mono and Poly32 Instruments
 * Arpeggiator with Hold Repeat and 6 Algorithms
 * Work in progress
