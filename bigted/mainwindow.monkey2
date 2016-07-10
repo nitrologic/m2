@@ -10,52 +10,47 @@ Namespace ted2
 
 'Alias _requesters:mojo.requesters
 
-Class InputDialog Extends Dialog
+Class StringDialog Extends Dialog
 
-	Method New(title:String)
-		Super.New(title)
-	
-		_inputField=New TextField		
-		
-		Local input:=New DockingView
-		input.AddView( New Label( "Input:" ),"left",80,False )
-		input.ContentView=_inputField
-				
-		_docker=New DockingView
-		_docker.AddView( input,"top" )
-		_docker.AddView( New Label( " " ),"top" )
-				
-		MaxSize=New Vec2i( 512,0 )
-		
-		ContentView=_docker
-		
-		AddAction( "Close" ).Triggered=Lambda()
-			Close()
-			MainWindow.UpdateKeyView()
-		End
-
-		Opened=Lambda()
-			_inputField.MakeKeyView()
-			_inputField.SelectAll()
-		End
-
+	Property Text:String()	
+		Return _input.Text
+	Setter( text:String )
+		_input.Text=text
 	End
 	
-	Method Open(value:String)
-		_inputField.Text=value
-		Super.Open()
-	end
-	
-	Property InputText:String()	
-		Return _inputField.Text
+	Field _input:=new TextField
+	Field _result:=New Future<String>
+
+	Method New()
+		MaxSize=New Vec2i( 320,0 )
+		_input.EnterHit=Lambda()
+			_result.Set( Text )
+		End
+		EscapeHit=Lambda()
+			_result.Set("")
+		End
+		ContentView=_input
 	End
 		
-	Private
-	
-	Field _inputField:TextField
-
-	Field _docker:DockingView
-
+	Method WaitString:String()
+		_input.MakeKeyView()
+		_input.SelectAll()
+		Local r:=_result.Get()		
+		App.EndModal()		
+		Close()
+		Return r
+	End
+				
+	Function Run:String( title:String,text:String )
+' todo: global per title
+		Local dialog:=New StringDialog()	
+		dialog.Title=title
+		if text dialog.Text=text
+		dialog.Open()		
+		App.BeginModal(dialog)
+		Return dialog.WaitString()
+	End
+		
 End
 
 Class _requesters
@@ -64,15 +59,13 @@ Class _requesters
 	End
 	
 	Function RequestDir:String( title:String,dir:String )
-		local req:=new InputDialog(title+" - Enter Directory Path")
-		req.Open(dir)
-		Return req.InputText
+		dir=RealPath(dir)
+		Return StringDialog.Run( title, dir )
 	End
 	
-	Function RequestFile:String( title:String,dir:String,Booly:Bool,stringy:String )
-		local req:=new InputDialog(title+" - Enter File Path")
-		req.Open(dir)
-		Return req.InputText
+	Function RequestFile:String( title:String,filters:String,save:Bool,path:String )
+		path=RealPath(path)
+		Return StringDialog.Run( title, path )
 	End
 end
 
@@ -1482,6 +1475,8 @@ Global MainWindow:MainWindowInstance
 	
 	Method RequestDir:String( title:String,dir:String )
 
+		return _requesters.RequestDir( title,dir )
+
 		Local future:=New Future<String>
 		
 		App.Idle+=Lambda()
@@ -1492,6 +1487,8 @@ Global MainWindow:MainWindowInstance
 	End
 
 	Method RequestFile:String( title:String,filters:String,save:Bool,path:String="" )
+
+		return _requesters.RequestFile( title,filters,save,path )
 
 		Local future:=New Future<String>
 		

@@ -49,6 +49,7 @@ Class Dialog Extends View
 
 	Field Opened:Void()
 	Field Closed:Void()
+	Field EscapeHit:Void()
 
 	Method New()
 		Layout="float"
