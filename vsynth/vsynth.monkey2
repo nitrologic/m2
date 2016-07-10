@@ -22,7 +22,7 @@ Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Nois
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random1","Random2")
 Global ProgNames:=New String[]("None","Recurse","Ascend","Descend")
-Global SynthNames:=New String[]("Mono1","Poly32")
+Global SynthNames:=New String[]("Mono1","Poly32","MidiOut")
 Global HoldNames:=New String[]("Off","On")
 Global DivisorNames:=New String[]("Whole","Half","Third","Quarter","Fifth","Sixth","Seventh","Eighth")
 Global DutyNames:=New String[]("1:2","3:4","1:4","7:8","1:8","5:8","3:8")
@@ -220,7 +220,7 @@ Class Voice Implements NotePlayer
 		noteOn=False
 	End
 	
-	Method Mix(buffer:Double[],samples:Int,detune:V,volume:V)
+	Method Mix(buffer:Double[],samples:Int,detune:V,fade:V)
 		Local left:=1.0
 		Local right:=1.0
 		If pan<0 right+=pan
@@ -231,7 +231,7 @@ Class Voice Implements NotePlayer
 			If noteOn e=envelope.On() Else e=envelope.Off()
 			e*=gain
 			e*=amp
-			e*=volume
+			e*=fade
 			buffer[i*2+0]+=e*left*v
 			buffer[i*2+1]+=e*right*v
 		Next
@@ -241,10 +241,11 @@ End
 Interface Synth
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
 	method SetTone(oscillator:Int,envelope:Int)
+	Method SetVolume(volume:V)
 	Method NoteOn(note:Int,velocity:int)
 	Method NoteOff(note:Int)
 	Method SetSustain(sustain:Bool)
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,volume:V)	
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
 	Method Panic()
 End
 
@@ -277,6 +278,10 @@ Class BeatGenerator Implements Synth
 	
 	Method SetSustain(sustain:Bool)
 		output.SetSustain(sustain)
+	End
+
+	Method SetVolume(volume:V)
+		output.SetVolume(volume)
 	End
 
 	Method SetSynth(synth:Synth)
@@ -329,9 +334,9 @@ Class BeatGenerator Implements Synth
 		Next
 	end
 
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,volume:V)	
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
 		Update(2.0*samples/AudioFrequency)
-		output.FillAudioBuffer(buffer,samples,detune,volume)
+		output.FillAudioBuffer(buffer,samples,detune,fade)
 	End
 	
 	Method Panic()
@@ -483,9 +488,10 @@ Class PolySynth Implements Synth
 	Field polyList:=New List<Voice>
 	Field polyMap:=New Map<Int,Voice>
 	Field voices:=New Stack<Voice>
-	Field sustained:bool
+	Field sustained:Bool
 	Field oscillator:Int
 	Field envelope:Int
+	Field volume:V=1.0
 	Field sustainedVoices:=New List<Voice>
 	
 	Method New()
@@ -504,6 +510,10 @@ Class PolySynth Implements Synth
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
 	End
 			
+	Method SetVolume(vol:V)
+		volume=vol
+	End
+
 	Method SetSustain(sustain:Bool)
 		If sustained And Not sustain
 			For Local voice:=Eachin sustainedVoices
@@ -546,9 +556,9 @@ Class PolySynth Implements Synth
 		Endif
 	End
 
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,volume:V)	
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,gain:V)	
 		For Local voice:=Eachin voices
-			voice.Mix(buffer,samples,detune,volume)
+			voice.Mix(buffer,samples,detune,gain)
 		Next		
 	End
 	
@@ -559,8 +569,9 @@ Class MonoSynth Implements Synth
 	Field monoNote:Int
 	Field monoVelocity:int
 	Field notes:=New Stack<Int>
-	Field oscillator:Int
+	Field oscillator:Int	
 	Field envelope:Int
+	Field volume:V=1.0
 
 	Method New()
 		tone=New Voice
@@ -569,6 +580,10 @@ Class MonoSynth Implements Synth
 	End
 	
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
+	End
+
+	Method SetVolume(vol:V)
+		volume=vol
 	End
 	
 	Method SetSustain(sustain:Bool)
@@ -610,21 +625,80 @@ Class MonoSynth Implements Synth
 		Endif
 	End
 
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,volume:V)	
-		tone.Mix(buffer,samples,detune,volume)
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
+		tone.Mix(buffer,samples,detune,fade)
 	End
 
 End
+
+
+Class MidiSynth Implements Synth
+	Const _NoteOn:=144
+	Const _NoteOff:=128
+	Const _ControllerChange:=176
+
+	Const _VolumeController:=7
+	Const _ExpressionController:=11
+	Const _SustainPedal:=64
+
+	Field portMidi:PortMidi
+	Field send:Int
+
+	method new(driver:PortMidi,channel:Int)
+		portMidi=driver
+		send=channel
+	end
+
+	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
+	End
+	
+	Method SetVolume(volume:V)
+		If volume<0 volume=0
+		If volume>1 volume=1
+		local value7:Int=127*volume
+		Local setVolume:Int=(_ControllerChange)|(_VolumeController Shl 8)|(value7 Shl 16)
+		portMidi.OutputData(send,setVolume)
+	end
+
+	Method SetSustain(depress:Bool)
+		local value7:Int
+		If depress value7=127
+		Local setVolume:Int=(_ControllerChange)|(_SustainPedal Shl 8)|(value7 Shl 16)
+		portMidi.OutputData(send,setVolume)
+	End
+	
+	method SetTone(oscillator:Int,envelope:Int)
+	End
+	
+	Method NoteOn(note:Int,velocity:int)
+		Local noteOn:Int=(_NoteOn)|(note Shl 8)|(velocity Shl 16)
+		portMidi.OutputData(send,noteOn)
+	End
+	
+	Method NoteOff(note:Int)
+		Local noteOff:Int=(_NoteOff)|(note Shl 8)
+		portMidi.OutputData(send,noteOff)
+	End
+			
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
+	End
+	
+	Method Panic()
+	End
+End
+
 
 Class VSynth
 	Field audioSpec:SDL_AudioSpec
 	Field audioPipe:=AudioPipe.Create()
 	Field detune:V
-	Field volume:V
+	Field fade:V=1.0
 	Field poly:Synth=New PolySynth()
 	Field mono:Synth=New MonoSynth()
 	Field root:Synth
 	Field arpeggiator:=New Arpeggiator()
+	Field midiSynth:MidiSynth
+	Field synthMode:int
 	
 	Method New()
 		OpenAudio()
@@ -632,7 +706,12 @@ Class VSynth
 		arpeggiator.SetArpeggiation(1,0)
 		root=arpeggiator
 	End
-
+	
+	Method SetMidiOutput(portMidi:PortMidi,midiSend:Int)
+		midiSynth=New MidiSynth(portMidi,midiSend)
+		SetSynth(synthMode)
+	End
+	
 	Method SetSustain(sustain:Bool)
 		root.SetSustain(sustain)
 	End
@@ -650,18 +729,29 @@ Class VSynth
 	End
 	
 	Method SetSynth(synth:Int)
+		synthMode=synth		
 		Select synth
 			Case 0
 				arpeggiator.SetSynth(mono)
 			Case 1
 				arpeggiator.SetSynth(poly)
+			Case 2
+				If midiSynth arpeggiator.SetSynth(midiSynth)
 		End
 	End
 	
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
 		arpeggiator.SetTempo(tempo,divisor,duty,rept)
 	End
+
+	Method SetVolumeFader(vol:V)
+		fade=vol
+	End
 	
+	Method SetVolume(volume:V)
+		arpeggiator.SetVolume(volume)
+	End
+
 	Method SetArp(arpmode:Int,prog:Int)
 		arpeggiator.SetArpeggiation(arpmode,prog)
 	End
@@ -672,10 +762,6 @@ Class VSynth
 
 	Method Detune(bend:V)
 		detune=bend
-	End
-
-	Method Volume(vol:V)
-		volume=vol
 	End
 	
 	Method ClearKeys()
@@ -693,7 +779,7 @@ Class VSynth
 			Next	
 
 			Local samples:=FragmentSize
-			vsynth.root.FillAudioBuffer(buffer,samples,detune,volume)			
+			vsynth.root.FillAudioBuffer(buffer,samples,detune,fade)			
 			Duration+=samples
 
 			Local pointer:=Varptr buffer[0]
@@ -753,7 +839,7 @@ Class VSynthWindow Extends Window
 	Field mousex:Int
 	Field mousey:Int
 	
-	Field volume:V=0.3	
+	Field volume:V=0.8
 	Field mousebend:V
 	Field pitchbend:V=1.0
 
@@ -776,9 +862,13 @@ Class VSynthWindow Extends Window
 	
 	Field keyNoteMap:=New Map<Key,Int>
 	
+	Field portMidi:PortMidi
+
 	Field midiInputs:Int
 	Field midiOutputs:Int
-
+	Field midiSend:Int
+	Field midiSendName:="None"
+	
 	Method New(title:String)
 		Super.New(title,1280,720,WindowFlags.Resizable)				
 		For Local i:=0 Until MusicKeys.Length
@@ -790,9 +880,7 @@ Class VSynthWindow Extends Window
 #endif
 		ClearColor=new Color(1.0/16,1.0)
 	End
-
-	Field portMidi:PortMidi
-	
+		
 	Method ResetMidi()
 		reset=0
 		if portMidi 
@@ -805,9 +893,36 @@ Class VSynthWindow Extends Window
 		For Local i:=0 Until midiInputs
 			portMidi.OpenInput(i)
 		Next
+		For Local i:=0 Until midiOutputs
+			portMidi.OpenOutput(i)
+		Next
+		If midiSend<midiOutputs
+			midiSendName=portMidi.OutputName(midiSend)
+		Endif			
 	End
-	
+		
+	Method CycleMidiSend()
+		If midiOutputs	
+			midiSend=(midiSend+1)Mod midiOutputs
+			midiSendName=portMidi.OutputName(midiSend)
+			vsynth.SetMidiOutput(portMidi,midiSend)
+		Endif			
+	End
+
 #rem
+yamaha
+
+SysEx=240
+TimeCode=241
+SongPosition=242
+SongSelect=243
+EOX=247
+Clock=248
+Start=250
+Continue=251
+Stop=252
+Reset=255
+
 midi level
 Bank Select (cc#0/32)
 Modulation Depth (cc#1)
@@ -913,7 +1028,6 @@ RPN LSB/MSB (cc#100/101)
 			Print "_"			
 		Case 1
 			expression=4*f*f
-			Print "Expression="+expression
 			volume=expression
 		Case 64
 			sustain=value>=0
@@ -1012,6 +1126,8 @@ RPN LSB/MSB (cc#100/101)
 				tempo-=1
 			Case Key.Key0
 				tempo+=1
+			Case Key.F3
+				CycleMidiSend()
 			Case Key.F5
 				arp=0
 			Case Key.F6
@@ -1101,7 +1217,8 @@ RPN LSB/MSB (cc#100/101)
 		App.RequestRender()	
 
 		vsynth.Detune(pitchbend)
-		vsynth.Volume(volume)
+		vsynth.SetVolume(volume)
+'		vsynth.SetVolumeFader(volume)
 		vsynth.SetArp(arp,prog)
 		vsynth.SetHold(hold)
 		vsynth.SetSustain(sustain)
@@ -1125,8 +1242,8 @@ RPN LSB/MSB (cc#100/101)
 		text+=",,Tempo=- +="+tempo
 		text+=",,Synth=Enter Key="+SynthNames[synth]
 		text+=",,"+Controls		
-		text+=",,Midi Inputs "+midiInputs
-		text+= ",Midi Outputs "+midiOutputs
+		text+=",,MidiIn["+midiInputs+"]=F2=All"
+		text+= ",MidiOut["+midiOutputs+"]=F3="+midiSendName
 		text+=",,"+Contact
 		
 		display.Color=Color.Black
