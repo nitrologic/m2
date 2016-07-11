@@ -75,8 +75,26 @@ Class Cube
 	Field y:Int
 	Field z:int
 	Field neighbors:Cube[]
+	Field vacant:int
 	Field kids:Cube[]
 	Field style:Int
+	Field image:Image
+	
+	Const D:=84
+	
+	Method New(skin:Image)
+		image=skin
+		vacant=26
+		neighbors=New Cube[Qube]		
+	End
+	
+	Method Draw(display:Canvas,zx:Double,zy:double)
+		If vacant=0 return
+		Local sz:=y
+		Local sx:=x*D+sz*zx*D
+		Local sy:=z*D+sz*zy*D
+		display.DrawImage(image,sx,sy)
+	end	
 	
 	Method Depth:Int(quadrant:Int)
 		local ix:=Order4[quadrant*4+0]
@@ -89,14 +107,14 @@ Class Cube
 	End
 
 	Method Visit:Int(scan:Int,count:Int,cx:int,cy:int,cz:int,collect:List<Cube>)	
-		If color<>scan
-			color=scan
-			x=cx
-			y=cy
-			z=cz
-			If collect collect.AddLast(Self)
-			count+=1
-		Endif
+		If color=scan Return count
+	
+		color=scan
+		x=cx
+		y=cy
+		z=cz
+		If collect collect.AddLast(Self)
+		count+=1
 
 		If neighbors=Null Return count
 		
@@ -118,7 +136,6 @@ Class Cube
 	End
 
 	Method Grow()
-		Local o:=New Cube
 		For local x:=-1 To 1
 			For local y:=-1 To 1
 				For local z:=-1 To 1
@@ -143,17 +160,20 @@ Class Cube
 		If neighbors 
 			result=neighbors[index]
 			neighbors[index]=Null ' todo null container if empty
+			'todo modify vacant l
 		Endif
 		Return result
 	End
 	
 	Method Attach:Cube(dx:Int,dy:Int,dz:Int)
 		Local index:=Rubik+dx+dy*3+dz*3*3	
-		If neighbors=Null 
-			neighbors=New Cube[Qube]
-		endif
 		If neighbors[index]=Null
-			neighbors[index]=New Cube
+			Local cube:=New Cube(image)
+			neighbors[index]=cube
+			Local index2:=Rubik-dx-dy*3-dz*3*3	
+			cube.neighbors[index2]=Self
+			vacant-=1
+			cube.vacant-=1
 		Endif
 		Return neighbors[index]
 	End
@@ -225,12 +245,11 @@ Class Grid
 	Field starClump:Clump
 
 	Field framecount:Int	
-	Field tile:Tile
 	
-	Method New()
-		tile=New Tile()		
-		star=New Cube()
-		Generate()		
+	Method New(image:Image)
+		star=New Cube(image)
+		starClump=New Clump(star)
+'		Generate()		
 	End
 	
 	Method Generate()
@@ -260,41 +279,14 @@ Class Grid
 		Local zoom:=1.0'0.1*Mouse.Location.Y
 		Local theta:=0.03*framecount
 		IsoView(c,theta,zoom)
-		
 ' calulate draw order so we scan grid from far to near
-
 		Local quadrant:Int=Int(2*theta/Pi)&3		
-
 		For Local cube:=Eachin starClump.ordered[quadrant]
-			Local z:=cube.y
-			Local x:=cube.x*34+z*zx*34
-			Local y:=cube.z*34+z*zy*34
-			c.DrawImage(tile.image,x,y)
+			cube.Draw(c,zx,zy)
 		next
-
-
-		local ix:=Order4[quadrant*4+0]
-		local jx:=Order4[quadrant*4+1]
-		local iy:=Order4[quadrant*4+2]
-		local jy:=Order4[quadrant*4+3]
-
-		Local n:=1		
-		For Local i:=-n To n
-			For Local j:=-n To n
-				Local x:=i*ix+j*jx
-				Local y:=i*iy+j*jy
-				For Local z:=12 To 0 Step -3					
-'					c.DrawImage(tile.image,x*34+z*zx,y*34+z*zy)
-'					c.DrawImage(tile.image,x*24,y*24,theta)
-				next
-			Next
-		Next
-		
 		c.PopMatrix()
-		
 		framecount+=1		
-	End
-	
+	End	
 End
 
 Enum Tool
@@ -311,11 +303,7 @@ End
 Class GridPaint Extends Window
 	Field appState:AppState
 	
-	Field grid:=New Grid
-
-'	Field tool:VToolbar
-'	Field pane:VPane
-'	Field browse:VBrowse
+	Field grid:Grid
 	Field status:String
 	
 	Field zoom:Float
@@ -337,41 +325,21 @@ Class GridPaint Extends Window
 	Field pany:Float
 	Field panxSpeed:Float
 	Field panySpeed:Float
-
-	Field sample:Sound
-	Field wheel:Channel
-	
-	Method ToggleTwo()	
-	End
 	
 	Global Transparent:=New Color(0,0,0,0)
 	
+	Field tile:Tile
+
 	Method New(title:String)
 		Super.New(title,720,560,WindowFlags.Resizable)		
 		ClearColor=Color.Black				
 		zoom=2
-'		pane=New VPane(2048,2048,Transparent)
-'		pane=New VPane(4096,4096,Transparent)
-'		browse=New VBrowse()
 		ink=New Color
-		radius=2.5
-'		tool=New VTool("Tools")
-'		tool.Title="VPaint Pen : RGBCycle"	
-'		sample=Sound.Load("asset::bang.wav")
-'		sample=Sound.Load("asset::whale52hz.wav")
-		sample=Sound.Load("asset::whale52hz.wav")
-'		sample=Sound.Load("asset::thrust.wav")
-
-		If sample
-			wheel=sample.Play(-1)
-			wheel.Rate=5
-		Else
-			Print "Sample not found"
-		Endif
-		
+		radius=2.5		
 '		sdl2.SDL_ShowCursor(0)
-		
 '		InitMidi()		
+		tile=New Tile()		
+		grid=New Grid(tile.image)
 	End
 
 	Field portMidi:PortMidi
@@ -425,7 +393,7 @@ Class GridPaint Extends Window
 '		If tool=Tool.Curve tooltype="Curve"
 		status="RPM "+rpm+" Pan="+velocity+" Tip="+Int(radius*100)+" Tool="+tooltype
 		statusCount=200		
-		wheel.Rate=rpm/60
+'		wheel.Rate=rpm/60
 	End
 	
 	Field statusCount:Int
@@ -548,20 +516,12 @@ Class GridPaint Extends Window
 				Case Tool.Line
 					tool=Tool.Curve
 				End
-			Case Key.S
-'				pane.Smile(mousex,mousey,radius)
-'				pane.Circle(mousex,mousey,radius)
-			Case Key.C
-'				pane.Clear(Transparent)
 			Case Key.Escape
 				App.Terminate()
 			Case Key.F1
 				Fullscreen = Not Fullscreen
-			Case Key.F2
-				ToggleTwo()	
 			Case Key.Space
 				Hold()
-'				pane.EndSegment()
 			End
 				
 			If event.Modifiers & CommandKey
