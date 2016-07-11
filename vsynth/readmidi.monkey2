@@ -19,18 +19,6 @@ Function HexList:String(binary:Int[])
 	Return h
 End
 
-Class RingBuffer
-	Method New(size:Int)
-	End
-	Method Available:Int()
-		Return 0
-	End
-	Method Read(dest:Byte[])
-	End
-	Method Write(src:Byte[])
-	End
-End
-
 Class MidiFile
 	Private 
 	
@@ -38,16 +26,8 @@ Class MidiFile
 	Field clock:Int	
 
 	Field databuffer:=New DataBuffer(256)
-	Field midibuffer:=New RingBuffer(65536*4)
-		
-	Method Available:Int()
-		Return midibuffer.Available()
-	End
-	
-	Method Read(dest:Byte[])
-		midibuffer.Read(dest)
-	End
-	
+	Field midibuffer:=New List<Byte[]>
+				
 	Function ReadBigInt:Int(stream:FileStream)
 		Local b0:=$ff&stream.ReadByte()
 		Local b1:=$ff&stream.ReadByte()
@@ -64,7 +44,7 @@ Class MidiFile
 	
 	Method Reset()	
 	
-		stream=FileStream.Open("/Users/simon/nitrologic/m2/vsynth/assets/chopin.mid","r")	
+		stream=FileStream.Open("/Users/simon/m2/vsynth/assets/chopin.mid","r")	
 		
 		If Not stream
 			Print "Could not open file"
@@ -209,7 +189,7 @@ Class MidiFile
 								p1=stream.ReadByte()								
 								p+=1
 '								print "["+cmd+"] #"+channel+","+p0+","+p1+" +"+t
-								midibuffer.Write(New Byte[](cmd Shl 4,p0,p1))								
+								midibuffer.AddLast(New Byte[](cmd Shl 4,p0,p1))								
 						End
 				End
 				

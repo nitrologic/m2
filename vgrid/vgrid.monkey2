@@ -53,9 +53,9 @@ Class Tile
 		pixmap.Ball(16,16,10,Color.Black)		
 		For Local i:=5 to 27 Step 2
 			pixmap.Rect(i,5,1,22,Color.White)
-		next
+		Next
 		image=new Image(pixmap)
-		image.Handle=New Vec2f( .5,.5 )
+'		image.Handle=New Vec2f( .5,.5 )
 	end
 
 End
@@ -73,22 +73,28 @@ Class Cube
 	Field color:Int
 	Field x:Int
 	Field y:Int
-	Field z:int
+	Field z:Int
 	Field neighbors:Cube[]
 	Field vacant:int
 	Field kids:Cube[]
 	Field style:Int
+
 	Field image:Image
 	
-	Const D:=84
+	Const D:=24
 	
 	Method New(skin:Image)
 		image=skin
 		vacant=26
 		neighbors=New Cube[Qube]		
 	End
+
+	Method Clone:Cube() Virtual
+		Local cube:=New Cube(image)
+		Return cube
+	End
 	
-	Method Draw(display:Canvas,zx:Double,zy:double)
+	Method Draw(display:Canvas,zx:Double,zy:Double,rz:Double) virtual
 		If vacant=0 return
 		Local sz:=y
 		Local sx:=x*D+sz*zx*D
@@ -107,27 +113,23 @@ Class Cube
 	End
 
 	Method Visit:Int(scan:Int,count:Int,cx:int,cy:int,cz:int,collect:List<Cube>)	
-		If color=scan Return count
-	
+		If color=scan Return count	
 		color=scan
 		x=cx
 		y=cy
 		z=cz
 		If collect collect.AddLast(Self)
 		count+=1
-
-		If neighbors=Null Return count
-		
+		If neighbors=Null Return count		
 		Local cube:Cube
-		Local index:=0
 		For local dx:=-1 To 1
 			For Local dy:=-1 To 1
 				For local dz:=-1 To 1
+					Local index:=Rubik+dx+dy*3+dz*3*3
 					cube=neighbors[index]
 					If cube And (dx|dy|dz)
 						count=cube.Visit(scan,count,cx+dx,cy+dy,cz+dz,collect)
 					endif
-					index+=1
 				Next
 			Next
 		Next
@@ -135,26 +137,13 @@ Class Cube
 		Return count
 	End
 
-	Method Grow()
-		For local x:=-1 To 1
-			For local y:=-1 To 1
-				For local z:=-1 To 1
-					If (x|y|z)=0 Continue
-					If Not Neighbor(x,y,z)
-						Attach(x,y,z)
-					Endif
-				Next
-			Next
-		next
-	End
-
 	Method Neighbor:Cube(dx:Int,dy:Int,dz:Int)
 		Local index:=Rubik+dx+dy*3+dz*3*3
 		If neighbors Return neighbors[index]
 		Return Null
-	end
+	End
 
-	Method Detach:Cube(dx:Int,dy:Int,dz:Int)	
+	Method Detach2:Cube(dx:Int,dy:Int,dz:Int)	
 		Local index:=Rubik+dx+dy*3+dz*3*3
 		Local result:Cube
 		If neighbors 
@@ -165,19 +154,26 @@ Class Cube
 		Return result
 	End
 	
-	Method Attach:Cube(dx:Int,dy:Int,dz:Int)
-		Local index:=Rubik+dx+dy*3+dz*3*3	
-		If neighbors[index]=Null
-			Local cube:=New Cube(image)
-			neighbors[index]=cube
-			Local index2:=Rubik-dx-dy*3-dz*3*3	
-			cube.neighbors[index2]=Self
-			vacant-=1
-			cube.vacant-=1
-		Endif
-		Return neighbors[index]
-	End
 end
+
+class Bill Extends Cube
+	Method New(skin:Image)
+		Super.New(skin)
+	end
+
+	Method Clone:Cube() Override
+		Local cube:=New Bill(image)
+		Return cube
+	End
+
+	Method Draw(display:Canvas,zx:Double,zy:Double,rz:Double) Override
+		If vacant=0 return
+		Local sz:=y
+		Local sx:=x*D+sz*zx*D
+		Local sy:=z*D+sz*zy*D
+		display.DrawImage(image,sx,sy,rz)
+	end	
+End
 
 Global scanCount:int
 
@@ -185,15 +181,16 @@ Const IMax:=1024
 
 Class Clump
 	Field root:Cube
-	Field origin:Vec3<Int>
+	Field org:Vec3<Int>
 	Field dim:Vec3<Int>
 
 	Field count:int	
 	Field grid:Cube[,,]
+	Field stack:List<Cube>
 
 ' quadrant facing 2d march order where y is always up
 
-	Field ordered:=New List<Cube>[4]
+	Field ordered:=New Cube[][4]
 
 	Global QuadrantOrder:int
 			
@@ -210,7 +207,8 @@ Class Clump
 		Local maxx:=-IMax
 		Local maxy:=-IMax
 		Local maxz:=-IMax
-		Local stack:=New List<Cube>		
+	
+		stack=New List<Cube>		
 		scanCount+=1
 		count=root.Visit(scanCount,0,0,0,0,stack)					
 		Print "stack.size="+stack.Count()		
@@ -222,21 +220,104 @@ Class Clump
 			maxy=Max(maxy,cube.y)
 			maxz=Max(maxz,cube.z)
 		Next
-		origin=New Vec3<int>(minx,miny,minz)
+		org=New Vec3<int>(minx,miny,minz)
 		dim=new Vec3<Int>(1+maxx-minx,1+maxy-miny,1+maxz-minz)
 		Print "stack.size="+stack.Count()				
+		Print "org is "+org.ToString()				
 		Print "dim is "+dim.ToString()				
 		grid=New Cube[dim.x,dim.y,dim.z]
 		For Local cube:=Eachin stack
 			grid[cube.x-minx,cube.y-miny,cube.z-minz]=cube
-		Next				
+		Next						
+		BakeSort()
+	End
+		
+	Method BakeSort()		
 		For QuadrantOrder=0 Until 4			
 			Local order:=New List<Cube>(stack)
 			order.Sort(Compare)
-			ordered[QuadrantOrder]=order
+			ordered[QuadrantOrder]=order.ToArray()
 		Next
 	End
-	
+		
+	Method Skin(xaxis:Bool=True,yaxis:bool=True,zaxis:Bool=True)
+		Local dx:=Int(xaxis)
+		Local dy:=Int(yaxis)
+		Local dz:=Int(zaxis)		
+
+		' enlarge dimension 
+		dim=New Vec3<Int>(dim.x+dx*2,dim.y+dy*2,dim.z+dz*2)
+
+		Local minx:=org.x-dx
+		Local miny:=org.y-dy
+		Local minz:=org.z-dz
+
+		' move handle
+		org=New Vec3<Int>(minx,miny,minz)
+		
+		Print "org is "+org.ToString()				
+		Print "dim is "+dim.ToString()				
+		
+		grid=New Cube[dim.x,dim.y,dim.z]
+
+		For Local cube:=Eachin stack
+			grid[cube.x-minx,cube.y-miny,cube.z-minz]=cube
+		Next
+		
+		Local edge:=New List<Cube>		
+		For Local cube:=Eachin stack
+			For local x:=-dx To dx
+				For Local y:=-dy To dy
+					For local z:=-dz To dz
+						If (x|y|z)=0 Continue
+						Local sx:=cube.x+x
+						Local sy:=cube.y+y
+						Local sz:=cube.z+z
+						If Not grid[sx-minx,sy-miny,sz-minz]
+							Local cube2:=root.Clone()
+							cube2.x=sx
+							cube2.y=sy
+							cube2.z=sz
+							grid[sx-minx,sy-miny,sz-minz]=cube2
+							edge.AddLast(cube2)
+						Endif
+					Next
+				Next
+			Next
+		Next
+		
+		For Local cube:=Eachin edge
+			stack.AddLast(cube)
+			For local x:=-dx To dx
+				For Local y:=-dy To dy
+					For local z:=-dz To dz
+						If (x|y|z)=0 continue
+						Local sx:=cube.x+x-minx
+						Local sy:=cube.y+y-miny
+						Local sz:=cube.z+z-minz
+						If sx>=0 And sy>=0 And sz>=0
+							If sx<dim.x And sy<dim.y And sz<dim.z
+								Local cube2:=grid[sx,sy,sz]
+								if cube2
+									Local index2:=Rubik-x-y*3-z*3*3																			
+									If not cube2.neighbors[index2]
+										Local index:=Rubik+x+y*3+z*3*3								
+										Assert(cube.neighbors[index]=Null)
+										cube.neighbors[index]=cube2
+										cube.vacant-=1
+										cube2.neighbors[index2]=cube
+										cube2.vacant-=1
+									Endif
+								Endif
+							endif
+						Endif
+					Next
+				Next
+			Next
+		Next
+		
+		BakeSort()
+	End
 End
 
 Class Grid
@@ -248,19 +329,13 @@ Class Grid
 	
 	Method New(image:Image)
 		star=New Cube(image)
+'		star=New Bill(image)
 		starClump=New Clump(star)
 '		Generate()		
 	End
 	
-	Method Generate()
-		Local stack:=New List<Cube>		
-		scanCount+=1
-		local count:=star.Visit(scanCount,0,0,0,0,stack)					
-		For Local cube:=Eachin stack
-			cube.Grow()
-		next		
-		starClump=New Clump(star)
-		Print "star population is "+starClump.count
+	Method Generate(xaxis:Bool=True,yaxis:bool=True,zaxis:Bool=True)
+		starClump.Skin(xaxis,yaxis,zaxis)
 	End
 	
 	Method IsoView(c:Canvas, theta:Double, zoom:double)
@@ -282,12 +357,28 @@ Class Grid
 ' calulate draw order so we scan grid from far to near
 		Local quadrant:Int=Int(2*theta/Pi)&3		
 		For Local cube:=Eachin starClump.ordered[quadrant]
-			cube.Draw(c,zx,zy)
+			cube.Draw(c,zx,zy,theta)
 		next
 		c.PopMatrix()
 		framecount+=1		
 	End	
 End
+
+Global Ship:=New String[](
+"1",
+"1",
+"1",
+"1",
+"21",
+"321 1",
+"32111")
+
+Function BuildShip(ship:String[])
+	Local z:=0
+	For Local line:=Eachin ship	
+		z+=1
+	next
+end
 
 Enum Tool
 	Line
@@ -507,8 +598,13 @@ Class GridPaint Extends Window
 			Select event.Key
 			
 			Case Key.G
-				grid.Generate()
-			
+				grid.Generate(True,True,True)
+			Case Key.X
+				grid.Generate(True,False,False)
+			Case Key.Y
+				grid.Generate(False,True,false)
+			Case Key.Z
+				grid.Generate(false,false,True)
 			Case Key.T
 				Select tool
 				Case Tool.Curve
