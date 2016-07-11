@@ -103,22 +103,10 @@ Class GridWindow Extends Window
 				Local y:=i*iy+j*jy
 				For Local z:=12 To 0 Step -3					
 					c.DrawImage(tile.image,x*34+z*zx,y*34+z*zy)
-'				Local z=50
 '					c.DrawImage(tile.image,x*24,y*24,theta)
 				next
 			Next
 		next
-#rem
-		For Local y:=-n To n
-			For Local x:=-n To n
-				'c.Color=Color.DarkGrey
-				'c.DrawRect(x*50,y*50,20,20)
-				'c.Color=Color.Yellow
-				'c.DrawRect(x*50+5,y*50+5,10,10)
-				c.DrawImage(tile.image,x*24,y*24,theta)
-			Next
-		Next	
-#end		
 		framecount+=1		
 	End
 	
