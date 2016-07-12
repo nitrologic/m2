@@ -8,11 +8,9 @@ Using portmidi..
 
 Global title:String="VGrid 0.1"	
 
-Global AboutApp:="GridPaint Control"'Cursor Left=-RPM,Cursor Right=+RPM,,Mouse Button=Lift Pen,Mouse Wheel=Zoom,Space Key=Hold,S Key=Smile Box,C Key=Clear,Cursor Up=+Pen Size,Cursor Down=-Pen Size,Hold,F1=Toggle Fullscreen,Click To Start"
+Global AboutApp:="GridPaint Control"
 Global Contact:=",github.com/nitrologic/m2"
 Global Credits:=",Transpiled by Monkey2 :)"
-
-Const IMax:=1024
 
 Class PixelMap Extends Pixmap
 
@@ -97,23 +95,24 @@ Class Cube
 		image=skin
 	End
 
-	Method SortDepth:Long(quadrant:Int)
+	Method SortDepth:Int(quadrant:Int)
 		local ix:=Order4[quadrant*4+0]
 		local iy:=Order4[quadrant*4+1]
 		local jx:=Order4[quadrant*4+2]
 		local jy:=Order4[quadrant*4+3]			
 		Local dx:=x*ix+z*jx
 		Local dy:=x*iy+z*jy					
-		Return (Long(dx+dy) Shl 16) + y
+		Return ((dx+dy) Shl 16) + y
 	End
 
-	Const D:=8
+	Const D:=10
 	
 	Method DrawCube(display:Canvas,zx:Double,zy:Double,rz:Double)
 		Assert(vacant>0)
 		Local sx:Float=(x-z)+zy*y*2
 		Local sy:Float=(x+z)+zx*y*2
-		display.DrawImage(image,sx*D,sy*D,rz,0.125,0.25)
+		display.DrawImage(image,sx*D,sy*D,rz,0.125,0.25)	'eye
+'		display.DrawImage(image,sx*D,sy*D,0,0.125,0.25)	'sky
 	end	
 	
 	Method Clone:Cube()
@@ -124,19 +123,17 @@ end
 
 Global scanCount:int
 
-Class Clump
+Class DualAxisStack
 	Field root:Cube
 	Field org:Vec3<Int>
 	Field dim:Vec3<Int>
 	Field stack:List<Cube>
-	Field grid:Cube[,,]
 	Field ordered:=New Cube[][4] ' quadrant facing 2d march order where y is always up
 				
 	Method New(rootCube:Cube)
 		root=rootCube
 		org=New Vec3<int>(-1,-1,-1)
 		dim=new Vec3<Int>(3,3,3)
-		grid=New Cube[dim.x,dim.y,dim.z]
 		stack=New List<Cube>		
 		stack.AddLast(root)
 		Print "stack.size="+stack.Count()				
@@ -150,7 +147,6 @@ Class Clump
 		For local cube:=Eachin stack
 			If cube.vacant>0 cullstack.AddLast(cube)
 		Next
-
 		For local quadrant:=0 Until 4			
 			Local order:=New List<Cube>(cullstack)
 			local func:=Lambda:Int(a:Cube,b:Cube)
@@ -159,22 +155,35 @@ Class Clump
 			order.Sort(func)
 			ordered[quadrant]=order.ToArray()			
 		Next
+	End		
+end
+		
+Class DualAxisGrid Extends DualAxisStack
+	Field grid:Cube[,,]
+	
+	Method New(rootCube:Cube)
+		Super.New(rootCube)
+		grid=New Cube[dim.x,dim.y,dim.z]
 	End
 		
 	Method Skin(xaxis:Bool=True,yaxis:bool=True,zaxis:Bool=True)
 		Local dx:=Int(xaxis)
 		Local dy:=Int(yaxis)
 		Local dz:=Int(zaxis)		
-		' enlarge
+
 		org=new Vec3<int>(org.x-dx,org.y-dy,org.z-dz)
 		dim=New Vec3<Int>(dim.x+dx*2,dim.y+dy*2,dim.z+dz*2)
+
 		grid=New Cube[dim.x,dim.y,dim.z]
 		
 		For Local point:=Eachin stack
 			grid[point.x-org.x,point.y-org.y,point.z-org.z]=point
 		Next
 		
-		Local edge:=New List<Cube>		
+		' first enamel parse
+		
+		Local enamel:=New List<Cube>		
+
 		For Local cube:=Eachin stack
 			Local sx:=cube.x-org.x
 			Local sy:=cube.y-org.y
@@ -188,27 +197,29 @@ Class Clump
 							cube2.x=cube.x+x
 							cube2.y=cube.y+y
 							cube2.z=cube.z+z							
-							grid[sx+x,sy+y,sz+z]=cube2
-							edge.AddLast(cube2)
+							grid[cube2.x-org.x,cube2.y-org.y,cube2.z-org.z]=cube2
+							enamel.AddLast(cube2)
 						Endif
 					Next
 				Next
 			Next
 		Next
 		
-		For Local cube:=Eachin edge
+		' second vacant parse
+		
+		For Local cube:=Eachin enamel
 			stack.AddLast(cube)
+			Local sx:=cube.x-org.x
+			Local sy:=cube.y-org.y
+			Local sz:=cube.z-org.z
 			For local x:=-dx To dx
 				For Local y:=-dy To dy
 					For local z:=-dz To dz
 						If (x|y|z)=0 continue
-						Local sx:=cube.x+x-org.x
-						Local sy:=cube.y+y-org.y
-						Local sz:=cube.z+z-org.z
-						Local cube2:=grid[sx,sy,sz]								
+						Local cube2:=grid[sx+x,sy+y,sz+z]								
 						if cube2 
-							cube2.vacant-=1
-							cube.vacant-=1
+							cube2.vacant-=1							
+							cube.vacant-=1							
 						Endif
 					Next
 				Next
@@ -221,22 +232,20 @@ End
 
 Class Grid
 	Field star:Cube
-	Field starClump:Clump
+	Field grid:DualAxisGrid
 	Field framecount:Int	
 	
 	Method New(image:Image)
 		star=New Cube(image)
-'		star=New Bill(image)
-		starClump=New Clump(star)
-'		Generate()		
+		grid=New DualAxisGrid(star)
 	End
 	
 	Method Count:Int()
-		Return starClump.stack.Count()
+		Return grid.stack.Count()
 	End
 	
 	Method Generate(xaxis:Bool=True,yaxis:bool=True,zaxis:Bool=True)
-		starClump.Skin(xaxis,yaxis,zaxis)
+		grid.Skin(xaxis,yaxis,zaxis)
 	End
 	
 	Field zx:Double
@@ -258,9 +267,8 @@ Class Grid
 ' calulate draw order so we scan grid from far to near
 		Local quadrant:Int=Int(2.5+2*theta/Pi)&3				
 		DrawQuadrant=quadrant
-		For Local point:=Eachin starClump.ordered[quadrant]
-'			cluster.Draw(c,zx,zy,theta)
-			point.DrawCube(c,zx,zy,theta)
+		For Local cube:=Eachin grid.ordered[quadrant]
+			cube.DrawCube(c,zx,zy,theta)
 		Next
 		c.PopMatrix()
 		framecount+=1		
