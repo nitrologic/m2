@@ -166,14 +166,11 @@ Class VPane Extends Image
 		EndSegment()
 		ClosedCurve(v0,v1,v2,v3,r)
 	End
-
   
 End
 
 Class VBrowse
-
 End
-
 
 Enum AppState
 	Title
