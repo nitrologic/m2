@@ -9,8 +9,10 @@ Using portmidi..
 Global title:String="VGrid 0.1"	
 
 Global AboutApp:="GridPaint Control"'Cursor Left=-RPM,Cursor Right=+RPM,,Mouse Button=Lift Pen,Mouse Wheel=Zoom,Space Key=Hold,S Key=Smile Box,C Key=Clear,Cursor Up=+Pen Size,Cursor Down=-Pen Size,Hold,F1=Toggle Fullscreen,Click To Start"
-Global Contact:=",Source=github.com/nitrologic/m2"
+Global Contact:=",github.com/nitrologic/m2"
 Global Credits:=",Transpiled by Monkey2 :)"
+
+Const IMax:=1024
 
 Class PixelMap Extends Pixmap
 
@@ -27,11 +29,17 @@ Class PixelMap Extends Pixmap
 	End
 
 	method Ball(rx:Int,ry:int,r:Int,c:Color)
-		For Local y:=-r To r
-			For Local x:=-r To r
-				Local dd:=x*x+y*y
+		Local x0:=rx-r
+		Local x1:=rx+r
+		Local y0:=ry-r
+		Local y1:=ry+r
+		x0=Max(x0,0)
+		y0=Max(y0,0)
+		For Local y:=y0 To y1
+			For Local x:=x0 To x1
+				Local dd:=(x-rx)*(x-rx)+(y-ry)*(y-ry)
 				If dd<r*r
-					SetPixel(rx+x,ry+y,c)
+					SetPixel(x,y,c)
 				endif
 			Next
 		next
@@ -56,12 +64,14 @@ Class Tile
 End
 
 Class Ball
-	Field pixmap:=New PixelMap(32,32)
+	Field pixmap:=New PixelMap(64,64)
 	Field image:Image
 	Method New()
 		pixmap.Clear(Color.None)
-		pixmap.Ball(16,16,16,Color.Black)		
-		pixmap.Ball(16,16,12,Color.White)		
+		pixmap.Ball(32,32,30,Color.Yellow)		
+		pixmap.Ball(32,32,26,Color.Black)		
+		pixmap.Ball(32,32,24,Color.Blue)		
+		pixmap.Ball(16,16,8,Color.White)	
 		image=new Image(pixmap)
 	End
 End
@@ -71,36 +81,15 @@ Const Rubik:=13' -1 -3 -9 (-13) is rubik offset
 
 Global Order4:=New Int[](1,0,0,1,  0,1,-1,0,  -1,0,0,-1,  0,-1,1,0)
 
-class Cluster Abstract
-	Field neighbors:=New Cluster[Qube]		
-	Field vacant:=26
-
-	Method SetNeighbor:Bool(index:Int,cluster:Cluster)
-		if neighbors[index] Return False
-		neighbors[index]=cluster
-		vacant-=1
-		Local index2:=Rubik+Rubik-index
-		Assert(cluster.neighbors[index2]=Null)
-		cluster.neighbors[index2]=Self
-		cluster.vacant-=1
-		Return true
-	End
-
-	Method Visit:Int(scan:Int,count:Int,cx:int,cy:int,cz:int,collect:List<Point>) Abstract
-	Method Draw(display:Canvas,zx:Double,zy:Double,rz:Double) Abstract
-End
-
-struct Point
-	Field cluster:Cluster
+Class Point
 	Field x:Int
 	Field y:Int
 	Field z:Int
-	
-	Method New(owner:Cluster)
-		cluster=owner
-	End
 
-	Method SortDepth:Int(quadrant:Int)
+	Field neighbors:=New Point[Qube]		
+	Field vacant:=26
+	
+	Method SortDepth:Long(quadrant:Int)
 		local ix:=Order4[quadrant*4+0]
 		local iy:=Order4[quadrant*4+1]
 		local jx:=Order4[quadrant*4+2]
@@ -110,29 +99,45 @@ struct Point
 		Return (dx+dy)*32768+y
 	End
 
+	Method SetNeighbor:Bool(index:Int,point:Point)
+		if neighbors[index] Return False
+		neighbors[index]=point
+		vacant-=1
+		Local index2:=Rubik+Rubik-index
+		Assert(point.neighbors[index2]=Null)
+		point.neighbors[index2]=Self
+		point.vacant-=1
+		Return true
+	End
+
+	Method Draw(display:Canvas,zx:Double,zy:Double,rz:Double) Virtual
+	End
+
+	Method Visit:Int(scan:Int,count:Int,cx:int,cy:int,cz:int,collect:List<Point>) Virtual
+		Return 0
+	End
 End
 
-class Cube Extends Cluster
+class Cube Extends Point
 
 	Field image:Image
-	Field point:Point
 	Field color:Int
 	Field kids:Cube[]
 	Field style:Int
 		
 	Method New(skin:Image)
 		image=skin
-		point=New Point(Self)
 	End
 
-	Const D:=24
+	Const D1:=8
+	Const D2:=16
 	
-	Method Draw(display:Canvas,zx:Double,zy:Double,rz:Double) Override
-		If vacant=0 return
-		Local sz:=point.y
-		Local sx:=(point.x-point.z)*D+sz*zx*D
-		Local sy:=(point.x+point.z)*D+sz*zy*D
-		display.DrawImage(image,sx,sy)
+	Method Draw(display:Canvas,zx:Double,zy:Double,rz:Double) Override 
+		Assert(vacant>0)
+		Local sz:=y
+		Local sx:=(x-z)*D1+sz*zx*D2
+		Local sy:=(x+z)*D1+sz*zy*D2
+		display.DrawImage(image,sx,sy,rz,0.125,0.25)
 	end	
 	
 	Method Clone:Cube()
@@ -143,18 +148,17 @@ class Cube Extends Cluster
 	Method Visit:Int(scan:Int,count:Int,cx:int,cy:int,cz:int,collect:List<Point>) Override
 		If color=scan Return count	
 		color=scan
-		point.x=cx
-		point.y=cy
-		point.z=cz
-		If collect collect.AddLast(point)
+		x=cx
+		y=cy
+		z=cz
+		If collect collect.AddLast(Self)
 		count+=1
 		If neighbors=Null Return count		
 		Local cube:Cube
 		For local dx:=-1 To 1
 			For Local dy:=-1 To 1
 				For local dz:=-1 To 1
-					Local index:=Rubik+dx+dy*3+dz*3*3
-					
+					Local index:=Rubik+dx+dy*3+dz*3*3					
 					local neighbor:=neighbors[index]
 					If neighbor And (dx|dy|dz)
 						count=neighbor.Visit(scan,count,cx+dx,cy+dy,cz+dz,collect)
@@ -169,15 +173,13 @@ end
 
 Global scanCount:int
 
-Const IMax:=1024
-
 Class Clump
 	Field root:Cube
 	Field org:Vec3<Int>
 	Field dim:Vec3<Int>
 
 	Field count:int	
-	Field grid:Cluster[,,]
+	Field grid:Point[,,]
 	Field stack:List<Point>
 ' quadrant facing 2d march order where y is always up
 	Field ordered:=New Point[][4]
@@ -209,16 +211,21 @@ Class Clump
 		Print "stack.size="+stack.Count()				
 		Print "org is "+org.ToString()				
 		Print "dim is "+dim.ToString()				
-		grid=New Cluster[dim.x,dim.y,dim.z]
+		grid=New Point[dim.x,dim.y,dim.z]
 		For Local point:=Eachin stack
-			grid[point.x-minx,point.y-miny,point.z-minz]=point.cluster
+			grid[point.x-minx,point.y-miny,point.z-minz]=point
 		Next						
 		BakeSort()
 	End
 		
 	Method BakeSort()		
+		Local cullstack:=New List<Point>()
+		For local point:=Eachin stack
+			If point.vacant>0 cullstack.AddLast(point)
+		Next
+
 		For local quadrant:=0 Until 4			
-			Local order:=New List<Point>(stack)
+			Local order:=New List<Point>(cullstack)
 			local func:=Lambda:Int(a:Point,b:Point)
 				return b.SortDepth(quadrant)-a.SortDepth(quadrant)
 			End				
@@ -239,19 +246,13 @@ Class Clump
 		Local miny:=org.y-dy
 		Local minz:=org.z-dz
 
-		' move handle
-		org=New Vec3<Int>(minx,miny,minz)
-		
-		Print "org is "+org.ToString()				
-		Print "dim is "+dim.ToString()				
-		
-		grid=New Cluster[dim.x,dim.y,dim.z]
-
+		org=New Vec3<Int>(minx,miny,minz)		
+		grid=New Point[dim.x,dim.y,dim.z]
 		For Local point:=Eachin stack
-			grid[point.x-minx,point.y-miny,point.z-minz]=point.cluster
+			grid[point.x-minx,point.y-miny,point.z-minz]=point
 		Next
 		
-		Local edge:=New List<Point>		
+		Local edge:=New List<Cube>		
 		For Local point:=Eachin stack
 			For local x:=-dx To dx
 				For Local y:=-dy To dy
@@ -262,11 +263,11 @@ Class Clump
 						Local sz:=point.z+z
 						If Not grid[sx-minx,sy-miny,sz-minz]
 							Local cube2:=root.Clone()
-							cube2.point.x=sx
-							cube2.point.y=sy
-							cube2.point.z=sz
+							cube2.x=sx
+							cube2.y=sy
+							cube2.z=sz
 							grid[sx-minx,sy-miny,sz-minz]=cube2
-							edge.AddLast(cube2.point)
+							edge.AddLast(cube2)
 						Endif
 					Next
 				Next
@@ -275,7 +276,6 @@ Class Clump
 		
 		For Local point:=Eachin edge
 			stack.AddLast(point)
-			Local cluster1:=point.cluster
 			For local x:=-dx To dx
 				For Local y:=-dy To dy
 					For local z:=-dz To dz
@@ -284,13 +284,13 @@ Class Clump
 						Local sy:=point.y+y-miny
 						Local sz:=point.z+z-minz
 						If sx>=0 And sy>=0 And sz>=0
-							If sx<dim.x And sy<dim.y And sz<dim.z
-								Local cluster2:=grid[sx,sy,sz]								
-								if cluster2									
-									Local index2:=Rubik-x-y*3-z*3*3																																														
-									cluster2.SetNeighbor(index2,cluster1)
-								Endif
-							endif
+							If sx<dim.x And sy<dim.y And sz<dim.z								
+								Local point2:=grid[sx,sy,sz]								
+								if point2
+									Local index:=Rubik+x+y*3+z*3*3					
+									point.SetNeighbor(index,point2)	
+								endif
+							Endif
 						Endif
 					Next
 				Next
@@ -321,27 +321,29 @@ Class Grid
 		starClump.Skin(xaxis,yaxis,zaxis)
 	End
 	
-	Method IsoView(c:Canvas, theta:Double, zoom:double)
+	Method IsoView(display:Canvas, width:double, height:double, theta:Double, zoom:Double)
 		Local tx:=Cos(theta)*zoom
 		Local ty:=Sin(theta)*zoom
 		zx=ty
 		zy=tx
-		c.Matrix=new AffineMat3f(tx,ty*0.5,-ty,tx*0.5,400,240)		
+		display.Matrix=new AffineMat3f(tx,ty*0.5,-ty,tx*0.5,width*0.5,height*0.5)		
 	End
 	
 	Field zx:Double
 	Field zy:Double
-	
-	Method Draw( c:Canvas )	
+	Field DrawQuadrant:Int
+		
+	Method Draw( c:Canvas, width:double, height:double, theta:Double )	
 		c.PushMatrix()
 		Local zoom:=1.0'0.1*Mouse.Location.Y
-		Local theta:=0.01*framecount
-		IsoView(c,theta,zoom)
+'		Local theta:=0.01*framecount
+		IsoView(c,width,height,theta,zoom)
 ' calulate draw order so we scan grid from far to near
-		Local quadrant:Int=Int(3+2*theta/Pi)&3		
+		Local quadrant:Int=Int(2.5+2*theta/Pi)&3				
+		DrawQuadrant=quadrant
 		For Local point:=Eachin starClump.ordered[quadrant]
-'			point.cluster.Draw(c,zx,zy,theta)
-			point.cluster.Draw(c,zx,zy,theta)
+'			cluster.Draw(c,zx,zy,theta)
+			point.Draw(c,zx,zy,theta)
 		Next
 		c.PopMatrix()
 		framecount+=1		
@@ -405,7 +407,7 @@ Class GridPaint Extends Window
 	Global SmokedGlass:=New Color(0,0,0,0.7)
 	
 	Method New(title:String)
-		Super.New(title,720,560,WindowFlags.Resizable)		
+		Super.New(title,1024,800,WindowFlags.Resizable)		
 		ClearColor=Color.Black
 		zoom=2
 		ink=New Color
@@ -418,7 +420,29 @@ Class GridPaint Extends Window
 		
 		grid=New Grid(ball.image)		
 	End
-
+	
+	Method DrawStats(display:Canvas)
+		Local cy:=10
+		Local content:=AboutApp
+		display.Color=SmokedGlass
+		display.DrawRect(0,0,200,Height)
+		display.Color=Color.Grey
+		
+		content+=",,Count="+grid.Count()
+		content+=",Quadrant="+grid.DrawQuadrant
+		content+=","+Contact+","+Credits
+		
+		For Local line:=Eachin content.Split(",")				
+			Local cx:=10
+			For Local tab:=Eachin line.Split("=")
+				tab=tab.Replace(":)",":=")
+				display.DrawText(tab,cx,cy)
+				cx+=60
+			Next
+			cy+=16
+		Next
+	End
+	
 	Field portMidi:PortMidi
 
 	method InitMidi()
@@ -476,36 +500,23 @@ Class GridPaint Extends Window
 	Field statusCount:Int
 	
 	Method OnRender( display:Canvas ) Override	
-	
-		PollMidi()
+		rot+=rotSpeed*rotSpeed*rotSpeed							
 		
+		If rot<0
+			rot=-(-rot Mod (Pi*2))
+		Else		
+			rot=rot Mod (Pi*2)
+		Endif
+		
+		PollMidi()
 		App.RequestRender()						
-
-		grid.Draw(display)
-
+		grid.Draw(display,Width,Height,rot)
 		Select appState
 
 			Case AppState.Title
-				Local cy:=10
-				Local content:=AboutApp
-				display.Color=SmokedGlass
-				display.DrawRect(0,0,280,Height)
-				display.Color=Color.Grey
-				content+=",,Count="+grid.Count()
-				content+=","+Contact+","+Credits
-				For Local line:=Eachin content.Split(",")				
-					Local cx:=10
-					For Local tab:=Eachin line.Split("=")
-						tab=tab.Replace(":)",":=")
-						display.DrawText(tab,cx,cy)
-						cx+=60
-					Next
-					cy+=16
-				Next
+				DrawStats(display)
 
-			Case AppState.Draw
-				rot+=rotSpeed*rotSpeed*rotSpeed							
-				
+			Case AppState.Draw				
 				panx+=panxSpeed
 				pany+=panySpeed
 						
