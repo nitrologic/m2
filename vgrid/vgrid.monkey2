@@ -1,91 +1,30 @@
 #Import "<std>"
 #Import "<mojo>"
-#Import "<portmidi>"
 
 Using std..
 Using mojo..
-Using portmidi..
 
-Global title:String="VGrid 0.1"	
-
-Global AboutApp:="GridPaint Control"
+Global title:String="VGrid 0.2"	
+Global AboutApp:=title+" Isometric Cube Experiment" 
+Global Controls:="Grow=G,GrowX=X,GrowY=Y,GrowZ=Z,Clear=C,,Zoom=MouseWeel,Rotate=Cursor Keys,,FullScreen=F1"
 Global Contact:=",github.com/nitrologic/m2"
 Global Credits:=",Transpiled by Monkey2 :)"
 
-Class PixelMap Extends Pixmap
-
-	Method New(w:Int,h:Int)
-		Super.New(w,h)
-	end
-
-	method Rect(rx:Int,ry:int,rw:int,rh:Int,c:Color)
-		For Local y:=ry Until ry+rh
-			For Local x:=rx until rx+rw
-				SetPixel(x,y,c)
-			Next
-		next
-	End
-
-	method Ball(rx:Int,ry:int,r:Int,c:Color)
-		Local x0:=rx-r
-		Local x1:=rx+r
-		Local y0:=ry-r
-		Local y1:=ry+r
-		x0=Max(x0,0)
-		y0=Max(y0,0)
-		For Local y:=y0 To y1
-			For Local x:=x0 To x1
-				Local dd:=(x-rx)*(x-rx)+(y-ry)*(y-ry)
-				If dd<r*r
-					SetPixel(x,y,c)
-				endif
-			Next
-		next
-	End
-
-End
-
-Class Tile
-	Field pixmap:=New PixelMap(32,32)
-	Field image:Image
-	Method New()
-		pixmap.Clear(Color.None)
-		pixmap.Rect(4,4,24,24,Color.Blue)
-		pixmap.Rect(6,6,20,20,Color.DarkGrey)
-		pixmap.Ball(16,16,10,Color.Black)		
-		For Local i:=5 to 27 Step 2
-			pixmap.Rect(i,5,1,22,Color.White)
-		Next
-		pixmap.PremultiplyAlpha()
-		image=new Image(pixmap)
-		image.Handle=New Vec2f( .5,.5 )
-	End
-End
-
-Class Ball
-	Field pixmap:=New PixelMap(128,128)
-	Field image:Image
-	Method New()
-		pixmap.Clear(Color.None)
-		pixmap.Ball(64,64,40,Color.Yellow)		
-		pixmap.Ball(64,64,34,Color.Black)		
-		pixmap.Ball(64,64,24,Color.Blue)		
-		pixmap.Ball(42,42,8,Color.White)	
-		image=new Image(pixmap,TextureFlags.Filter|TextureFlags.Mipmap)
-		image.Handle=New Vec2f( .5,.5 )
-	End
-End
-
 Const Qube:=27
+
 Const Rubik:=13' -1 -3 -9 (-13) is rubik offset
+Const Rubit:=1 shl Rubik
+Const RubitMask:=$7ffffff	'bit per neighbor vacancy mask
 
 Global Order4:=New Int[](1,0,0,1,  0,1,-1,0,  -1,0,0,-1,  0,-1,1,0)
 
 Class Cube
+	Global CubeCounter:=0
+	Field id:int
 	Field x:Int
 	Field y:Int
 	Field z:Int
-	Field vacant:=26 ' you'll always find us out to lunch, we're so pretty, oh so pretty
+	Field rubit:=Rubit	'could signal chidren?
 	Field image:Image
 	Field color:Int
 	Field kids:Cube[]
@@ -93,10 +32,24 @@ Class Cube
 	
 	Method New(skin:Image)
 		image=skin
+		CubeCounter+=1
+		id=CubeCounter
+		Print "id="+id
 	End
 
+	Method Vacant:Bool(dx:int,dy:int,dz:Int)
+		Local index:=Rubik+dx+dy*3+dz*9
+		Local bit:=1 Shl index
+		return (rubit&bit)=0
+	End
+
+	Method Clone:Cube()
+		Local cube:=New Cube(image)
+		Return cube
+	End
+	
 	Method SortDepth:Int(quadrant:Int)
-		local ix:=Order4[quadrant*4+0]
+		Local ix:=Order4[quadrant*4+0]
 		local iy:=Order4[quadrant*4+1]
 		local jx:=Order4[quadrant*4+2]
 		local jy:=Order4[quadrant*4+3]			
@@ -105,50 +58,65 @@ Class Cube
 		Return ((dx+dy) Shl 16) + y
 	End
 
+	' meet cube at dx,dy,dz offset
+	
+	Method Meet(cube:Cube,dx:int,dy:int,dz:Int)			
+		Local index:=Rubik+dx+dy*3+dz*9
+		Local bit:=1 Shl index
+		rubit|=bit
+		Local mindex:=Rubik-dx-dy*3-dz*9
+		Local mbit:=1 Shl mindex
+		cube.rubit|=mbit
+	End
+	
 	Const D:=10
 	
 	Method DrawCube(display:Canvas,zx:Double,zy:Double,rz:Double)
-		Assert(vacant>0)
+		Assert(rubit<>RubitMask)
 		Local sx:Float=(x-z)+zy*y*2
 		Local sy:Float=(x+z)+zx*y*2
-		display.DrawImage(image,sx*D,sy*D,rz,0.125,0.25)	'eye
-'		display.DrawImage(image,sx*D,sy*D,0,0.125,0.25)	'sky
+		display.DrawImage(image,sx*D,sy*D,rz,0.125,0.25)	'facing eye
+'		display.DrawImage(image,sx*D,sy*D,0,0.125,0.25)	'facing sky
 	end	
-	
-	Method Clone:Cube()
-		Local cube:=New Cube(image)
-		Return cube
-	End
 end
 
 Global scanCount:int
 
-Class DualAxisStack
+Class IsoSurface
 	Field root:Cube
 	Field org:Vec3<Int>
 	Field dim:Vec3<Int>
-	Field stack:List<Cube>
+	Field volume:int
+	Field surface:List<Cube>
 	Field ordered:=New Cube[][4] ' quadrant facing 2d march order where y is always up
 				
 	Method New(rootCube:Cube)
 		root=rootCube
 		org=New Vec3<int>(-1,-1,-1)
 		dim=new Vec3<Int>(3,3,3)
-		stack=New List<Cube>		
-		stack.AddLast(root)
-		Print "stack.size="+stack.Count()				
-		Print "org is "+org.ToString()				
-		Print "dim is "+dim.ToString()				
+		surface=New List<Cube>		
+		AddCube(root)
 		BakeSort()
+	End
+	
+	Method AddCube(cube:Cube)
+		surface.AddLast(cube)
+		volume+=1	
+	end
+	
+	Method CullSurface()
+		local cull:=New List<Cube>()
+		For Local cube:=Eachin surface
+			If cube.rubit<>RubitMask ' level1 view cull
+				cull.AddLast(cube)
+			Endif
+		Next
+		surface=cull
 	End
 		
 	Method BakeSort()		
-		Local cullstack:=New List<Cube>()
-		For local cube:=Eachin stack
-			If cube.vacant>0 cullstack.AddLast(cube)
-		Next
 		For local quadrant:=0 Until 4			
-			Local order:=New List<Cube>(cullstack)
+			Local order:=New List<Cube>(surface)
 			local func:=Lambda:Int(a:Cube,b:Cube)
 				return b.SortDepth(quadrant)-a.SortDepth(quadrant)
 			End				
@@ -156,9 +124,10 @@ Class DualAxisStack
 			ordered[quadrant]=order.ToArray()			
 		Next
 	End		
+
 end
-		
-Class DualAxisGrid Extends DualAxisStack
+
+Class IsoGrid Extends IsoSurface
 	Field grid:Cube[,,]
 	
 	Method New(rootCube:Cube)
@@ -176,15 +145,14 @@ Class DualAxisGrid Extends DualAxisStack
 
 		grid=New Cube[dim.x,dim.y,dim.z]
 		
-		For Local point:=Eachin stack
+		For Local point:=Eachin surface
 			grid[point.x-org.x,point.y-org.y,point.z-org.z]=point
 		Next
 		
-		' first enamel parse
+		' first enamel outer surface (inner mass inferred)
 		
 		Local enamel:=New List<Cube>		
-
-		For Local cube:=Eachin stack
+		For Local cube:=Eachin surface
 			Local sx:=cube.x-org.x
 			Local sy:=cube.y-org.y
 			Local sz:=cube.z-org.z
@@ -192,60 +160,66 @@ Class DualAxisGrid Extends DualAxisStack
 				For Local y:=-dy To dy
 					For local z:=-dz To dz
 						If (x|y|z)=0 Continue
-						If Not grid[sx+x,sy+y,sz+z]
+						If grid[sx+x,sy+y,sz+z]=Null And cube.Vacant(x,y,z)
 							Local cube2:=root.Clone()
-							cube2.x=cube.x+x
+							cube2.x=cube.x+x							
 							cube2.y=cube.y+y
 							cube2.z=cube.z+z							
-							grid[cube2.x-org.x,cube2.y-org.y,cube2.z-org.z]=cube2
+							Assert(sx+x=cube2.x-org.x)
+							Assert(sy+y=cube2.y-org.y)
+							Assert(sz+z=cube2.z-org.z)
 							enamel.AddLast(cube2)
+							grid[sx+x,sy+y,sz+z]=cube2
 						Endif
 					Next
 				Next
 			Next
 		Next
 		
-		' second vacant parse
+		' second visit all neighbors (none must be inferred)
 		
 		For Local cube:=Eachin enamel
-			stack.AddLast(cube)
+			AddCube(cube)
+'			surface.AddLast(cube)
 			Local sx:=cube.x-org.x
 			Local sy:=cube.y-org.y
 			Local sz:=cube.z-org.z
-			For local x:=-dx To dx
-				For Local y:=-dy To dy
-					For local z:=-dz To dz
-						If (x|y|z)=0 continue
+			For local x:=-1 To 1
+				For Local y:=-1 To 1
+					For Local z:=-1 To 1
+						If (x|y|z)=0 Continue
 						Local cube2:=grid[sx+x,sy+y,sz+z]								
-						if cube2 
-							cube2.vacant-=1							
-							cube.vacant-=1							
-						Endif
+						if cube2<>Null cube.Meet(cube2,x,y,z)
 					Next
 				Next
 			Next
 		Next
 		
+		CullSurface()
 		BakeSort()
 	End
+		
 End
 
-Class Grid
+Class GridSpace
+
 	Field star:Cube
-	Field grid:DualAxisGrid
+	Field grid:IsoGrid
 	Field framecount:Int	
+	Field skin:Image
 	
 	Method New(image:Image)
-		star=New Cube(image)
-		grid=New DualAxisGrid(star)
+		skin=image
+		Clear()
 	End
-	
-	Method Count:Int()
-		Return grid.stack.Count()
-	End
-	
+		
 	Method Generate(xaxis:Bool=True,yaxis:bool=True,zaxis:Bool=True)
 		grid.Skin(xaxis,yaxis,zaxis)
+	End
+	
+	Method Clear()
+		star=New Cube(skin)
+		grid=New IsoGrid(star)
 	End
 	
 	Field zx:Double
@@ -275,44 +249,11 @@ Class Grid
 	End	
 End
 
-Global Ship:=New String[](
-"1",
-"1",
-"1",
-"1",
-"21",
-"321 1",
-"32111")
-
-Function BuildShip(ship:String[])
-	Local z:=0
-	For Local line:=Eachin ship	
-		z+=1
-	next
-end
-
-Enum Tool
-	Line
-	Curve
-End
-
-Enum AppState
-	Title
-	Draw
-	Browse
-End
-
-Class GridPaint Extends Window
-	Field appState:AppState
-	
-	Field grid:Grid
+Class VGrid Extends Window
+	Field grid:GridSpace
 	Field status:String
 	
 	Field zoom:Float
-	Field ink:Color
-	Field mousex:Int
-	Field mousey:Int
-	Field mousew:Int
 	Field framecount:Int
 	Field drawcount:Int
 	Field mousecount:Int
@@ -323,12 +264,6 @@ Class GridPaint Extends Window
 	Field rotSpeed:Double
 	
 	Field radius:Float
-	Field tool:=Tool.Curve
-
-	Field panx:Float
-	Field pany:Float
-	Field panxSpeed:Float
-	Field panySpeed:Float
 	
 	Global Transparent:=New Color(0,0,0,0)
 	Global SmokedGlass:=New Color(0,0,0,0.7)
@@ -336,26 +271,53 @@ Class GridPaint Extends Window
 	Method New(title:String)
 		Super.New(title,1024,800,WindowFlags.Resizable)		
 		ClearColor=Color.Black
-		zoom=2
-		ink=New Color
-		radius=2.5		
-'		sdl2.SDL_ShowCursor(0)
-'		InitMidi()		
-		
-		local tile:=New Tile()		
-		local ball:=New Ball()
-		
-		grid=New Grid(ball.image)		
+		zoom=.5
+		radius=2.5			
+		grid=New GridSpace(BallImage())		
+	End
+	
+	Method BallImage:Image()
+		local pix:=New Pixmap(128,128)
+		pix.Clear(Color.None)
+		Circle(pix,64,64,40,Color.Yellow)		
+		Circle(pix,64,64,34,Color.Black)		
+		Circle(pix,64,64,24,Color.Blue)		
+		Circle(pix,42,42,8,Color.White)	
+		local image:=new Image(pix)',TextureFlags.Filter|TextureFlags.Mipmap)
+		image.Handle=New Vec2f( .5,.5 )
+		Return image
+	End
+	
+	function Circle(pix:Pixmap,rx:int,ry:int,r:int,c:Color)
+		Local x0:=rx-r
+		Local x1:=rx+r
+		Local y0:=ry-r
+		Local y1:=ry+r
+		x0=Max(x0,0)
+		y0=Max(y0,0)
+		For Local y:=y0 To y1
+			For Local x:=x0 To x1
+				Local dd:=(x-rx)*(x-rx)+(y-ry)*(y-ry)
+				If dd<r*r
+					pix.SetPixel(x,y,c)
+				endif
+			Next
+		Next
 	End
 	
 	Method DrawStats(display:Canvas)
 		Local cy:=10
-		Local content:=AboutApp
+		
 		display.Color=SmokedGlass
 		display.DrawRect(0,0,200,Height)
 		display.Color=Color.Grey
 		
-		content+=",,Count="+grid.Count()
+		Local content:=AboutApp
+		content+=",,"+Controls
+
+		content+=",,Surface="+grid.grid.surface.Count()
+		content+=",Volume="+grid.grid.volume
+
 		content+=",Quadrant="+grid.DrawQuadrant
 		content+=","+Contact+","+Credits
 		
@@ -364,170 +326,35 @@ Class GridPaint Extends Window
 			For Local tab:=Eachin line.Split("=")
 				tab=tab.Replace(":)",":=")
 				display.DrawText(tab,cx,cy)
-				cx+=60
+				cx+=100
 			Next
 			cy+=16
 		Next
 	End
 	
-	Field portMidi:PortMidi
-
-	method InitMidi()
-		Print "PortMidi test 0.1"
-		Print "Scanning Midi Bus, please wait."
-		portMidi=New PortMidi()
-		Local inputs:=portMidi.inputDevices.Length
-		Print "inputs="+inputs
-		For Local i:=0 Until inputs
-			portMidi.OpenInput(i)
-			'Print "Open #"+i+" handle="+h 
-		next
-	End
-
-	method PollMidi()
-		Const NoteOn:=144
-		Const NoteOff:=128
-		Const Controller:=176
-		Const PitchWheel:=224
-
-		If not portMidi return
-
-		While portMidi.HasEvent()
-			Local b:=portMidi.EventDataBytes()
-			Local note:=b[1]
-			Local velocity:=b[2]
-			Local word:Int=note+(velocity Shl 7)
-			Select b[0]
-				Case NoteOn
-'					vsynth.NoteOn(note,oscillator,envelope)
-				Case NoteOff
-'					vsynth.NoteOff(note)
-				Case PitchWheel
-'					pitchbend=1.0+(word-8192)/8192.0
-				Case Controller
-					OnControl(b[1],b[2])
-				Default
-					Print b[0]+" "+b[1]+" "+b[2]+" "+b[3]
-			End					
-		Wend
-'		portMidi.Sleep(1.0/60)
-	End
-	
-	Method RefreshStatus()	
-		Local r:=rotSpeed*rotSpeed*rotSpeed
-		Local rpm:Float=Abs(60*60*r/(Pi*2))		
-		Local velocity:Int=100*Sqrt(panxSpeed*panxSpeed+panySpeed*panySpeed)
-		Local tooltype:="Line"
-'		If tool=Tool.Curve tooltype="Curve"
-		status="RPM "+rpm+" Pan="+velocity+" Tip="+Int(radius*100)+" Tool="+tooltype
-		statusCount=200		
-'		wheel.Rate=rpm/60
-	End
-	
-	Field statusCount:Int
-	
 	Method OnRender( display:Canvas ) Override	
-		display.BlendMode=BlendMode.Alpha	
+		App.RequestRender()						
 		rot+=rotSpeed*rotSpeed*rotSpeed							
 		If rot<0
 			rot=Pi*2-((-rot) Mod (Pi*2))
 		Else		
 			rot=rot Mod (Pi*2)
-		Endif
-		
-		PollMidi()
-		App.RequestRender()						
+		Endif		
 		grid.DrawGrid(display,Width,Height,rot,zoom)
-		Select appState
-
-			Case AppState.Title
-				DrawStats(display)
-
-			Case AppState.Draw				
-				panx+=panxSpeed
-				pany+=panySpeed
-						
-				If rotSpeed Or panxSpeed Or panySpeed
-					OnMouseEvent(recentMouseEvent)		
-				Endif
-
-				display.PushMatrix()
-				cx=Width/2-panx
-				cy=Height/2-pany
-				display.Translate(cx,cy)
-				if zoom
-					Local scale:=-1.0/zoom
-					display.Scale(scale,scale)
-				Endif
-				display.Rotate(rot)		
-				
-'				pane.Draw(display)		
-				framecount+=1				
-				ink.r=(framecount&255)/255.0
-				ink.g=(framecount&1023)/1023.0
-				ink.b=(framecount&511)/511.0
-				' ink=Color.FromHSV( framecount/100.0,1,1 )				
-				
-'				pane.canvas.Color=ink
-				display.PopMatrix()
-
-			Case AppState.Browse
-		End
-		
-		If statusCount>0
-			display.DrawText(status,5,Height-20)
-			statusCount-=1
-		End
-
+		DrawStats(display)		
 	End
 
 	Method Hold()
 		rotSpeed=0
 		rot=0
-		panxSpeed=0
-		panySpeed=0
-		panx=0
-		pany=0
 	End
-	
-	Field control:=New Int[128]
-	
-	Method OnControl(index:Int, value:Int)	
-
-		If appState=AppState.Title
-			DrawMode()
-			Return
-		Endif
-
-		local f:=value/128.0
-		value-=64
-
-		control[index]=value
-		Select index
-		Case 15
-			radius=(value+65)/4.0
-		Case 16
-			ClearColor=New Color(f,ClearColor.G,ClearColor.B)
-		Case 17
-			ClearColor=New Color(ClearColor.R,f,ClearColor.B)
-		Case 18
-			ClearColor=New Color(ClearColor.R,ClearColor.G,f)
-		Case 3
-			if f>0 zoom=0.125/f
-		Default
-	'		Print "OnControl:"+index+" "+value
-		end
-		rotSpeed=-control[14]/512.0*(control[2]+64)
-
-	End
-	
-	Field CommandKey:=Modifier.Gui
 	
 	Method OnKeyEvent( event:KeyEvent ) Override	
 		Select event.Type
 		Case EventType.KeyDown
-			Select event.Key
-			
+			Select event.Key			
+			Case Key.C
+				grid.Clear()
 			Case Key.G
 				grid.Generate(True,True,True)
 			Case Key.X
@@ -536,132 +363,37 @@ Class GridPaint Extends Window
 				grid.Generate(False,True,false)
 			Case Key.Z
 				grid.Generate(false,false,True)
-			Case Key.T
-				Select tool
-				Case Tool.Curve
-					tool=Tool.Line
-				Case Tool.Line
-					tool=Tool.Curve
-				End
 			Case Key.Escape
 				App.Terminate()
 			Case Key.F1
 				Fullscreen = Not Fullscreen
 			Case Key.Space
 				Hold()
-			End
-				
-			If event.Modifiers & CommandKey
-				Select event.Key
-				Case Key.Left
-					panxSpeed+=1.0/4			
-				Case Key.Right
-					panxSpeed-=1.0/4
-				Case Key.Down
-					panySpeed+=1.0/4		
-				Case Key.Up
-					panySpeed-=1.0/4		
-				End
-			Else
-				Select event.Key
-				Case Key.Left
-					rotSpeed+=1.0/16			
-				Case Key.Right
-					rotSpeed-=1.0/16
-				Case Key.Down
-					radius*=0.8			
-				Case Key.Up
-					radius*=1.2			
-				End
-			End
-			
+			Case Key.Left
+				rotSpeed+=1.0/16			
+			Case Key.Right
+				rotSpeed-=1.0/16
+			Case Key.Down
+				radius*=0.8			
+			Case Key.Up
+				radius*=1.2			
+			end
 		End
-		RefreshStatus()		
 	End
-		
-	Field history:=New Vec2f[4]
-
-	Field recentMouseEvent:MouseEvent
-	
-	Method DrawMode()
-		appState=AppState.Draw
-	End
-							
-	Method OnMouseEvent(event:MouseEvent ) Override
-	
-		If appState=AppState.Title
-			If event.Type=EventType.MouseDown | event.Type=EventType.MouseWheel
-				DrawMode()
-			Endif
-			Return
-		Endif
-
-	
-		If event=Null Return
-		
-		Local mx:Int=event.Location.X
-		Local my:Int=event.Location.Y
-		Local b:Int=event.Button
-				
-		mx=(mx-cx)*zoom
-		my=(my-cy)*zoom
-
-		Local x:=-Cos(rot)*mx+Sin(rot)*my
-		Local y:=-Sin(rot)*mx-Cos(rot)*my
-						
-		Local w:Int
-		
-		If recentMouseEvent<>event w=event.Wheel.Y
-		
-		If mousex=x And mousey=y And mousew=w Return
-		
-		recentMouseEvent = event
-		
-		Select event.Type
-		
-		Case EventType.MouseWheel
-			zoom-=w/8.0
-			If zoom<1.0/8 zoom=1.0/8
-				
-		Case EventType.MouseUp
-'			pane.EndSegment()
-			drawcount=0
-			
-		Case EventType.MouseDown
-'			pane.EndSegment()
-			drawcount=0
+								
+	Method OnMouseEvent(event:MouseEvent ) Override	
+		Select event.Type		
+			Case EventType.MouseWheel
+				local w:=event.Wheel.Y
+				zoom-=w/8.0
+				If zoom<1.0/8 zoom=1.0/8				
 		End
-
-		history[0]=history[1]
-		history[1]=history[2]
-		history[2]=history[3]
-		history[3]=New Vec2f(x,y)
-#rem		
-		Select tool
-			Case Tool.Line
-				If drawcount	
-					pane.StraightLine(mousex,mousey,x,y,radius)		
-				Endif
-			Case Tool.Curve
-				If drawcount>3 And Not b
-'			pane.FatCurve(mx[0],my[0],mx[1],my[1],mx[2],my[2],mx[3],my[3])				
-					pane.OpenCurve(history[0],history[1],history[2],history[3],radius)				
-				Endif
-		End
-#end		
-		drawcount+=1
-
-		mousex=x
-		mousey=y
-		mousew=w
-		
-		mousecount+=1
 	End	
 End
 
 Function Main()
 	Print title
 	New AppInstance	
-	New GridPaint(title)
+	New VGrid(title)
 	App.Run()	
 End
