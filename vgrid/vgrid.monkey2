@@ -5,36 +5,37 @@ Using std..
 Using mojo..
 
 Global title:String="VGrid 0.2"	
-Global AboutApp:=title+" Isometric Cube Experiment" 
-Global Controls:="Grow=G,GrowX=X,GrowY=Y,GrowZ=Z,Clear=C,,Zoom=MouseWeel,Rotate=Cursor Keys,,FullScreen=F1"
+Global AboutApp:=title+" Isometric Volumetric Encounter" 
+Global Controls:="Grow=G,GrowX=X,GrowY=Y,GrowZ=Z,Clear=C,,Zoom=MouseWheel,Rotate=Cursor Keys,,FullScreen=F1"
 Global Contact:=",github.com/nitrologic/m2"
 Global Credits:=",Transpiled by Monkey2 :)"
 
-Const Qube:=27
+Global Transparent:=New Color(0,0,0,0)
+Global SmokedGlass:=New Color(0,0,0,0.7)
+Global Hot:=New Color(1,0.8,0.5,1)
 
-Const Rubik:=13' -1 -3 -9 (-13) is rubik offset
-Const Rubit:=1 shl Rubik
-Const RubitMask:=$7ffffff	'bit per neighbor vacancy mask
+Const RubikBits:=27
+Const RubitMask:=$7ffffff 'bit per neighbor tenancy mask
+Const Rubik:=13 ' -1 -3 -9 (-13) is rubik offset
+Const RubikBit:=1 shl Rubik 'yes we are home
 
 Global Order4:=New Int[](1,0,0,1,  0,1,-1,0,  -1,0,0,-1,  0,-1,1,0)
 
 Class Cube
+
 	Global CubeCounter:=0
 	Field id:int
 	Field x:Int
 	Field y:Int
 	Field z:Int
-	Field rubit:=Rubit	'could signal chidren?
-	Field image:Image
+	Field rubit:=RubikBit
 	Field color:Int
-	Field kids:Cube[]
-	Field style:Int
+	Field skin:Int
 	
-	Method New(skin:Image)
-		image=skin
+	Method New(skinbits:Int)
+		skin=skinbits
 		CubeCounter+=1
 		id=CubeCounter
-		Print "id="+id
 	End
 
 	Method Vacant:Bool(dx:int,dy:int,dz:Int)
@@ -44,7 +45,7 @@ Class Cube
 	End
 
 	Method Clone:Cube()
-		Local cube:=New Cube(image)
+		Local cube:=New Cube(Rnd(8))
 		Return cube
 	End
 	
@@ -68,16 +69,6 @@ Class Cube
 		Local mbit:=1 Shl mindex
 		cube.rubit|=mbit
 	End
-	
-	Const D:=10
-	
-	Method DrawCube(display:Canvas,zx:Double,zy:Double,rz:Double)
-		Assert(rubit<>RubitMask)
-		Local sx:Float=(x-z)+zy*y*2
-		Local sy:Float=(x+z)+zx*y*2
-		display.DrawImage(image,sx*D,sy*D,rz,0.125,0.25)	'facing eye
-'		display.DrawImage(image,sx*D,sy*D,0,0.125,0.25)	'facing sky
-	end	
 end
 
 Global scanCount:int
@@ -135,7 +126,7 @@ Class IsoGrid Extends IsoSurface
 		grid=New Cube[dim.x,dim.y,dim.z]
 	End
 		
-	Method Skin(xaxis:Bool=True,yaxis:bool=True,zaxis:Bool=True)
+	Method Extrude(xaxis:Bool=True,yaxis:bool=True,zaxis:Bool=True,smooth:Int=0)
 		Local dx:=Int(xaxis)
 		Local dy:=Int(yaxis)
 		Local dz:=Int(zaxis)		
@@ -160,6 +151,8 @@ Class IsoGrid Extends IsoSurface
 				For Local y:=-dy To dy
 					For local z:=-dz To dz
 						If (x|y|z)=0 Continue
+						If smooth&1 And ((x&y&z)&1)=1 continue
+						If smooth&2 And (x*y or x*z or y*z) continue
 						If grid[sx+x,sy+y,sz+z]=Null And cube.Vacant(x,y,z)
 							Local cube2:=root.Clone()
 							cube2.x=cube.x+x							
@@ -201,24 +194,127 @@ Class IsoGrid Extends IsoSurface
 		
 End
 
-Class GridSpace
 
+Class IsoSkin
+	Field atlas:Image
+	Field pix:=New Pixmap(1024,1024)
+	Field tx:Int
+	Field ty:Int	
+	Field lineheight:Int
+	Field reservewidth:int
+	field rects:=New Stack<Recti>
+	Field balls:=new Stack<Image>
+	
+	Global Center:=New Vec2f( .5,.5 )
+
+	Method Reserve(w:Int,h:Int)
+		tx+=reservewidth
+		reservewidth=w
+		If tx+w>pix.Width
+			tx=0
+			ty+=lineheight
+			lineheight=0
+		Endif
+		lineheight=Max(lineheight,h)		
+		rects.Push(New Recti(tx,ty,tx+w,ty+h))
+	End
+
+	Method New()
+		pix.Clear(Color.None)				
+
+		Balls(New Color[](Color.Red,Color.Blue,Color.Green,Color.Yellow,Color.Cyan,Color.Magenta,Color.White,Color.Black))
+
+		atlas=New Image(pix)
+		For Local rect:=Eachin rects
+			AddBall(rect)
+		Next
+	End
+	
+	Method AddBall(recti:Recti)
+		Local image:=New Image(atlas,recti)
+		image.Handle=Center
+		balls.Push(image)
+	End
+	
+	Method TileImage()
+		Reserve(128,128)
+		Rect(20,20,88,88,Color.White)
+		Rect(24,24,80,80,Color.None)
+		Rect(20,6,88,8,Color.White)
+	End
+
+	Method Balls(palette:Color[])		
+		For Local color:=Eachin palette
+			Ball(color,Color.Black)
+			Ball(color,Hot)
+		Next
+	End
+	
+	Method Ball(primary:Color,ring:Color)		
+		Reserve(128,128)
+		Circle(64,64,40,Color.DarkGrey)		
+		Circle(64,64,34,ring)		
+		Circle(64,64,30,primary)		
+		Circle(56,52,6,Color.White,True)	
+	End
+
+	method Circle(rx:int,ry:int,r:int,c:Color,blend:Bool=False)
+		Local x0:=rx-r
+		Local x1:=rx+r
+		Local y0:=ry-r
+		Local y1:=ry+r
+		x0=Max(x0,0)
+		y0=Max(y0,0)
+		For Local y:=y0 To y1
+			For Local x:=x0 To x1
+				If blend And ((x+y)&1) Continue
+				Local dd:=(x-rx)*(x-rx)+(y-ry)*(y-ry)
+				If dd<r*r
+					local sh:=0.5+0.25*Sin(float(y)/16)-0.25*Sin(float(x)/16)
+					pix.SetPixel(x+tx,y+ty,c*new Color(sh,1))
+				Endif
+			Next
+		Next
+	End
+	
+	method Rect(rx:Int,ry:int,rw:int,rh:Int,c:Color)
+		For Local y:=ry Until ry+rh
+			For Local x:=rx until rx+rw
+				pix.SetPixel(x+tx,y+ty,c)
+			Next
+		next
+	End
+
+	Const D:=7
+	
+	Method DrawCube(cube:Cube,display:Canvas,zx:Double,zy:Double,rz:Double)
+		Assert(cube.rubit<>RubitMask)
+		Local sx:Float=(cube.x-cube.z)+zy*cube.y*2
+		Local sy:Float=(cube.x+cube.z)+zx*cube.y*2		
+'		display.DrawImage(tile,sx*D,sy*D,Pi/4,0.125,0.125)	'facing sky
+
+		display.DrawImage(balls[cube.skin],sx*D,sy*D,rz,0.125,0.25)	'facing eye		
+
+'		For Local i:=0 To 5
+'			display.DrawImage(image,sx*D+i*zy,sy*D+i*zx,-Pi/4,0.125,0.125)	'facing sky
+'		next
+	end	
+
+End
+
+Class GridSpace
+	Field style:IsoSkin
 	Field star:Cube
 	Field grid:IsoGrid
 	Field framecount:Int	
-	Field skin:Image
 	
-	Method New(image:Image)
-		skin=image
+	Method New(skin:IsoSkin)
+		style=skin
 		Clear()
 	End
-		
-	Method Generate(xaxis:Bool=True,yaxis:bool=True,zaxis:Bool=True)
-		grid.Skin(xaxis,yaxis,zaxis)
-	End
-	
+			
 	Method Clear()
-		star=New Cube(skin)
+		star=New Cube(3)
 		grid=New IsoGrid(star)
 	End
 	
@@ -234,16 +330,18 @@ Class GridSpace
 		display.Matrix=new AffineMat3f(tx,ty*0.5,-ty,tx*0.5,width*0.5,height*0.5)		
 	End
 			
-	Method DrawGrid( c:Canvas, width:double, height:double, theta:Double, zoom:Double )	
+	Method DrawGrid( c:Canvas, width:double, height:double, theta:Double, zoom:Double )		
 		c.PushMatrix()
 		Local scale:=1.0/zoom
 		IsoView(c,width,height,theta,scale)
 ' calulate draw order so we scan grid from far to near
 		Local quadrant:Int=Int(2.5+2*theta/Pi)&3				
 		DrawQuadrant=quadrant
+
 		For Local cube:=Eachin grid.ordered[quadrant]
-			cube.DrawCube(c,zx,zy,theta)
+			style.DrawCube(cube,c,zx,zy,theta)
 		Next
+
 		c.PopMatrix()
 		framecount+=1		
 	End	
@@ -264,47 +362,16 @@ Class VGrid Extends Window
 	Field rotSpeed:Double
 	
 	Field radius:Float
-	
-	Global Transparent:=New Color(0,0,0,0)
-	Global SmokedGlass:=New Color(0,0,0,0.7)
-	
+		
 	Method New(title:String)
 		Super.New(title,1024,800,WindowFlags.Resizable)		
 		ClearColor=Color.Black
 		zoom=.5
 		radius=2.5			
-		grid=New GridSpace(BallImage())		
+		Local style:=new IsoSkin()
+		grid=New GridSpace(style)
 	End
-	
-	Method BallImage:Image()
-		local pix:=New Pixmap(128,128)
-		pix.Clear(Color.None)
-		Circle(pix,64,64,40,Color.Yellow)		
-		Circle(pix,64,64,34,Color.Black)		
-		Circle(pix,64,64,24,Color.Blue)		
-		Circle(pix,42,42,8,Color.White)	
-		local image:=new Image(pix)',TextureFlags.Filter|TextureFlags.Mipmap)
-		image.Handle=New Vec2f( .5,.5 )
-		Return image
-	End
-	
-	function Circle(pix:Pixmap,rx:int,ry:int,r:int,c:Color)
-		Local x0:=rx-r
-		Local x1:=rx+r
-		Local y0:=ry-r
-		Local y1:=ry+r
-		x0=Max(x0,0)
-		y0=Max(y0,0)
-		For Local y:=y0 To y1
-			For Local x:=x0 To x1
-				Local dd:=(x-rx)*(x-rx)+(y-ry)*(y-ry)
-				If dd<r*r
-					pix.SetPixel(x,y,c)
-				endif
-			Next
-		Next
-	End
-	
+		
 	Method DrawStats(display:Canvas)
 		Local cy:=10
 		
@@ -317,6 +384,8 @@ Class VGrid Extends Window
 
 		content+=",,Surface="+grid.grid.surface.Count()
 		content+=",Volume="+grid.grid.volume
+
+		content+=",CubeCounter="+Cube.CubeCounter
 
 		content+=",Quadrant="+grid.DrawQuadrant
 		content+=","+Contact+","+Credits
@@ -349,20 +418,37 @@ Class VGrid Extends Window
 		rot=0
 	End
 	
+	Method Generate(a:Bool,b:Bool,c:Bool,smooth:Int)
+		grid.grid.Extrude(a,b,c,smooth)
+	End
+	
 	Method OnKeyEvent( event:KeyEvent ) Override	
+		Local smooth:=0
+		If event.Modifiers&Modifier.Shift smooth|=1
+		If event.Modifiers&Modifier.Control smooth|=2
 		Select event.Type
 		Case EventType.KeyDown
 			Select event.Key			
+			
+			Case Key.Key1
+				grid.grid.root.skin=0
+			Case Key.Key2
+				grid.grid.root.skin=1
+			Case Key.Key3
+				grid.grid.root.skin=2
+			Case Key.Key4
+				grid.grid.root.skin=3
+				
 			Case Key.C
 				grid.Clear()
 			Case Key.G
-				grid.Generate(True,True,True)
+				Generate(True,True,True,smooth)
 			Case Key.X
-				grid.Generate(True,False,False)
+				Generate(True,False,False,smooth)
 			Case Key.Y
-				grid.Generate(False,True,false)
+				Generate(False,True,False,smooth)
 			Case Key.Z
-				grid.Generate(false,false,True)
+				Generate(false,false,True,smooth)
 			Case Key.Escape
 				App.Terminate()
 			Case Key.F1
