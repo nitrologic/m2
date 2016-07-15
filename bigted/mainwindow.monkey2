@@ -159,6 +159,8 @@ Global MainWindow:MainWindowInstance
 	
 	'main docking view
 	Field _docker:DockingView
+	'left navigation view
+	Field _navigate:DockingView
 	
 	Field _errors:=New List<Mx2Error>
 	
@@ -848,7 +850,7 @@ Global MainWindow:MainWindowInstance
 		_browser.AddTab( "Debug",_debugView )
 		_browser.AddTab( "Help",_helpView )
 		_browser.CurrentView=_projectView
-		
+				
 		_console=New Console
 		_console.ReadOnly=True
 		
@@ -857,13 +859,17 @@ Global MainWindow:MainWindowInstance
 			MakeCurrent( FindDocument( _docTabber.CurrentView ) )
 		End
 		
+		_navigate=New DockingView
+'		_navigate.ContentView=_menuBar
+		_navigate.AddView( _menuBar,"top",0 )
+		_navigate.AddView( _browser,"top",280 )
+'		_docker.AddView( _menuBar,"top",0 )
+
 		_docker=New DockingView
 		_docker.ContentView=_docTabber
-		_docker.AddView( _menuBar,"top",0 )
-		_docker.AddView( _browser,"left",280 )
 		_docker.AddView( _console,"bottom",200 )
-		
-	End
+		_docker.AddView( _navigate,"left",280 )		
+	end
 	
 	Method New( title:String,rect:Recti,flags:WindowFlags )
 		Super.New( title,rect,flags )
@@ -973,7 +979,7 @@ Global MainWindow:MainWindowInstance
 		Endif
 		
 		If obj.Contains( "browserSize" )
-			_docker.SetViewSize( _browser,obj["browserSize"].ToNumber() )
+			_navigate.SetViewSize( _browser,obj["browserSize"].ToNumber() )
 		Endif
 		
 		If obj.Contains( "helpTreeSize" )
@@ -1017,7 +1023,7 @@ Global MainWindow:MainWindowInstance
 		
 		obj["consoleSize"]=New JsonNumber( _docker.GetViewSize( _console ) )
 		
-		obj["browserSize"]=New JsonNumber( _docker.GetViewSize( _browser ) )
+		obj["browserSize"]=New JsonNumber( _navigate.GetViewSize( _browser ) )
 		
 		obj["helpTreeSize"]=New JsonNumber( _helpView.GetViewSize( _helpView.HelpTree ) )
 		
