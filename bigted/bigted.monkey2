@@ -22,6 +22,10 @@ Using mojox..
 
 Function Main()
 
+	ChangeDir(AppDir())
+
+	Print "BigTed@"+CurrentDir()
+
 	New AppInstance
 	
 	Theme.Load()
