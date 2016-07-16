@@ -6,7 +6,7 @@ Using mojo..
 
 Global title:String="VGrid 0.2"	
 Global AboutApp:=title+" Isometric Volumetric Encounter" 
-Global Controls:="Grow=G,GrowX=X,GrowY=Y,GrowZ=Z,Clear=C,,Zoom=MouseWheel,Rotate=Cursor Keys,,FullScreen=F1"
+Global Controls:="Clear=C,,Grow=G,GrowX=X,GrowY=Y,GrowZ=Z,Smooth 1=Shift,Smooth 2=Control,,Zoom=MouseWheel,Rotate=Cursor Keys,,FullScreen=F1,Mesh=F5"
 Global Contact:=",github.com/nitrologic/m2"
 Global Credits:=",Transpiled by Monkey2 :)"
 
@@ -29,8 +29,8 @@ Class Cube
 	Field y:Int
 	Field z:Int
 	Field rubit:=RubikBit
-	Field color:Int
 	Field skin:Int
+	Field index:Int
 	
 	Method New(skinbits:Int)
 		skin=skinbits
@@ -45,7 +45,7 @@ Class Cube
 	End
 
 	Method Clone:Cube()
-		Local cube:=New Cube(Rnd(8))
+		Local cube:=New Cube(skin)
 		Return cube
 	End
 	
@@ -118,14 +118,72 @@ Class IsoSurface
 
 end
 
+class IsoMesh
+	Field vertCount:Int
+	Field triCount:int
+	field verts:=New Vec3<Int>[65536]
+	Field tris:=New Int[65536*6]
+	Method AddVert:Int(x:Int,y:Int,z:Int)
+		verts[vertCount].x=x
+		verts[vertCount].y=y
+		verts[vertCount].z=z
+		vertCount+=1
+		Return vertCount-1
+	End
+	Method AddTri:Int(t0:int,t1:int,t2:Int)
+		tris[triCount*3+0]=t0
+		tris[triCount*3+1]=t1
+		tris[triCount*3+2]=t2
+		triCount+=1
+		Return triCount-1
+	End
+End
+
 Class IsoGrid Extends IsoSurface
 	Field grid:Cube[,,]
-	
+	Field skin:IsoMesh
+
 	Method New(rootCube:Cube)
 		Super.New(rootCube)
 		grid=New Cube[dim.x,dim.y,dim.z]
 	End
-		
+	
+	Method Neighbors:Stack<Cube>(cube:Cube,result:Stack<Cube>)
+		Local sx:=cube.x-org.x
+		Local sy:=cube.y-org.y
+		Local sz:=cube.z-org.z
+		For local x:=-1 To 1
+			For Local y:=-1 To 1
+				For local z:=-1 To 1
+					If (x|y|z)=0 Continue
+					local neighbor:=grid[sx+x,sy+y,sz+z]
+					If neighbor result.Push(neighbor)
+				Next
+			Next
+		Next
+		Return result
+	end
+	
+	Method Skin:IsoMesh()
+		If	skin
+			skin=Null
+		else
+			skin=New IsoMesh
+			For Local point:=Eachin surface
+				point.index=skin.AddVert(point.x,point.y,point.z)
+			next			
+			For Local point:=Eachin surface			
+				Local neighbors:=Neighbors(point,New Stack<Cube>)
+				For Local i:=0 Until neighbors.Length
+					For Local j:=i+1 Until neighbors.Length
+						skin.AddTri(point.index,neighbors[i].index,neighbors[j].index)
+					Next
+				Next
+			next			
+		Endif
+		Return skin
+	End
+			
 	Method Extrude(xaxis:Bool=True,yaxis:bool=True,zaxis:Bool=True,smooth:Int=0)
 		Local dx:=Int(xaxis)
 		Local dy:=Int(yaxis)
@@ -299,6 +357,22 @@ Class IsoSkin
 '			display.DrawImage(image,sx*D+i*zy,sy*D+i*zx,-Pi/4,0.125,0.125)	'facing sky
 '		next
 	end	
+	
+	Global verts:=new Float[65536*2]
+	
+	Method DrawMesh(mesh:IsoMesh,display:Canvas,t:Mat4<Float>)
+		Local n:=mesh.vertCount
+		For Local i:=0 Until n
+			Local vert:=mesh.verts[i]
+			Local sx:=vert.x * t.i.x + vert.y * t.j.x + vert.z * t.k.x + t.t.x
+			Local sy:=vert.x * t.i.y + vert.y * t.j.y + vert.z * t.k.y + t.t.y
+			verts[i*2+0]=sx
+			verts[i*2+1]=sy
+		Next	
+		Local iptr:Int Ptr=mesh.tris.Data
+		local vptr:Float Ptr=verts.Data
+		display.DrawPrimitives(3,mesh.triCount,vptr,8,Null,0,iptr)
+	End
 
 End
 
@@ -318,29 +392,69 @@ Class GridSpace
 		grid=New IsoGrid(star)
 	End
 	
+	Method Generate(a:Bool,b:Bool,c:Bool,smooth:Int)
+		grid.Extrude(a,b,c,smooth)
+	End
+
+	Method Mesh()
+		grid.Skin()
+	end
+	
 	Field zx:Double
 	Field zy:Double
 	Field DrawQuadrant:Int
-
+	Field projection:=new Mat4<Float>
+	
 	Method IsoView(display:Canvas, width:double, height:double, theta:Double, scale:Double)
 		zx=Cos(theta)
 		zy=Sin(theta)
+
 		local tx:=zx*scale
 		local ty:=zy*scale
+
 		display.Matrix=new AffineMat3f(tx,ty*0.5,-ty,tx*0.5,width*0.5,height*0.5)		
+	end		
+
+	Const D:=7
+	
+	Method ProjView(display:Canvas, width:double, height:double, theta:Double, scale:Double)
+		display.Matrix=new AffineMat3f()
+		
+		theta+=Pi/4
+
+		zx=Cos(theta)
+		zy=Sin(theta)
+
+		local tx:=zx*scale*D
+		local ty:=zy*scale*D
+
+		projection.i.x=-tx
+		projection.j.x=0
+		projection.k.x=-ty
+		projection.t.x=width*0.5
+
+		projection.i.y=-ty/2
+		projection.j.y=-scale*D
+		projection.k.y=tx/2
+		projection.t.y=height*0.5
 	End
 			
 	Method DrawGrid( c:Canvas, width:double, height:double, theta:Double, zoom:Double )		
 		c.PushMatrix()
 		Local scale:=1.0/zoom
-		IsoView(c,width,height,theta,scale)
-' calulate draw order so we scan grid from far to near
+' calulate draw order so we scan grid based inputs from far to near
 		Local quadrant:Int=Int(2.5+2*theta/Pi)&3				
-		DrawQuadrant=quadrant
+		DrawQuadrant=quadrant		
 
-		For Local cube:=Eachin grid.ordered[quadrant]
-			style.DrawCube(cube,c,zx,zy,theta)
-		Next
+		If grid.skin
+			ProjView(c,width,height,theta,scale)
+			style.DrawMesh(grid.skin,c,projection)
+		Else
+			IsoView(c,width,height,theta,scale)
+			For Local cube:=Eachin grid.ordered[quadrant]
+				style.DrawCube(cube,c,zx,zy,theta)
+			Next
+		Endif
 
 		c.PopMatrix()
 		framecount+=1		
@@ -348,7 +462,7 @@ Class GridSpace
 End
 
 Class VGrid Extends Window
-	Field grid:GridSpace
+	Field gridspace:GridSpace
 	Field status:String
 	
 	Field zoom:Float
@@ -369,7 +483,7 @@ Class VGrid Extends Window
 		zoom=.5
 		radius=2.5			
 		Local style:=new IsoSkin()
-		grid=New GridSpace(style)
+		gridspace=New GridSpace(style)
 	End
 		
 	Method DrawStats(display:Canvas)
@@ -381,13 +495,16 @@ Class VGrid Extends Window
 		
 		Local content:=AboutApp
 		content+=",,"+Controls
+		
+		Local grid:=gridspace.grid
 
-		content+=",,Surface="+grid.grid.surface.Count()
-		content+=",Volume="+grid.grid.volume
+		content+=",,Surface="+grid.surface.Count()
+		content+=",Volume="+grid.volume
 
 		content+=",CubeCounter="+Cube.CubeCounter
 
-		content+=",Quadrant="+grid.DrawQuadrant
+		content+=",Quadrant="+gridspace.DrawQuadrant
+
 		content+=","+Contact+","+Credits
 		
 		For Local line:=Eachin content.Split(",")				
@@ -409,7 +526,9 @@ Class VGrid Extends Window
 		Else		
 			rot=rot Mod (Pi*2)
 		Endif		
-		grid.DrawGrid(display,Width,Height,rot,zoom)
+		
+		gridspace.DrawGrid(display,Width,Height,rot,zoom)
+
 		DrawStats(display)		
 	End
 
@@ -417,42 +536,53 @@ Class VGrid Extends Window
 		rotSpeed=0
 		rot=0
 	End
-	
-	Method Generate(a:Bool,b:Bool,c:Bool,smooth:Int)
-		grid.grid.Extrude(a,b,c,smooth)
-	End
-	
+		
 	Method OnKeyEvent( event:KeyEvent ) Override	
 		Local smooth:=0
 		If event.Modifiers&Modifier.Shift smooth|=1
 		If event.Modifiers&Modifier.Control smooth|=2
+		
+		Local grid:=gridspace.grid
+		
 		Select event.Type
 		Case EventType.KeyDown
 			Select event.Key			
 			
 			Case Key.Key1
-				grid.grid.root.skin=0
+				grid.root.skin=0
 			Case Key.Key2
-				grid.grid.root.skin=1
+				grid.root.skin=2
 			Case Key.Key3
-				grid.grid.root.skin=2
+				grid.root.skin=4
 			Case Key.Key4
-				grid.grid.root.skin=3
+				grid.root.skin=6
+			Case Key.Key5
+				grid.root.skin=8
+			Case Key.Key6
+				grid.root.skin=10
+			Case Key.Key7
+				grid.root.skin=12
+			Case Key.Key8
+				grid.root.skin=14
+			Case Key.Key9
+				grid.root.skin=16
 				
 			Case Key.C
-				grid.Clear()
+				gridspace.Clear()
 			Case Key.G
-				Generate(True,True,True,smooth)
+				gridspace.Generate(True,True,True,smooth)
 			Case Key.X
-				Generate(True,False,False,smooth)
+				gridspace.Generate(True,False,False,smooth)
 			Case Key.Y
-				Generate(False,True,False,smooth)
+				gridspace.Generate(False,True,False,smooth)
 			Case Key.Z
-				Generate(false,false,True,smooth)
+				gridspace.Generate(false,false,True,smooth)
 			Case Key.Escape
 				App.Terminate()
 			Case Key.F1
 				Fullscreen = Not Fullscreen
+			Case Key.F5
+				gridspace.Mesh()
 			Case Key.Space
 				Hold()
 			Case Key.Left
@@ -463,7 +593,7 @@ Class VGrid Extends Window
 				radius*=0.8			
 			Case Key.Up
 				radius*=1.2			
-			end
+			End
 		End
 	End
 								
