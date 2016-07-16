@@ -22,7 +22,8 @@ Function InitKeywords()
 	kws+="For;To;Step;Next;"
 	kws+="Select;Case;Default;"
 	kws+="Try;Catch;Throw;Throwable;"
-	kws+="Return;Print;Static;Cast"
+	kws+="Return;Print;Static;Cast;"
+	kws+="DebugStop"
 	
 	For Local kw:=Eachin kws.Split( ";" )
 		Mx2Keywords[kw.ToLower()]=kw
@@ -174,7 +175,7 @@ Class Mx2TextView Extends TextView
 		
 		If start<text.Length 
 			Local color:=Document.Colors[start]
-			If color<>COLOR_KEYWORD Return'color<>COLOR_IDENT Return
+			If color<>COLOR_KEYWORD and color<>COLOR_IDENT Return
 		Endif
 		
 		Local ident:=text.Slice( start,cursor )

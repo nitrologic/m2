@@ -1174,7 +1174,7 @@ Global MainWindow:MainWindowInstance
 			Local ext:=ExtractExt( path ).ToLower()
 			
 			Select ext
-			Case ".monkey2"
+			Case ".monkey2",".monkey"
 			Case ".png",".jpg",".bmp"
 			Case ".h",".hpp",".hxx",".c",".cpp",".cxx",".m",".mm"
 			Case ".html",".css",".md",".json",".xml"
