@@ -9,7 +9,7 @@ Using mojo..
 Using sdl2..
 Using portmidi..
 
-Global AppTitle:String="VSynth 0.03"	
+Global AppTitle:String="VSynth 0.04"	
 Global Contact:="Latest Source=github.com/nitrologic/m2"
 
 Global About:="VSynth Control"
@@ -850,14 +850,14 @@ Class VSynthWindow Extends Window
 	Field sustain:Bool
 	Field expression:V
 
-	Field arp:Int=1
+	Field arp:Int
 	Field prog:Int
 
-	Field hold:Bool=True
+	Field hold:Bool
 	Field div:Int
 	Field duty:Int
 	Field rept:Int
-	Field tempo:Tempo=112
+	Field tempo:Tempo=92
 	field reset:Int
 	
 	Field keyNoteMap:=New Map<Key,Int>
@@ -1124,7 +1124,7 @@ RPN LSB/MSB (cc#100/101)
 				prog=Wrap(prog+1,0,ProgNames.Length)				
 			Case Key.Minus
 				tempo-=1
-			Case Key.Key0
+			Case Key.Equals
 				tempo+=1
 			Case Key.F3
 				CycleMidiSend()
@@ -1139,9 +1139,7 @@ RPN LSB/MSB (cc#100/101)
 			Case Key.F9
 				arp=4
 			Case Key.F10
-				arp=5
-			Case Key.F11
-				arp=6
+				If arp=5 arp=6 Else arp=5
 			Case Key.Backspace
 				Title="Scanning Midi Bus, please wait."
 				reset=1
