@@ -79,6 +79,7 @@ Global MainWindow:MainWindowInstance
 	'paths
 	Field _tmp:String
 	Field _mx2cc:String
+	Field _monkey2:String
 
 	'actions
 	Field _fileNew:Action
@@ -575,6 +576,7 @@ Global MainWindow:MainWindowInstance
 		Endif
 		
 		_console.Visible=Not _console.Visible
+		_navigate.Visible=Not _navigate.Visible
 		
 	End
 	
@@ -585,6 +587,7 @@ Global MainWindow:MainWindowInstance
 		_tmp="tmp/"
 		
 #If __HOSTOS__="macos"
+		ChangeDir(AppDir())
 		_mx2cc="bin/mx2cc_macos"
 '		ModifierControl|=Modifier.Gui
 #Else If __HOSTOS__="windows"
@@ -594,7 +597,9 @@ Global MainWindow:MainWindowInstance
 #Else
 		_mx2cc="bin/mx2cc_linux"
 #Endif
-		
+
+		LocateMonkey2()		
+
 		CreateDir( _tmp )
 	End
 	
@@ -860,10 +865,8 @@ Global MainWindow:MainWindowInstance
 		End
 		
 		_navigate=New DockingView
-'		_navigate.ContentView=_menuBar
 		_navigate.AddView( _menuBar,"top",0 )
 		_navigate.AddView( _browser,"top",280 )
-'		_docker.AddView( _menuBar,"top",0 )
 
 		_docker=New DockingView
 		_docker.ContentView=_docTabber
@@ -872,7 +875,7 @@ Global MainWindow:MainWindowInstance
 	end
 	
 	Method New( title:String,rect:Recti,flags:WindowFlags )
-		Super.New( title,rect,flags )
+		Super.New( title+"@"+CurrentDir(),rect,flags )
 		
 		MainWindow=Self
 		
@@ -946,6 +949,8 @@ Global MainWindow:MainWindowInstance
 	
 	Method LoadState()
 	
+		ChangeDirMonkey2()
+		
 		Local obj:=JsonObject.Load( "bin/ted2.state.json" )
 		If Not obj Return
 		
@@ -1028,7 +1033,8 @@ Global MainWindow:MainWindowInstance
 		obj["helpTreeSize"]=New JsonNumber( _helpView.GetViewSize( _helpView.HelpTree ) )
 		
 		If _lockedDoc obj["lockedDocument"]=New JsonString( _lockedDoc.Path )
-		
+
+		ChangeDirMonkey2()		
 		SaveString( obj.ToJson(),"bin/ted2.state.json" )
 	
 	End
@@ -1318,6 +1324,8 @@ Global MainWindow:MainWindowInstance
 
 		_console.Clear()
 		
+		ChangeDirMonkey2()	'todo: restore to cd after invoke?
+		
 		Local cmd:=_mx2cc+" makeapp -apptype=gui -build -config="+config+" ~q"+buildDoc.Path+"~q"
 		
 		If Not _console.Start( cmd )
@@ -1420,16 +1428,20 @@ Global MainWindow:MainWindowInstance
 
 	End
 
-	method ChangeDirMonkey2:Bool()
-		local monkey2dir:=RealPath(_mx2cc)
-		While GetFileType( "bin" )<>FileType.Directory Or GetFileType( "modules" )<>FileType.Directory
+	method LocateMonkey2:Bool()
+		While GetFileType(_mx2cc)<>FileType.File
 			If IsRootDir( CurrentDir() )
 				Print "Error Locating Monkey2 Path, please initializing BigTed - can't find working dir!"
 				return false
 			Endif			
 			ChangeDir( ExtractDir( CurrentDir() ) )
 		Wend
+		_monkey2=CurrentDir()
 		return true
+	end
+
+	method ChangeDirMonkey2()
+		ChangeDir( _monkey2 )
 	end
 
 	Method RunScript( script:String )
