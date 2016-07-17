@@ -28,3 +28,5 @@ Windows use to be advised.
 [VPaint 0.3 for Raspberry Pi](https://github.com/nitrologic/m2/raw/master/releases/vpaint-pi-0.3.tar.gz)
 
 [![IMAGE ALT TEXT](http://img.youtube.com/vi/2Y3zh0FOc00/0.jpg)](http://www.youtube.com/watch?v=2Y3zh0FOc00 "Project VPaint ")
+
+[![IMAGE ALT TEXT](http://img.youtube.com/vi/gP8LT9SHnSE/0.jpg)](http://www.youtube.com/watch?v=gP8LT9SHnSE "Project VSynth ")
