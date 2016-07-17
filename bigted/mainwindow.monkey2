@@ -1491,6 +1491,8 @@ Global MainWindow:MainWindowInstance
 		MakeKeyView()
 	End
 	
+'	Field systemRequesters:=mojo.requesters
+	
 	Method RequestDir:String( title:String,dir:String )
 
 		return _requesters.RequestDir( title,dir )
@@ -1499,6 +1501,7 @@ Global MainWindow:MainWindowInstance
 		
 		App.Idle+=Lambda()
 			future.Set( _requesters.RequestDir( title,dir ) )
+'			future.Set( systemRequesters.RequestDir( title,dir ) )
 		End
 		
 		Return future.Get()
@@ -1512,6 +1515,7 @@ Global MainWindow:MainWindowInstance
 		
 		App.Idle+=Lambda()
 			future.Set( _requesters.RequestFile( title,filters,save,path ) )
+'			future.Set( systemRequesters.RequestFile( title,filters,save,path ) )
 		End
 		
 		Return future.Get()
