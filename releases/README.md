@@ -13,6 +13,8 @@ Modular Synthesis for Monkey2.
 
 ![vsynthalpha](vsynthalpha.png?raw=true "vsynth alpha")
 
+[![IMAGE ALT TEXT](http://img.youtube.com/vi/gP8LT9SHnSE/0.jpg)](http://www.youtube.com/watch?v=gP8LT9SHnSE "Project VSynth ")
+
 ##VPaint
 
 Mac users check security settings Allow Apps Downloaded From Anywhere or wait until VPaint is signed and available on the AppStore.
@@ -29,4 +31,3 @@ Windows use to be advised.
 
 [![IMAGE ALT TEXT](http://img.youtube.com/vi/2Y3zh0FOc00/0.jpg)](http://www.youtube.com/watch?v=2Y3zh0FOc00 "Project VPaint ")
 
-[![IMAGE ALT TEXT](http://img.youtube.com/vi/gP8LT9SHnSE/0.jpg)](http://www.youtube.com/watch?v=gP8LT9SHnSE "Project VSynth ")
