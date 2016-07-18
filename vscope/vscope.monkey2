@@ -13,11 +13,11 @@ Class MyWindow Extends Window
 
 	Method OnRender( canvas:Canvas ) Override
 	
-		App.RequestRender()
+		App.
 	
-		Local statusText:="status: framecount="+framecount+" fps="+App.FPS+" ms="+App.Millisecs
+		Local text:="Hi! framecount="+framecount+" fps="+App.FPS+" ms="+App.Millisecs
 	
-		canvas.DrawText( statusText, 0, Height, 0, 1 )
+		canvas.DrawText( text,10,Height/2,0,1 )
 		
 		framecount+=1
 	

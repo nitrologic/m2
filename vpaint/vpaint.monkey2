@@ -2,9 +2,6 @@
 #Import "<mojo>"
 #Import "<portmidi>"
 
-#Import "assets/thrust.wav"
-#Import "assets/engine1.wav"
-#Import "assets/bang.wav"
 #Import "assets/whale52hz.wav"
 
 Using std..
@@ -237,12 +234,7 @@ Class VPaint Extends Window
 		radius=2.5
 '		tool=New VTool("Tools")
 '		tool.Title="VPaint Pen : RGBCycle"
-		
-'		sample=Sound.Load("asset::bang.wav")
-'		sample=Sound.Load("asset::whale52hz.wav")
 		sample=Sound.Load("asset::whale52hz.wav")
-'		sample=Sound.Load("asset::thrust.wav")
-
 		If sample
 			wheel=sample.Play(-1)
 			wheel.Rate=5
