@@ -796,7 +796,6 @@ Class VSynth
 		spec.callback = AudioPipe.Callback
 		spec.userdata = audioPipe.Handle()
 		
-		Mix_CloseAudio()		
 		Local error:Int = SDL_OpenAudio(Varptr spec,Varptr audioSpec)		
 		If error
 			Print "error="+error+" "+String.FromCString(SDL_GetError())
