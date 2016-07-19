@@ -49,7 +49,7 @@ Global vsynth:VSynth
 
 Global Duration:=0
 Global FragmentSize:=24
-Global WriteAhead:=4096
+Global WriteAhead:=4096/24
 
 Global AudioFrequency:=44100
 
@@ -114,8 +114,8 @@ End
 Class Sine Extends Oscillator	
 	Method Sample:V(hz:F) Override
 		Local t:T=hz/AudioFrequency
-		delta+=t
-		Return 2*Pi*Sin(Pi*delta)
+		delta=(delta+t) Mod 1.0
+		Return Sin(2*Pi*delta)
 	End
 End
 
@@ -861,41 +861,33 @@ Class VSynth
 
 	Field buffer:=New Double[FragmentSize*2]
 
-	Method UpdateAudio()
-		While True
-			Local buffered:=audioPipe.writePointer-audioPipe.readPointer
-			If buffered>=WriteAhead Exit
-			For Local i:=0 Until FragmentSize*2
-				buffer[i]=0
-			Next	
-
-			Local samples:=FragmentSize
+	Method FillAudioBuffer:Double[](samples:Int)	
+		For Local i:=0 Until samples
+			buffer[i*2+0]=0
+			buffer[i*2+1]=0
+		Next			
+		If vsynth
 			vsynth.root.FillAudioBuffer(buffer,samples,detune,fade)			
 			Duration+=samples
-
-			Local pointer:=Varptr buffer[0]
-			audioPipe.WriteSamples(pointer,FragmentSize*2)
-		Wend
-	End
-			
-	Method OpenAudio()
-		Local spec:SDL_AudioSpec
-		spec.freq=AudioFrequency	
-		spec.format = AUDIO_S16
-		spec.channels = 2
-		spec.samples = FragmentSize
-		spec.callback = AudioPipe.Callback
-		spec.userdata = audioPipe.Handle()
-		
-		Local error:Int = SDL_OpenAudio(Varptr spec,Varptr audioSpec)		
-		If error
-			Print "error="+error+" "+String.FromCString(SDL_GetError())
-		Else
-			Print "Audio Open freq="+audioSpec.freq
-			AudioFrequency=audioSpec.freq
 		Endif
-						
-		SDL_PauseAudio(0)
+		Return buffer
+	End
+	
+	Method OpenAudio()
+		New Fiber( Lambda()
+			Local channel:=New Channel
+			Local data:=New AudioData( FragmentSize,AudioFormat.Stereo16,AudioFrequency )
+			Local datap:=Cast<Short Ptr>( data.Data )
+			Repeat
+				Local samples:=FillAudioBuffer( FragmentSize )
+				For Local i:=0 Until FragmentSize*2
+					datap[i]=Clamp( samples[i],Double(-1.0),Double(1.0) ) * 32767.0
+				Next
+				channel.WaitQueued( WriteAhead )
+				channel.Queue( data )							
+			Forever
+		
+		End )
 	End
 
 End	
@@ -1355,7 +1347,7 @@ RPN LSB/MSB (cc#100/101)
 		vsynth.SetSustain(sustain)
 		vsynth.SetTempo(tempo,1+div,DutyCycle[duty],rept)
 		vsynth.SetTone(oscillator,envelope)
-		vsynth.UpdateAudio()
+'		vsynth.UpdateAudio()
 
 		Local text:String = About+",,"+Octave1+","+Octave0
 		text+=",,Octave=< >="+octave

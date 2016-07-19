@@ -16,6 +16,7 @@ Struct Sat5
 	Field B:S
 	Field A:S
 	Field T:S
+	Field n:Int
 		
 	method Mix(s:Sat5)
 		R+=s.R
@@ -23,14 +24,20 @@ Struct Sat5
 		B+=s.B
 		A+=s.A		
 		T+=s.T
+		n+=1
 	end
 
 	Method ARGB:Int()
-		If T=0 Return $ffff00ff
-		Local r8:Int=255*R/T
-		Local g8:Int=255*G/T
-		Local b8:Int=255*B/T
-		Local a8:int=255*A/T
+		If n=0 Return 0'$ffff00ff
+		
+		Local r:=0.2/n
+'		If n<16 r*=n/16
+
+		Local r8:Int=255*R*r
+		Local g8:Int=255*G*r
+		Local b8:Int=255*B*r
+		Local a8:int=255*A*r
+		
 		Return (a8 Shl 24)|(b8 Shl 16)|(g8 Shl 8)|r8
 	End
 End
@@ -48,18 +55,18 @@ Class Scope
 		size=dim*dim
 		buffer=New Sat5[dim*dim]	
 		pixmap=New Pixmap(dim,dim)
-		brush.A=1.0
-		brush.R=1.0
-		brush.G=1.0
-		brush.B=1.0
-		brush.T=One/1024		
+		brush.R=0.3
+		brush.G=0.8
+		brush.B=0.4
+		brush.A=0.6
+		brush.T=One/2
 	End
 		
 	Method Draw(x:Int,y:Int)
 		Local i:=y*dimension+x
 		If i>0 And i<size buffer[i].Mix(brush)
-	end
-	
+	End
+		
 	Method GetImage:Image()
 		Bake()
 		image=New Image(pixmap)
@@ -81,10 +88,11 @@ Class MyWindow Extends Window
 
 	Field framecount:=0
 	Field scope:=New Scope(256)	
-	Field cx:Int
+	Field cx:Double
 	Field t:Double
 	
 	Method New()
+		ClearColor=Color.Black
 	End
 
 	Method OnRender( canvas:Canvas ) Override
@@ -95,23 +103,24 @@ Class MyWindow Extends Window
 	
 		canvas.DrawText( status,0,Height,0,1 )
 		
-		For Local i:=0 Until 100
+		For Local i:=0 Until 1000
 			Local cy:=128+100*Sin(t)
-			t+=0.0001					
+			t+=0.001					
+			cx+=0.32
 			scope.Draw(cx,cy)
 		Next
-		cx+=1
 		
 '		scope.Draw(Mouse.X,Mouse.Y-10)
 		
 		canvas.DrawImage(scope.GetImage(),10,10)
+		canvas.DrawImage(scope.GetImage(),10+256,10)
 		
 		framecount+=1
 	
 	End
 	
 	Method OnMouseEvent(event:MouseEvent) Override
-	end
+	End
 	
 	Method OnKeyEvent(event:KeyEvent) Override
 		Select event.Type

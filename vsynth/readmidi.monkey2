@@ -188,7 +188,7 @@ Class MidiFile
 							Default				
 								p1=stream.ReadByte()								
 								p+=1
-'								print "["+cmd+"] #"+channel+","+p0+","+p1+" +"+t
+								print "["+cmd+"] #"+channel+","+p0+","+p1+" +"+t
 								midibuffer.AddLast(New Byte[](cmd Shl 4,p0,p1))								
 						End
 				End
