@@ -48,7 +48,7 @@ Global instance:AppInstance
 Global vsynth:VSynth
 
 Global Duration:=0
-Global FragmentSize:=1024
+Global FragmentSize:=24
 Global WriteAhead:=4096
 
 Global AudioFrequency:=44100
@@ -252,7 +252,36 @@ Interface Synth
 	Method SetSustain(sustain:Bool)
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
 	Method Panic()
+	Method GetKeymap:Keymap()
 End
+
+Struct Keymap
+	Field low:Long
+	Field high:Long	
+
+	Method KeyDown:Bool(index:Int)
+		Local bit:Long=1	
+		Local shift:Long=index&63
+		If index<64 Return ((low Shr shift)&bit)=bit
+		index-=64
+		Return ((high Shr shift)&bit)=bit
+	End
+	
+	Method NoteOn(index:Int)
+		Local bit:Long=1
+		Local shift:Long=index&63
+		bit=bit Shl shift
+		If index<64 low|=bit Else high|=bit
+	End
+
+	Method NoteOff(index:Int)
+		Local bit:Long=1
+		Local shift:Long=index&63
+		bit=bit Shl shift
+		If index<64 low&=~bit Else high&=~bit
+	end
+End
+
 
 Class BeatGenerator Implements Synth
 
@@ -271,6 +300,8 @@ Class BeatGenerator Implements Synth
 	
 	Field notePeriod:T
 	Field dutyPeriod:T
+
+	Field keymap:=New Keymap
 	
 	Method SetTempo(tempo:Tempo,div:Int,duty:V,rept:int)
 		bpm=tempo
@@ -303,10 +334,12 @@ Class BeatGenerator Implements Synth
 	Method NoteOn(note:Int,vel:Int) Virtual
 		recent=note
 		velocity=vel
+		keymap.NoteOn(note)
 	End
 	
 	Method NoteOff(note:Int) virtual
 		output.NoteOff(note)
+		keymap.NoteOff(note)
 	End
 	
 	Method Beat() Virtual
@@ -342,6 +375,10 @@ Class BeatGenerator Implements Synth
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
 		Update(2.0*samples/AudioFrequency)
 		output.FillAudioBuffer(buffer,samples,detune,fade)
+	End
+
+	Method GetKeymap:Keymap()
+		Return output.GetKeymap()
 	End
 	
 	Method Panic()
@@ -498,6 +535,7 @@ Class PolySynth Implements Synth
 	Field envelope:Int
 	Field volume:V=1.0
 	Field sustainedVoices:=New List<Voice>
+	Field keymap:=New Keymap
 	
 	Method New()
 		For Local i:=0 Until MaxPolyphony
@@ -508,6 +546,10 @@ Class PolySynth Implements Synth
 		Next
 	End
 	
+	Method GetKeymap:Keymap()
+		Return keymap
+	End
+
 	Method Panic()
 		voices.Clear()
 	End
@@ -546,6 +588,7 @@ Class PolySynth Implements Synth
 		If Not voices.Contains(voice)
 			voices.Add(voice)
 		Endif	
+		keymap.NoteOn(note)
 	End
 		
 	Method NoteOff(note:Int)	
@@ -559,6 +602,7 @@ Class PolySynth Implements Synth
 			polyMap.Remove(note)
 			polyList.AddLast(voice)
 		Endif
+		keymap.NoteOff(note)
 	End
 
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,gain:V)	
@@ -566,7 +610,6 @@ Class PolySynth Implements Synth
 			voice.Mix(buffer,samples,detune,gain)
 		Next		
 	End
-	
 End
 
 Class MonoSynth Implements Synth
@@ -577,6 +620,7 @@ Class MonoSynth Implements Synth
 	Field oscillator:Int	
 	Field envelope:Int
 	Field volume:V=1.0
+	Field keymap:=New Keymap
 
 	Method New()
 		tone=New Voice
@@ -593,6 +637,10 @@ Class MonoSynth Implements Synth
 	
 	Method SetSustain(sustain:Bool)
 	End
+
+	Method GetKeymap:Keymap()
+		Return keymap
+	end
 
 	Method Panic()
 		tone.NoteOff()
@@ -616,6 +664,7 @@ Class MonoSynth Implements Synth
 			notes.Push(note)
 		Endif
 		tone.NoteOn(note,velocity)
+		keymap.NoteOn(note)
 	End
 
 	Method NoteOff(note:Int)
@@ -628,6 +677,7 @@ Class MonoSynth Implements Synth
 			notes.Push(note)
 			tone.NoteOn(note,monoVelocity)
 		Endif
+		keymap.NoteOff(note)
 	End
 
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
@@ -635,7 +685,6 @@ Class MonoSynth Implements Synth
 	End
 
 End
-
 
 Class MidiSynth Implements Synth
 	Const _NoteOn:=144
@@ -648,6 +697,7 @@ Class MidiSynth Implements Synth
 
 	Field portMidi:PortMidi
 	Field send:Int
+	Field keymap:=New Keymap
 
 	method new(driver:PortMidi,channel:Int)
 		portMidi=driver
@@ -678,16 +728,22 @@ Class MidiSynth Implements Synth
 	Method NoteOn(note:Int,velocity:int)
 		Local noteOn:Int=(_NoteOn)|(note Shl 8)|(velocity Shl 16)
 		portMidi.OutputData(send,noteOn)
+		keymap.NoteOn(note)
 	End
 	
 	Method NoteOff(note:Int)
 		Local noteOff:Int=(_NoteOff)|(note Shl 8)
 		portMidi.OutputData(send,noteOff)
+		keymap.NoteOff(note)
 	End
 			
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
 	End
 	
+	Method GetKeymap:Keymap()
+		Return keymap
+	End
+
 	Method Panic()
 	End
 End
@@ -742,6 +798,10 @@ Class VSynth
 
 	Method NoteOff(note:Int)	
 		root.NoteOff(note)
+	End
+
+	Method GetKeymap:Keymap()
+		Return root.GetKeymap()
 	End
 	
 	Method SetSynth(synth:Int)
@@ -1334,8 +1394,9 @@ RPN LSB/MSB (cc#100/101)
 		pixels.Zoom(12)
 		pixels.Dim(32,2)		
 		pixels.Draw(display)	
-		
-		keys.DrawKeyboard(display,440,100)
+
+		Local keymap:=vsynth.GetKeymap()		
+		keys.DrawKeyboard(display,440,100,keymap)
 	End				
 	
 	Field pixels:=New ColorMap(420,20)
@@ -1363,7 +1424,7 @@ Class SynthStyle
 		Endif		
 	End
 	
-	Method DrawKeyboard(display:Canvas,x:Int,y:Int)				
+	Method DrawKeyboard(display:Canvas,x:Int,y:Int,keymap:Keymap)				
 		canvas=display
 		For Local p:=0 To 1			
 			Local px:=x+2
@@ -1372,7 +1433,7 @@ Class SynthStyle
 				Local octave:=i/12
 				Local note:=i-octave*12				
 				Local sharp:Bool=note=1 Or note=3 Or note=6 Or note=8 Or note=10				
-				Local down:Bool				
+				Local down:=keymap.KeyDown(i)					
 '				If _proc down=_proc._keyDown[i]>0				
 				If sharp 
 					If p=1 
