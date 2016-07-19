@@ -2,7 +2,9 @@
 #Import "<mojo>"
 #Import "<sdl2>"
 #Import "<portmidi>"
-#Import "audiopipe.monkey2"
+
+#Import "assets/whale52hz.wav"
+#Import "assets/engine1.wav"
 
 ' VSynth 0.05 tasks
 ' common midi button mapping and vsynth window commands
@@ -20,10 +22,10 @@ Global Contact:="Latest Source=github.com/nitrologic/m2"
 Global About:="VSynth Control"
 Global Octave1:= "Sharps=    W   E       T   Y   U      "
 Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
-Global Controls:="Reset Keys=Space,Quit=Escape,,Enable MIDI=Backspace"
+Global Controls:="Reset Keys=Space,Quit=Escape"
 
 Global SustainNames:=New String[]("Up","Down")
-Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise")
+Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise","Sample")
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random1","Random2")
 Global ProgNames:=New String[]("None","Recurse","Ascend","Descend")
@@ -49,7 +51,6 @@ Global vsynth:VSynth
 
 Global Duration:=0
 Global FragmentSize:=24
-Global WriteAhead:=4096/24
 
 Global AudioFrequency:=44100
 
@@ -157,6 +158,55 @@ Class Noise Extends Oscillator
 	End
 End
 
+Class Sampler Extends Oscillator
+	Field a:V
+	Field audioData:AudioData
+	Field bytespersample:Int
+	Field pitch:F
+		
+	Method New()
+		Load("asset::engine1.wav")	
+'		Load("asset::whale52hz.wav")	
+		Print "sampler loaded:"+audioData.Length+"@"+audioData.Hertz+" format="+Int(audioData.Format)
+		bytespersample=BytesPerSample(audioData.Format)
+		pitch=440.0
+	End
+	
+	Method Load(uri:String)
+		audioData=AudioData.Load(uri)
+	End
+
+	Method LoadWav(uri:String)
+		audioData=LoadAudioData_WAV(uri)
+	End
+	
+	Method LoadOGG(uri:String)
+		audioData=LoadAudioData_OGG(uri)
+	End
+
+	Method Sample:V(hz:F) Override		
+		Local t:=hz*audioData.Hertz/(pitch*AudioFrequency)		
+		Local delta0:=delta
+		delta+=t
+		Local f:=delta
+		f=f Mod (audioData.Length/bytespersample)
+		Local i:Int=f		
+		Local udata:=audioData.Data		
+		Local sdata:=Cast<Byte Ptr>(udata)
+		Select audioData.Format
+			Case AudioFormat.Mono8 
+				Return (udata[i]-128)/127.0
+			Case AudioFormat.Mono16 
+				Return (sdata[i*2+1]*256+sdata[i*2+0])/32767.0
+			Case AudioFormat.Stereo8 
+				Return (udata[i*2+0]-128)/127.0
+			Case AudioFormat.Stereo16 
+				Return (sdata[i*4+1]*256+sdata[i*4+0])/32767.0
+		End
+		Return 0
+	End
+end
+
 Interface NotePlayer
 	Method SetOscillator(osc:Int)
 	Method SetEnvelope(env:Int)
@@ -184,6 +234,7 @@ Class Voice Implements NotePlayer
 			Case 2 oscillator=New Sawtooth
 			Case 3 oscillator=New Triangle
 			Case 4 oscillator=New Noise
+			Case 5 oscillator=New Sampler
 		End
 	End
 	
@@ -668,6 +719,7 @@ Class MonoSynth Implements Synth
 	End
 
 	Method NoteOff(note:Int)
+		keymap.NoteOff(note)
 		notes.Remove(note)
 		If notes.Empty
 			tone.NoteOff()		
@@ -676,8 +728,8 @@ Class MonoSynth Implements Synth
 			monoNote=note
 			notes.Push(note)
 			tone.NoteOn(note,monoVelocity)
+			keymap.NoteOn(note)
 		Endif
-		keymap.NoteOff(note)
 	End
 
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
@@ -762,7 +814,6 @@ End
 
 Class VSynth
 	Field audioSpec:SDL_AudioSpec
-	Field audioPipe:=AudioPipe.Create()
 	Field detune:V
 	Field fade:V=1.0
 	Field poly:Synth=New PolySynth()
@@ -771,13 +822,27 @@ Class VSynth
 	Field arpeggiator:=New Arpeggiator()
 	Field midiSynth:MidiSynth
 	Field synthMode:int
+
+	Field buffer:=New Double[FragmentSize*2]
 	
 	Method New()
-		OpenAudio()
 		arpeggiator.SetSynth(mono)
 		arpeggiator.SetArpeggiation(1,0)
 		root=arpeggiator
 	End
+
+	Method FillAudioBuffer:Double[](samples:Int)	
+		For Local i:=0 Until samples
+			buffer[i*2+0]=0
+			buffer[i*2+1]=0
+		Next			
+		If root
+			root.FillAudioBuffer(buffer,samples,detune,fade)			
+			Duration+=samples
+		Endif
+		Return buffer
+	End
+
 	
 	Method SetMidiOutput(portMidi:PortMidi,midiSend:Int)
 		midiSynth=New MidiSynth(portMidi,midiSend)
@@ -858,38 +923,7 @@ Class VSynth
 
 	Method OnButtonUp(button:Int)
 	End	
-
-	Field buffer:=New Double[FragmentSize*2]
-
-	Method FillAudioBuffer:Double[](samples:Int)	
-		For Local i:=0 Until samples
-			buffer[i*2+0]=0
-			buffer[i*2+1]=0
-		Next			
-		If vsynth
-			vsynth.root.FillAudioBuffer(buffer,samples,detune,fade)			
-			Duration+=samples
-		Endif
-		Return buffer
-	End
 	
-	Method OpenAudio()
-		New Fiber( Lambda()
-			Local channel:=New Channel
-			Local data:=New AudioData( FragmentSize,AudioFormat.Stereo16,AudioFrequency )
-			Local datap:=Cast<Short Ptr>( data.Data )
-			Repeat
-				Local samples:=FillAudioBuffer( FragmentSize )
-				For Local i:=0 Until FragmentSize*2
-					datap[i]=Clamp( samples[i],Double(-1.0),Double(1.0) ) * 32767.0
-				Next
-				channel.WaitQueued( WriteAhead )
-				channel.Queue( data )							
-			Forever
-		
-		End )
-	End
-
 End	
 
 Function FloatString:String(value:Float,dp:Int=2)
@@ -952,12 +986,16 @@ Class VSynthWindow Extends Window
 	Field midiSend:Int
 	Field midiSendName:="None"
 	
+	Field audioLatency:Int=2 '1 Shl (10+n) samples
+	
 	Method New(title:String)
 		Super.New(title,1280,720,WindowFlags.Resizable)				
 		For Local i:=0 Until MusicKeys.Length
 			keyNoteMap.Set(MusicKeys[i],i-1)
 		Next
 		vsynth=New VSynth
+
+		OpenAudio()
 #If __HOSTOS__="pi"
 		ResetMidi()
 #endif
@@ -966,6 +1004,25 @@ Class VSynthWindow Extends Window
 ' midi mappings		
 		MapKontrol()
 		MapAkai()
+	End
+	
+	Method OpenAudio()
+
+		New Fiber( Lambda()
+			Local channel:=New Channel
+			Local data:=New AudioData( FragmentSize,AudioFormat.Stereo16,AudioFrequency )
+			Local datap:=Cast<Short Ptr>( data.Data )
+			Repeat
+				Local samples:=vsynth.FillAudioBuffer( FragmentSize )
+				For Local i:=0 Until FragmentSize*2
+					datap[i]=Clamp( samples[i],Double(-1.0),Double(1.0) ) * 32767.0
+				Next
+				Local loWater:=SampleLatency()/FragmentSize
+				channel.WaitQueued( loWater )
+				channel.Queue( data )							
+			Forever
+		
+		End )
 	End
 		
 	Method ResetMidi()
@@ -996,46 +1053,10 @@ Class VSynthWindow Extends Window
 		Endif			
 	End
 
-#rem
-yamaha
-
-SysEx=240
-TimeCode=241
-SongPosition=242
-SongSelect=243
-EOX=247
-Clock=248
-Start=250
-Continue=251
-Stop=252
-Reset=255
-
-midi level
-Bank Select (cc#0/32)
-Modulation Depth (cc#1)
-Portamento Time (cc#5)
-Channel Volume (cc#7)
-Pan (cc#10)
-Expression (cc#11)
-Hold1 (Damper) (cc#64)
-Portamento ON/OFF (cc#65)
-Sostenuto (cc#66)
-Soft (cc#67)
-Filter Resonance (Timbre/Harmonic Intensity) (cc#71)
-Release Time (cc#72)
-Attack Time (cc#73)
-Brightness (cc#74)
-Decay Time (cc#75) (new message)
-Vibrato Rate (cc#76) (new message)
-Vibrato Depth (cc#77) (new message)
-Vibrato Delay (cc#78) (new message)
-Reverb Send Level (cc#91)
-Chorus Send Level (cc#93)
-Data Entry (cc#6/38)
-RPN LSB/MSB (cc#100/101)
-#end
-	
-
+	Method CycleAudioLatency()
+		audioLatency=(audioLatency+1)&3
+	End
+		
 	method PollMidi()
 		Const NoteOn:=144
 		Const NoteOff:=128
@@ -1165,6 +1186,7 @@ RPN LSB/MSB (cc#100/101)
 	Field midiTime:Double
 	Field midiTempo:Double
 	Const ppqn:=24
+	
 	Method OnMidiClock(t:Double)
 		If midiTicks>0
 			Local duration:=t-midiTime
@@ -1251,7 +1273,9 @@ RPN LSB/MSB (cc#100/101)
 				tempo-=1
 			Case Key.Equals
 				tempo+=1
-			Case Key.F3
+			Case Key.F2
+				CycleAudioLatency()
+			Case Key.F4
 				CycleMidiSend()
 			Case Key.F5
 				arp=0
@@ -1280,6 +1304,8 @@ RPN LSB/MSB (cc#100/101)
 				oscillator=3
 			Case Key.Key5
 				oscillator=4
+			Case Key.Key6
+				oscillator=5
 			Case Key.Escape
 				instance.Terminate()
 			Case Key.LeftBracket
@@ -1364,9 +1390,11 @@ RPN LSB/MSB (cc#100/101)
 		text+=",Note Repeat=Home="+RepeatNames[rept]
 		text+=",,Tempo=- +="+tempo
 		text+=",,Synth=Enter Key="+SynthNames[synth]
-		text+=",,"+Controls		
-		text+=",,MidiIn["+midiInputs+"]=F2=All"
-		text+= ",MidiOut["+midiOutputs+"]=F3="+midiSendName
+		text+=",,"+Controls				
+		text+= ",Buffer=F2="+SampleLatency()+"samples ("+MilliLatency()+"ms)"
+		text+=",,Enable MIDI=Backspace"
+		text+=",MidiIn=F3=All ["+midiInputs+"]"
+		text+= ",MidiOut=F4="+midiSendName+"["+midiOutputs+"]"
 		text+=",,"+Contact
 		
 		display.Color=Color.Black
@@ -1375,7 +1403,7 @@ RPN LSB/MSB (cc#100/101)
 
 		Local cy:=20
 		For Local line:=Eachin text.Split(",")
-			Local cx:=50
+			Local cx:=10
 			For Local tab:=Eachin line.Split("=")
 				display.DrawText(tab,cx,cy)
 				cx+=100
@@ -1391,6 +1419,14 @@ RPN LSB/MSB (cc#100/101)
 		keys.DrawKeyboard(display,440,100,keymap)
 	End				
 	
+	Method SampleLatency:Int()
+		Return (1 Shl (10+audioLatency))
+	End
+	
+	Method MilliLatency:Int()
+		Return 1000*SampleLatency()/AudioFrequency
+	end
+
 	Field pixels:=New ColorMap(420,20)
 	Field keys:=New SynthStyle()
 End
@@ -1529,3 +1565,44 @@ Function Main()
 	New VSynthWindow(AppTitle)	
 	App.Run()	
 End
+
+
+#rem
+yamaha
+
+SysEx=240
+TimeCode=241
+SongPosition=242
+SongSelect=243
+EOX=247
+Clock=248
+Start=250
+Continue=251
+Stop=252
+Reset=255
+
+midi level
+Bank Select (cc#0/32)
+Modulation Depth (cc#1)
+Portamento Time (cc#5)
+Channel Volume (cc#7)
+Pan (cc#10)
+Expression (cc#11)
+Hold1 (Damper) (cc#64)
+Portamento ON/OFF (cc#65)
+Sostenuto (cc#66)
+Soft (cc#67)
+Filter Resonance (Timbre/Harmonic Intensity) (cc#71)
+Release Time (cc#72)
+Attack Time (cc#73)
+Brightness (cc#74)
+Decay Time (cc#75) (new message)
+Vibrato Rate (cc#76) (new message)
+Vibrato Depth (cc#77) (new message)
+Vibrato Delay (cc#78) (new message)
+Reverb Send Level (cc#91)
+Chorus Send Level (cc#93)
+Data Entry (cc#6/38)
+RPN LSB/MSB (cc#100/101)
+#end
+	
