@@ -4,6 +4,11 @@
 #Import "<portmidi>"
 #Import "audiopipe.monkey2"
 
+' VSynth 0.05 tasks
+' common midi button mapping and vsynth window commands
+' communicate between instances
+' persist performance patch and configuration
+
 Using std..
 Using mojo..
 Using sdl2..
@@ -663,8 +668,8 @@ Class MidiSynth Implements Synth
 	Method SetSustain(depress:Bool)
 		local value7:Int
 		If depress value7=127
-		Local setVolume:Int=(_ControllerChange)|(_SustainPedal Shl 8)|(value7 Shl 16)
-		portMidi.OutputData(send,setVolume)
+		Local setSustain:Int=(_ControllerChange)|(_SustainPedal Shl 8)|(value7 Shl 16)
+		portMidi.OutputData(send,setSustain)
 	End
 	
 	method SetTone(oscillator:Int,envelope:Int)
@@ -687,6 +692,17 @@ Class MidiSynth Implements Synth
 	End
 End
 
+
+	Const RewindButton:=1
+	Const PlayButton:=2
+	Const ForwardButton:=3
+	Const LoopButton:=4
+	Const StopButton:=5
+	Const RecordButton:=6
+	Const NextProgram:=7
+	Const PrevProgram:=8
+	Const UserButton:=10
+	Const Patch:=128
 
 Class VSynth
 	Field audioSpec:SDL_AudioSpec
@@ -744,12 +760,13 @@ Class VSynth
 		arpeggiator.SetTempo(tempo,divisor,duty,rept)
 	End
 
-	Method SetVolumeFader(vol:V)
-		fade=vol
-	End
+'	Method SetVolumeFader(vol:V)
+'		fade=vol
+'	End
 	
 	Method SetVolume(volume:V)
-		arpeggiator.SetVolume(volume)
+		fade=volume*volume
+'		arpeggiator.SetVolume(volume)
 	End
 
 	Method SetArp(arpmode:Int,prog:Int)
@@ -767,6 +784,20 @@ Class VSynth
 	Method ClearKeys()
 		root.Panic()
 	End
+	
+	Method OnButtonDown(button:Int)
+		Select button
+			Case NextProgram
+'				oscillator=Wrap(oscillator+1,0,OscillatorNames.Length)
+			Case PrevProgram
+'				oscillator=Wrap(oscillator-1,0,OscillatorNames.Length)
+			default
+				Print "button@"+button
+		end
+	End
+
+	Method OnButtonUp(button:Int)
+	End	
 
 	Field buffer:=New Double[FragmentSize*2]
 
@@ -857,6 +888,7 @@ Class VSynthWindow Extends Window
 	Field duty:Int
 	Field rept:Int
 	Field tempo:Tempo=92
+	Field pressure:int
 	field reset:Int
 	
 	Field keyNoteMap:=New Map<Key,Int>
@@ -878,6 +910,10 @@ Class VSynthWindow Extends Window
 		ResetMidi()
 #endif
 		ClearColor=new Color(1.0/16,1.0)
+		
+' midi mappings		
+		MapKontrol()
+		MapAkai()
 	End
 		
 	Method ResetMidi()
@@ -958,6 +994,7 @@ RPN LSB/MSB (cc#100/101)
 		Const Resume:=251		
 		Const Fin:=252
 		Const Cry:=191
+		Const ProgramChange:=192
 
 		While portMidi and portMidi.HasEvent()
 			Local b:=portMidi.EventDataBytes()
@@ -979,6 +1016,8 @@ RPN LSB/MSB (cc#100/101)
 					pitchbend=1.0+(word-8192)/8192.0
 				Case Controller
 					OnControl(b[1],b[2])
+				Case ProgramChange
+					OnProgramChange(b[1])
 				Case Clock
 					Assert(b[1]=0 And b[2]=0)
 					OnMidiClock(t)
@@ -991,22 +1030,61 @@ RPN LSB/MSB (cc#100/101)
 				Case Fin
 					Assert(b[1]=0 And b[2]=0)
 					OnMidiPlay(3,t)
-				Case Cry
+'				Case Cry
 				Default
 					Print b[0]+" "+b[1]+" "+b[2]+" "+b[3]
 			End					
 		Wend
 '		portMidi.Sleep(1.0/60)
 	End
-	Field control:=New Int[128]
+
+	Field control:=New Int[128]	
+	Field buttons:=New Map<Int,Int>
+	
+	Method MapAkai()
+		buttons[83]=Patch+0
+		buttons[80]=Patch+1
+		buttons[81]=Patch+2
+		buttons[82]=Patch+3
+		buttons[84]=NextProgram
+		buttons[85]=PrevProgram	
+	End	
+	
+	Method MapKontrol()
+		For Local i:=23 To 41
+			buttons[i]=UserButton+i-23
+		Next
+		buttons[47]=RewindButton
+		buttons[45]=PlayButton
+		buttons[48]=ForwardButton
+		buttons[49]=LoopButton
+		buttons[46]=StopButton
+		buttons[44]=RecordButton
+	End
+	
+	Method OnProgramChange(index:Int)
+		vsynth.OnButtonDown(Patch+index)
+	End
 	
 	Method OnControl(index:Int, value:Int)	
 	
 		local f:=value/128.0
 		value-=64
-
-		control[index]=value
+		
+		If buttons.Contains(index)
+			Local button:=buttons[index]
+			If value<0
+				vsynth.OnButtonDown(button)
+			Else
+				vsynth.OnButtonUp(button)
+			Endif
+			Return
+		endif
+		
 		Select index
+		Case 2
+			pressure=f*256
+			Print "blow:"+pressure
 		Case 14
 			tempo=f*256
 		Case 16
@@ -1015,10 +1093,6 @@ RPN LSB/MSB (cc#100/101)
 			ClearColor=New Color(ClearColor.R,f,ClearColor.B)
 		Case 18
 			ClearColor=New Color(ClearColor.R,ClearColor.G,f)
-		case 84
-			if value>0 oscillator=Wrap(oscillator+1,0,OscillatorNames.Length)
-		case 85
-			if value>0 oscillator=Wrap(oscillator-1,0,OscillatorNames.Length)
 		Case 3
 '			zoom=f/8
 		Case 121
@@ -1260,10 +1334,61 @@ RPN LSB/MSB (cc#100/101)
 		pixels.Zoom(12)
 		pixels.Dim(32,2)		
 		pixels.Draw(display)	
+		
+		keys.DrawKeyboard(display,440,100)
 	End				
 	
 	Field pixels:=New ColorMap(420,20)
+	Field keys:=New SynthStyle()
 End
+
+Class SynthStyle
+
+	Field BlackKey:=New Color(20,120,120)
+	Field WhiteKey:=New Color(20,200,200)
+	Field HotKey:=New Color(20,20,20)
+
+	Field canvas:Canvas
+
+	Method DrawKey(x:Float,y:Float,w:Float,h:Float,sharp:Bool,down:Bool)
+		If sharp
+			canvas.Color=BlackKey
+		Else
+			canvas.Color=WhiteKey
+		Endif		
+		canvas.DrawRect(x,y,w,h)
+		If down
+			canvas.Color=HotKey		
+			canvas.DrawRect(x+2,y+h-12,w-4,10)
+		Endif		
+	End
+	
+	Method DrawKeyboard(display:Canvas,x:Int,y:Int)				
+		canvas=display
+		For Local p:=0 To 1			
+			Local px:=x+2
+			Local py:=y+6
+			For Local i:=0 To 127			
+				Local octave:=i/12
+				Local note:=i-octave*12				
+				Local sharp:Bool=note=1 Or note=3 Or note=6 Or note=8 Or note=10				
+				Local down:Bool				
+'				If _proc down=_proc._keyDown[i]>0				
+				If sharp 
+					If p=1 
+						DrawKey(px-4,py,7,20,True,down)
+					Endif
+				Else
+					If p=0 
+						DrawKey(px,py,9,40,False,down)
+					Endif
+					px+=10
+				Endif
+			Next
+		Next
+	End
+End
+
 
 Class Box
 	Field tx:Int
