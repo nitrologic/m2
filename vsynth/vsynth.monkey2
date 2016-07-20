@@ -7,6 +7,7 @@
 #Import "assets/engine1.wav"
 
 ' VSynth 0.05 tasks
+' continuous pitch
 ' common midi button mapping and vsynth window commands
 ' communicate between instances
 ' persist performance patch and configuration
@@ -15,6 +16,7 @@ Using std..
 Using mojo..
 Using sdl2..
 Using portmidi..
+Using openal..
 
 Global AppTitle:String="VSynth 0.04"	
 Global Contact:="Latest Source=github.com/nitrologic/m2"
@@ -25,7 +27,7 @@ Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
 Global Controls:="Reset Keys=Space,Quit=Escape"
 
 Global SustainNames:=New String[]("Up","Down")
-Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise","Sample")
+Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise","Sample","Mic")
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random1","Random2")
 Global ProgNames:=New String[]("None","Recurse","Ascend","Descend")
@@ -159,29 +161,24 @@ Class Noise Extends Oscillator
 End
 
 Class Sampler Extends Oscillator
+	Global SampleCache:=New Map<String,AudioData>
 	Field a:V
 	Field audioData:AudioData
 	Field bytespersample:Int
 	Field pitch:F
 		
 	Method New()
-		Load("asset::engine1.wav")	
-'		Load("asset::whale52hz.wav")	
-		Print "sampler loaded:"+audioData.Length+"@"+audioData.Hertz+" format="+Int(audioData.Format)
+		audioData=Load("asset::engine1.wav")	
 		bytespersample=BytesPerSample(audioData.Format)
-		pitch=440.0
+		pitch=110.0
 	End
 	
-	Method Load(uri:String)
-		audioData=AudioData.Load(uri)
-	End
-
-	Method LoadWav(uri:String)
-		audioData=LoadAudioData_WAV(uri)
-	End
-	
-	Method LoadOGG(uri:String)
-		audioData=LoadAudioData_OGG(uri)
+	Function Load:AudioData(uri:String)
+		If SampleCache.Contains(uri) Return SampleCache[uri]
+		Local audioData:=AudioData.Load(uri)
+		Print "sampler loaded:"+audioData.Length+"@"+audioData.Hertz+" format="+Int(audioData.Format)
+		SampleCache[uri]=audioData
+		Return audioData
 	End
 
 	Method Sample:V(hz:F) Override		
@@ -205,7 +202,78 @@ Class Sampler Extends Oscillator
 		End
 		Return 0
 	End
+End
+
+Class AudioBuffer Extends Oscillator
+	Field samples:=New Deque<V>
+	
+	Method Sample:V(hz:F) Override			
+		If samples.Empty Poll()
+		If samples.Empty
+			For Local i:=0 Until 256
+				samples.PushLast(0)
+			next 
+			Return 0		
+		endif
+		Return samples.PopLast()
+'		Local t:=hz*audioData.Hertz/(pitch*AudioFrequency)		
+'		Local delta0:=delta
+'		delta+=t
+	End
+	
+	Method Poll() Virtual
+	end
 end
+
+Class Microphone Extends AudioBuffer
+
+	Field rate:=44100
+	Field fragsize:=4096
+	Field device:ALCdevice Ptr
+	Field buffer:=New Stack<Byte>
+	Field audioFormat:int
+
+	Method New()
+		audioFormat=AL_FORMAT_STEREO16
+		device=alcCaptureOpenDevice(NULL,rate,audioFormat,fragsize)
+		Local error:=alGetError()
+		If error
+			Print "Microphone error "+error
+			Return
+		Endif
+	    alcCaptureStart(device)	
+	End
+
+	Method Poll() Override
+		Local sample:Int			
+		alcGetIntegerv(device, ALC_CAPTURE_SAMPLES,4,Varptr sample)
+		If sample=0 Return
+
+		buffer.Resize(sample*4)
+		alcCaptureSamples(device,Varptr buffer.Data[0],sample)
+
+		Local udata:=Varptr buffer.Data[0]		
+		Local sdata:=Cast<Byte Ptr>(udata)
+
+		Select audioFormat
+			Case AudioFormat.Mono8 
+'				Return (udata[i]-128)/127.0
+			Case AudioFormat.Mono16 
+'				Return (sdata[i*2+1]*256+sdata[i*2+0])/32767.0
+			Case AudioFormat.Stereo8 
+'				Return (udata[i*2+0]-128)/127.0
+			Case AL_FORMAT_STEREO16 
+				For Local i:=0 Until sample
+					samples.PushFirst((sdata[i*4+1]*256+sdata[i*4+0])/32767.0)
+				next
+		End
+	End
+		
+	Method Close()	
+	    alcCaptureStop(device)
+    	alcCaptureCloseDevice(device)
+    End
+End
 
 Interface NotePlayer
 	Method SetOscillator(osc:Int)
@@ -235,6 +303,7 @@ Class Voice Implements NotePlayer
 			Case 3 oscillator=New Triangle
 			Case 4 oscillator=New Noise
 			Case 5 oscillator=New Sampler
+			Case 6 oscillator=New Microphone
 		End
 	End
 	
@@ -276,18 +345,18 @@ Class Voice Implements NotePlayer
 		noteOn=False
 	End
 	
-	Method Mix(buffer:Double[],samples:Int,detune:V,fade:V)
+	Method Mix(buffer:Double[],samples:Int,detune:V[],fade:V[])
 		Local left:=1.0
 		Local right:=1.0
 		If pan<0 right+=pan
 		If pan>0 left-=pan		
 		For Local i:=0 Until samples
-			Local v:=oscillator.Sample(hz*detune)			
+			Local v:=oscillator.Sample(hz*detune[i])			
 			Local e:V
 			If noteOn e=envelope.On() Else e=envelope.Off()
 			e*=gain
 			e*=amp
-			e*=fade
+			e*=fade[i]
 			buffer[i*2+0]+=e*left*v
 			buffer[i*2+1]+=e*right*v
 		Next
@@ -301,7 +370,7 @@ Interface Synth
 	Method NoteOn(note:Int,velocity:int)
 	Method NoteOff(note:Int)
 	Method SetSustain(sustain:Bool)
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V[],fade:V[])	
 	Method Panic()
 	Method GetKeymap:Keymap()
 End
@@ -423,7 +492,7 @@ Class BeatGenerator Implements Synth
 		Next
 	end
 
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V[],fade:V[])	
 		Update(2.0*samples/AudioFrequency)
 		output.FillAudioBuffer(buffer,samples,detune,fade)
 	End
@@ -656,7 +725,7 @@ Class PolySynth Implements Synth
 		keymap.NoteOff(note)
 	End
 
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,gain:V)	
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V[],gain:V[])	
 		For Local voice:=Eachin voices
 			voice.Mix(buffer,samples,detune,gain)
 		Next		
@@ -732,7 +801,7 @@ Class MonoSynth Implements Synth
 		Endif
 	End
 
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V[],fade:V[])	
 		tone.Mix(buffer,samples,detune,fade)
 	End
 
@@ -789,7 +858,7 @@ Class MidiSynth Implements Synth
 		keymap.NoteOff(note)
 	End
 			
-	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V,fade:V)	
+	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V[],fade:V[])	
 	End
 	
 	Method GetKeymap:Keymap()
@@ -816,6 +885,8 @@ Class VSynth
 	Field audioSpec:SDL_AudioSpec
 	Field detune:V
 	Field fade:V=1.0
+	Field detune0:V
+	Field fade0:V=1.0
 	Field poly:Synth=New PolySynth()
 	Field mono:Synth=New MonoSynth()
 	Field root:Synth
@@ -824,6 +895,8 @@ Class VSynth
 	Field synthMode:int
 
 	Field buffer:=New Double[FragmentSize*2]
+	Field detuneBuffer:=New V[FragmentSize]
+	Field fadeBuffer:=New V[FragmentSize]
 	
 	Method New()
 		arpeggiator.SetSynth(mono)
@@ -831,13 +904,17 @@ Class VSynth
 		root=arpeggiator
 	End
 
-	Method FillAudioBuffer:Double[](samples:Int)	
+	Method FillAudioBuffer:Double[](samples:Int)		
 		For Local i:=0 Until samples
 			buffer[i*2+0]=0
 			buffer[i*2+1]=0
+			detuneBuffer[i]=detune0+i*(detune-detune0)/samples
+			fadeBuffer[i]=fade0+i*(fade-fade0)/samples
 		Next			
+		detune0=detune
+		fade0=fade
 		If root
-			root.FillAudioBuffer(buffer,samples,detune,fade)			
+			root.FillAudioBuffer(buffer,samples,detuneBuffer,fadeBuffer)			
 			Duration+=samples
 		Endif
 		Return buffer
@@ -994,13 +1071,11 @@ Class VSynthWindow Extends Window
 			keyNoteMap.Set(MusicKeys[i],i-1)
 		Next
 		vsynth=New VSynth
-
 		OpenAudio()
 #If __HOSTOS__="pi"
 		ResetMidi()
 #endif
 		ClearColor=new Color(1.0/16,1.0)
-		
 ' midi mappings		
 		MapKontrol()
 		MapAkai()
@@ -1306,6 +1381,8 @@ Class VSynthWindow Extends Window
 				oscillator=4
 			Case Key.Key6
 				oscillator=5
+			Case Key.Key7
+				oscillator=6
 			Case Key.Escape
 				instance.Terminate()
 			Case Key.LeftBracket
@@ -1417,6 +1494,8 @@ Class VSynthWindow Extends Window
 
 		Local keymap:=vsynth.GetKeymap()		
 		keys.DrawKeyboard(display,440,100,keymap)
+		
+		keys.DrawTape(440,200,40,24)
 	End				
 	
 	Method SampleLatency:Int()
@@ -1438,6 +1517,20 @@ Class SynthStyle
 	Field HotKey:=New Color(20,20,20)
 
 	Field canvas:Canvas
+	
+	Method DrawTape(x:Float,y:Float,w:Float,h:Float)
+		canvas.Color=WhiteKey
+		canvas.DrawRect(x,y,w,h)
+		canvas.Color=BlackKey
+		Local r:=8
+		Local r2:=8
+		Local r3:=1
+		canvas.DrawOval(x+r,y+r,r2*2,r2*2)
+		canvas.DrawOval(x+w-r-r2*2,y+r,r2*2,r2*2)
+		canvas.Color=HotKey
+		canvas.DrawOval(x+r,y+r,r3*2,r3*2)
+		canvas.DrawOval(x+w-r-r3*2,y+r,r3*2,r3*2)
+	end
 
 	Method DrawKey(x:Float,y:Float,w:Float,h:Float,sharp:Bool,down:Bool)
 		If sharp
