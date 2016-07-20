@@ -1,127 +1,186 @@
-
-Namespace myapp
-
 #Import "<std>"
 #Import "<mojo>"
 
 Using std..
 Using mojo..
+Using openal..
 
-Alias S:Double
-Global One:S=1.0
+' P is coordinate type for drawing pixels
 
-Struct Sat5
-	Field R:S
-	Field G:S
-	Field B:S
-	Field A:S
-	Field T:S
-	Field n:Int
+Alias P:Float	
+
+' LowSaturatedGreen is suitable for additive blendmode
+
+Global LowSaturatedGreen:=New Color(0.0, 0.02, 0.0, 1.0)
+
+' Quad is a square Image with canvas
+
+Class Quad Extends Image
+	Field index:int
+	Field canvas:Canvas
+	Field bg:=Color.Black
+	Field fg:=LowSaturatedGreen
+
+	Method New(dim:Int,id:Int)		
+'		Super.New(dim,dim,TextureFlags.Dynamic|TextureFlags.Filter|TextureFlags.Mipmap)		
+		Super.New(dim,dim,TextureFlags.Dynamic|TextureFlags.Filter)		
+		index=id
+		canvas=New Canvas(Self)	
+		canvas.BlendMode=BlendMode.Additive		
+		Clear(0,0,dim,dim)
+	End
 		
-	method Mix(s:Sat5)
-		R+=s.R
-		G+=s.G
-		B+=s.B
-		A+=s.A		
-		T+=s.T
-		n+=1
+	Method Plot(x:P,y:P)
+		canvas.DrawPoint(x,y)
 	end
 
-	Method ARGB:Int()
-		If n=0 Return 0'$ffff00ff
-		
-		Local r:=0.2/n
-'		If n<16 r*=n/16
+	Method Clear(x:P,y:P,w:P,h:P)
+		canvas.BlendMode=BlendMode.Opaque
+		canvas.Color=bg
+		canvas.DrawRect(x,y,w,h)
+		canvas.BlendMode=BlendMode.Additive		
+		canvas.Color=fg
+	end
 
-		Local r8:Int=255*R*r
-		Local g8:Int=255*G*r
-		Local b8:Int=255*B*r
-		Local a8:int=255*A*r
-		
-		Return (a8 Shl 24)|(b8 Shl 16)|(g8 Shl 8)|r8
+	Method Flush()	
+		canvas.Flush()
 	End
 End
+
+' Scope is an array of Quads to graph waveforms
 
 Class Scope
+
+	Field columns:int
 	Field dimension:Int
-	Field size:int
-	Field buffer:Sat5[]
-	Field pixmap:Pixmap
-	Field image:Image
-	Field brush:Sat5
-
-	Method New(dim:Int)
-		dimension=dim
-		size=dim*dim
-		buffer=New Sat5[dim*dim]	
-		pixmap=New Pixmap(dim,dim)
-		brush.R=0.3
-		brush.G=0.8
-		brush.B=0.4
-		brush.A=0.6
-		brush.T=One/2
-	End
-		
-	Method Draw(x:Int,y:Int)
-		Local i:=y*dimension+x
-		If i>0 And i<size buffer[i].Mix(brush)
-	End
-		
-	Method GetImage:Image()
-		Bake()
-		image=New Image(pixmap)
-		Return image
-	End
+	Field mask:Int
+	Field width:int
+	Field quads:=New Stack<Quad>
+	Field bg:=Color.Black
 	
-	Method Bake()
-		Local p:=Cast<Int Ptr>(pixmap.PixelPtr(0,0))
-		For Local i:=0 Until size
-			p[i]=buffer[i].ARGB()
+	Method New(cols:int=4)
+		' TODO: assert columns is power of 2
+		columns=cols
+		dimension=256
+		mask=columns-1
+		width=dimension*mask
+		For Local index:=0 Until columns
+			quads.Push(New Quad(dimension,index))
 		Next
-	end
-
-'	Method process:Long(a:Long,b:4)
+		Advance(0)
+	End
 	
+	Field current:Quad
+	Field position:P	' global x head position
+	Field xlocal:P		' head position on current quad 
+	
+	Method Plot(y:P)
+		current.Plot(xlocal,y)
+	End
+
+	Method Advance(xpos:P)
+		Local index:=Int(xpos/dimension)
+		current=quads[index & mask]
+		position=index*dimension
+		xlocal=xpos-position		
+		current.Clear(xlocal,0,1,dimension)
+	end
+	
+	Method Draw(canvas:Canvas,x:P,y:P)
+		Local index:=current.index		
+		canvas.Scissor=New Recti(x,y,x+width,y+dimension)		
+		For Local quad:=Eachin quads			
+			quad.Flush()
+			Local order:=mask-(index-quad.index)&mask
+			Local xx:=x+order*dimension-xlocal
+			canvas.DrawImage(quad,xx,y)
+		Next
+		canvas.Scissor=null
+	End
+	
+	Method Clear()
+		For Local quad:=Eachin quads
+			quad.canvas.Clear(bg)
+		next
+	End
+		
 End
 
-Class MyWindow Extends Window
+' AudioIn is an OpenAL Microphone / Line In listener
+
+Class AudioIn
+	Field rate:=44100
+	Field fragsize:=1024
+	Field device:ALCdevice Ptr
+	Field buffer:=New Stack<Byte>
+	Field scope:Scope
+	Field position:Int
+
+	Method New(owner:Scope)
+		scope=owner
+		device=alcCaptureOpenDevice(NULL, rate, AL_FORMAT_STEREO16, fragsize)
+		Local result:=alGetError()
+		If result
+			Print "OpenAL audio in failed to open="+result
+			Return
+		endif
+	    alcCaptureStart(device)
+	End
+			
+	Method Poll()
+		Local sample:Int			
+		alcGetIntegerv(device, ALC_CAPTURE_SAMPLES,4,Varptr sample)
+		If sample=0 Return
+		buffer.Resize(sample*4)
+		alcCaptureSamples(device,Varptr buffer.Data[0],sample)
+' Assert audioFormat=AL_FORMAT_STEREO16 return 
+		Local udata:=Varptr buffer.Data[0]		
+		Local sdata:=Cast<Byte Ptr>(udata)
+		For Local i:=0 Until sample
+			Local s16:=sdata[i*4+1]*256+sdata[i*4+0]
+			scope.Plot(128+(s16 Shr 8))			
+		Next
+		position+=1
+		scope.Advance(position)
+	End
+	
+	Method Close()	
+	    alcCaptureStop(device)
+    	alcCaptureCloseDevice(device)
+    End
+end
+
+' application main window
+
+Class VscopeWindow Extends Window
 
 	Field framecount:=0
-	Field scope:=New Scope(256)	
+	Field scope:=New Scope()	
 	Field cx:Double
 	Field t:Double
-	
+	Field mic:AudioIn
+	Field inputNames:String
+
 	Method New()
-		ClearColor=Color.Black
+		Super.New("VScope 0.1",1024,768)
+		ClearColor=Color.Blue
+		local p:=Cast<Byte Ptr>(alcGetString(Cast<ALCdevice ptr>(0), ALC_DEVICE_SPECIFIER))
+		inputNames=String.FromCString(p)
+		print "OpenAL inputs:"+inputNames
+		mic=New AudioIn(scope)
 	End
 
 	Method OnRender( canvas:Canvas ) Override
-	
+		mic.Poll()	
 		App.RequestRender()
-
-		Local status:="vscope0.1 framecount="+framecount+" fps="+App.FPS+" ms="+App.Millisecs
-	
-		canvas.DrawText( status,0,Height,0,1 )
-		
-		For Local i:=0 Until 1000
-			Local cy:=128+100*Sin(t)
-			t+=0.001					
-			cx+=0.32
-			scope.Draw(cx,cy)
-		Next
-		
-'		scope.Draw(Mouse.X,Mouse.Y-10)
-		
-		canvas.DrawImage(scope.GetImage(),10,10)
-		canvas.DrawImage(scope.GetImage(),10+256,10)
-		
-		framecount+=1
-	
+		Local title:="Monitoring Audio Input"
+		Local status:="vscope0.1 framecount="+framecount+" fps="+App.FPS+" ms="+App.Millisecs	
+		canvas.DrawText( title,0,0,0,0 )
+		canvas.DrawText( status,0,Height,0,1 )			
+		scope.Draw(canvas,10,100)
+		framecount+=1	
 	End
-	
-	Method OnMouseEvent(event:MouseEvent) Override
-	End
-	
+		
 	Method OnKeyEvent(event:KeyEvent) Override
 		Select event.Type
 			Case EventType.KeyDown
@@ -135,10 +194,7 @@ Class MyWindow Extends Window
 End
 
 Function Main()
-
 	New AppInstance
-	
-	New MyWindow
-	
+	New VscopeWindow
 	App.Run()
 End

@@ -234,6 +234,11 @@ Class Microphone Extends AudioBuffer
 	Field audioFormat:int
 
 	Method New()
+
+		local p:=Cast<Byte ptr>(alcGetString(Cast<ALCdevice ptr>(0), ALC_CAPTURE_DEVICE_SPECIFIER))	
+		local s:=String.FromCString(p)
+		print "OpenAL Capture Devices:"+s
+
 		audioFormat=AL_FORMAT_STEREO16
 		device=alcCaptureOpenDevice(NULL,rate,audioFormat,fragsize)
 		Local error:=alGetError()
@@ -1495,7 +1500,7 @@ Class VSynthWindow Extends Window
 		Local keymap:=vsynth.GetKeymap()		
 		keys.DrawKeyboard(display,440,100,keymap)
 		
-		keys.DrawTape(440,200,40,24)
+		keys.DrawTape(480,70,40,25)
 	End				
 	
 	Method SampleLatency:Int()
@@ -1518,19 +1523,23 @@ Class SynthStyle
 
 	Field canvas:Canvas
 	
+	Method DrawRoll(x:Float,y:Float,r1:Float,r2:Float,r3:Float)
+		canvas.Color=BlackKey
+		canvas.DrawOval(x-r1,y-r1,r1*2,r1*2)
+		canvas.Color=WhiteKey
+		canvas.DrawOval(x-r2,y-r2,r2*2,r2*2)
+		canvas.Color=HotKey
+		canvas.DrawOval(x-r3,y-r3,r3*2,r3*2)
+	end
+		
 	Method DrawTape(x:Float,y:Float,w:Float,h:Float)
 		canvas.Color=WhiteKey
 		canvas.DrawRect(x,y,w,h)
+		DrawRoll(x+10,y+10,9,4,2)
+		DrawRoll(x+30,y+10,9,4,2)
 		canvas.Color=BlackKey
-		Local r:=8
-		Local r2:=8
-		Local r3:=1
-		canvas.DrawOval(x+r,y+r,r2*2,r2*2)
-		canvas.DrawOval(x+w-r-r2*2,y+r,r2*2,r2*2)
-		canvas.Color=HotKey
-		canvas.DrawOval(x+r,y+r,r3*2,r3*2)
-		canvas.DrawOval(x+w-r-r3*2,y+r,r3*2,r3*2)
-	end
+		canvas.DrawRect(x+8,y+h-4,w-16,3)
+	End
 
 	Method DrawKey(x:Float,y:Float,w:Float,h:Float,sharp:Bool,down:Bool)
 		If sharp
