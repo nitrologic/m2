@@ -55,7 +55,7 @@ Class HtmlView Extends View
 		Local root:=ExtractRootDir( url )
 		
 		If root="http://" Or root="https://"
-			requesters.OpenUrl( url )
+'			requesters.OpenUrl( url )
 			Return
 		Endif
 		
