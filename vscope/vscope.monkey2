@@ -12,6 +12,7 @@ Alias P:Float
 ' LowSaturatedGreen is suitable for additive blendmode
 
 Global LowSaturatedGreen:=New Color(0.0, 0.02, 0.0, 1.0)
+Global LowSaturatedRed:=New Color(0.2, 0.0, 0.0, 1.0)
 
 ' Quad is a square Image with canvas
 
@@ -30,6 +31,11 @@ Class Quad Extends Image
 		Clear(0,0,dim,dim)
 	End
 		
+	Method Pen(color:Color)
+		fg=color
+		canvas.Color=fg
+	End
+	
 	Method Plot(x:P,y:P)
 		canvas.DrawPoint(x,y)
 	end
@@ -77,6 +83,10 @@ Class Scope
 	Method Plot(y:P)
 		current.Plot(xlocal,y)
 	End
+	
+	Method Pen(c:Color)
+		current.Pen(c)
+	end
 
 	Method Advance(xpos:P)
 		Local index:=Int(xpos/dimension)
@@ -136,10 +146,20 @@ Class AudioIn
 ' Assert audioFormat=AL_FORMAT_STEREO16 return 
 		Local udata:=Varptr buffer.Data[0]		
 		Local sdata:=Cast<Byte Ptr>(udata)
+
+		' green left channel
+		scope.Pen(LowSaturatedGreen)
 		For Local i:=0 Until sample
 			Local s16:=sdata[i*4+1]*256+sdata[i*4+0]
 			scope.Plot(128+(s16 Shr 8))			
 		Next
+		' red right channel
+		scope.Pen(LowSaturatedRed)
+		For Local i:=0 Until sample
+			Local s16:=sdata[i*4+3]*256+sdata[i*4+1]
+			scope.Plot(128+(s16 Shr 8))			
+		Next
+
 		position+=1
 		scope.Advance(position)
 	End

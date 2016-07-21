@@ -6,12 +6,6 @@
 #Import "assets/whale52hz.wav"
 #Import "assets/engine1.wav"
 
-' VSynth 0.05 tasks
-' continuous pitch
-' common midi button mapping and vsynth window commands
-' communicate between instances
-' persist performance patch and configuration
-
 Using std..
 Using mojo..
 Using sdl2..
@@ -24,8 +18,9 @@ Global Contact:="Latest Source=github.com/nitrologic/m2"
 Global About:="VSynth Control"
 Global Octave1:= "Sharps=    W   E       T   Y   U      "
 Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
-Global Controls:="Reset Keys=Space,Quit=Escape"
+Global Controls:="Midi Panic=Escape,Quit=EscapeEscape"
 
+Global LoopNames:=New String[]("Empty","Recording","Looping")
 Global SustainNames:=New String[]("Up","Down")
 Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise","Sample","Mic")
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
@@ -132,9 +127,9 @@ End
 
 Class Triangle Extends Oscillator
 	Method Sample:V(hz:F) Override
-		Local t:T=2*hz/AudioFrequency
+		Local t:T=hz/AudioFrequency
 		delta+=t
-		Return (Abs(delta Mod 4)-2)-1
+		Return (Abs(delta Mod 2)-1)
 	End
 End
 
@@ -379,6 +374,7 @@ Interface Synth
 	Method Panic()
 	Method GetKeymap:Keymap()
 End
+
 
 Struct Keymap
 	Field low:Long
@@ -902,7 +898,12 @@ Class VSynth
 	Field buffer:=New Double[FragmentSize*2]
 	Field detuneBuffer:=New V[FragmentSize]
 	Field fadeBuffer:=New V[FragmentSize]
-	
+	Field scope:=New Scope()
+
+	Field position:Double
+	Field panSpeed:Double=1.0/1024	'samples per pixel
+	Field panAmp:V
+
 	Method New()
 		arpeggiator.SetSynth(mono)
 		arpeggiator.SetArpeggiation(1,0)
@@ -920,9 +921,26 @@ Class VSynth
 		fade0=fade
 		If root
 			root.FillAudioBuffer(buffer,samples,detuneBuffer,fadeBuffer)			
-			Duration+=samples
+			Duration+=samples			
+			PlotScope(samples)
 		Endif
 		Return buffer
+	End
+	
+	Method PlotScope(samples:Int)	
+		' green left channel
+		scope.Pen(LowSaturatedGreen)
+		For Local i:=0 Until samples
+			scope.Plot(128+200*buffer[i*2+0])			
+		Next
+		' red right channel
+		scope.Pen(LowSaturatedRed)
+		For Local i:=0 Until samples
+			scope.Plot(128+panAmp*100*buffer[i*2+1])			
+		Next
+' advance head
+		position+=samples*panSpeed
+		scope.Advance(position)
 	End
 
 	
@@ -983,22 +1001,36 @@ Class VSynth
 	Method SetHold(hold:Bool)
 		arpeggiator.SetHold(hold)
 	End
+	
+	Method LoopState:Bool()
+		Return False
+	End
+	
+	Method Loop()
+	End
 
 	Method Detune(bend:V)
 		detune=bend
+	End
+	
+	Method PanScope(panx:V,pany:V)
+		panSpeed=(1+panx*panx)/2048.0
+		panAmp=1+pany*pany
 	End
 	
 	Method ClearKeys()
 		root.Panic()
 	End
 	
-	Method OnButtonDown(button:Int)
+	Method OnButton(button:Int)
 		Select button
+			Case LoopButton
+				Loop()
 			Case NextProgram
 '				oscillator=Wrap(oscillator+1,0,OscillatorNames.Length)
 			Case PrevProgram
 '				oscillator=Wrap(oscillator-1,0,OscillatorNames.Length)
-			default
+			Default
 				Print "button@"+button
 		end
 	End
@@ -1048,6 +1080,9 @@ Class VSynthWindow Extends Window
 	Field sustain:Bool
 	Field expression:V
 
+	Field panx:Int	' scope speed
+	Field pany:Int	' scope zoom
+
 	Field arp:Int
 	Field prog:Int
 
@@ -1069,7 +1104,7 @@ Class VSynthWindow Extends Window
 	Field midiSendName:="None"
 	
 	Field audioLatency:Int=2 '1 Shl (10+n) samples
-	
+		
 	Method New(title:String)
 		Super.New(title,1280,720,WindowFlags.Resizable)				
 		For Local i:=0 Until MusicKeys.Length
@@ -1086,6 +1121,17 @@ Class VSynthWindow Extends Window
 		MapAkai()
 	End
 	
+	Field Panic:=false
+	
+	Method Escape()			
+		If Panic
+			instance.Terminate()
+		else
+			vsynth.ClearKeys()
+			Panic=true
+		endif
+	End
+			
 	Method OpenAudio()
 
 		New Fiber( Lambda()
@@ -1216,7 +1262,7 @@ Class VSynthWindow Extends Window
 	End
 	
 	Method OnProgramChange(index:Int)
-		vsynth.OnButtonDown(Patch+index)
+		vsynth.OnButton(Patch+index)
 	End
 	
 	Method OnControl(index:Int, value:Int)	
@@ -1227,9 +1273,9 @@ Class VSynthWindow Extends Window
 		If buttons.Contains(index)
 			Local button:=buttons[index]
 			If value<0
-				vsynth.OnButtonDown(button)
-			Else
 				vsynth.OnButtonUp(button)
+			Else
+				vsynth.OnButton(button)
 			Endif
 			Return
 		endif
@@ -1389,7 +1435,9 @@ Class VSynthWindow Extends Window
 			Case Key.Key7
 				oscillator=6
 			Case Key.Escape
-				instance.Terminate()
+				Escape()
+			Case Key.Space
+				vsynth.Loop()
 			Case Key.LeftBracket
 				envelope=Wrap(envelope-1,0,EnvelopeNames.Length)
 			Case Key.RightBracket
@@ -1401,8 +1449,6 @@ Class VSynthWindow Extends Window
 				octave=Clamp(octave-1,0,MaxOctave)
 			Case Key.Period
 				octave=Clamp(octave+1,0,MaxOctave)
-			Case Key.Space
-				vsynth.ClearKeys()
 			Case Key.LeftShift
 				sustain=true
 			Case Key.RightShift
@@ -1411,6 +1457,14 @@ Class VSynthWindow Extends Window
 				volume=1.20*volume
 			Case Key.PageDown
 				volume=0.92*volume
+			Case Key.Left
+				panx-=1
+			Case Key.Right
+				panx+=1
+			Case Key.Up
+				pany-=1
+			Case Key.Down
+				pany+=1
 			Default
 				KeyDown(event.Key)
 			End
@@ -1446,6 +1500,10 @@ Class VSynthWindow Extends Window
 		PollMidi()
 	
 		App.RequestRender()	
+		
+		vsynth.PanScope(panx,pany)
+		
+		' TODO: continous functions
 
 		vsynth.Detune(pitchbend)
 		vsynth.SetVolume(volume)
@@ -1464,6 +1522,7 @@ Class VSynthWindow Extends Window
 		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
 		text+=",,Oscillator=1-5="+OscillatorNames[oscillator]
 		text+=",Envelope=[]="+EnvelopeNames[envelope]
+		text+=",Loop=Space="+LoopNames[vsynth.LoopState()]
 		text+=",,Arpeggiator=F5-F10="+ArpNames[arp]
 		text+=",Hold=Tab="+HoldNames[hold]
 		text+=",Note Divisor=/="+DivisorNames[div]
@@ -1501,6 +1560,8 @@ Class VSynthWindow Extends Window
 		keys.DrawKeyboard(display,440,100,keymap)
 		
 		keys.DrawTape(480,70,40,25)
+		
+		vsynth.scope.Draw(display,440,300)
 	End				
 	
 	Method SampleLatency:Int()
@@ -1513,7 +1574,132 @@ Class VSynthWindow Extends Window
 
 	Field pixels:=New ColorMap(420,20)
 	Field keys:=New SynthStyle()
+
 End
+
+
+' P is coordinate type for drawing pixels
+
+Alias P:Float	
+
+' LowSaturatedGreen is suitable for additive blendmode
+
+Global Low:=20.0/255
+Global LowSaturatedGreen:=New Color(0.0, Low, 0.0, 1.0)
+Global LowSaturatedRed:=New Color(Low, 0.0, 0.0, 1.0)
+Global LowSaturatedBlue:=New Color(0.0, 0.0, Low, 1.0)
+
+' Quad is a square Image with canvas
+
+Class Quad Extends Image
+	Field index:int
+	Field canvas:Canvas
+	Field bg:=LowSaturatedBlue
+	Field fg:=LowSaturatedGreen
+
+	Method New(dim:Int,id:Int)		
+'		Super.New(dim,dim,TextureFlags.Dynamic|TextureFlags.Filter|TextureFlags.Mipmap)		
+		Super.New(dim,dim,TextureFlags.Dynamic|TextureFlags.Filter)		
+		index=id
+		canvas=New Canvas(Self)	
+		canvas.BlendMode=BlendMode.Additive		
+'		ClearRect(0,0,dim,dim)
+		Clear()
+	End
+		
+	Method Pen(color:Color)
+		fg=color
+		canvas.Color=fg
+	End
+	
+	Method Plot(x:P,y:P)
+		canvas.DrawPoint(x,y)
+	end
+
+	Method Clear()
+		canvas.Clear(bg)
+		canvas.BlendMode=BlendMode.Additive		
+		canvas.Color=fg
+	end
+
+	Method ClearRect(x:P,y:P,w:P,h:P)
+		canvas.BlendMode=BlendMode.Opaque
+		canvas.Color=bg
+		canvas.DrawRect(x,y,w,h)
+		canvas.BlendMode=BlendMode.Additive		
+		canvas.Color=fg
+	end
+
+	Method Flush()	
+		canvas.Flush()
+	End
+End
+
+' Scope is an array of Quads to graph waveforms
+
+Class Scope
+
+	Field columns:int
+	Field dimension:Int
+	Field mask:Int
+	Field width:int
+	Field quads:=New Stack<Quad>
+	
+	Method New(cols:int=4)
+		' TODO: assert columns is power of 2
+		columns=cols
+		dimension=256
+		mask=columns-1
+		width=dimension*mask
+		For Local index:=0 Until columns
+			quads.Push(New Quad(dimension,index))
+		Next
+		Advance(0)
+	End
+	
+	Field current:Quad
+	Field position:P	' global x head position
+	Field xlocal:P		' head position on current quad 
+	
+	Method Plot(y:P)
+		current.Plot(xlocal,y)
+	End
+	
+	Method Pen(c:Color)
+		current.Pen(c)
+	end
+
+	Method Advance(xpos:P)
+		Local index:=Int(xpos/dimension)
+		Local target:=quads[index & mask]
+		If target<>current
+			current=target
+			current.Clear()
+		Endif
+		position=index*dimension		
+		xlocal=xpos-position		
+	End
+	
+	Method Draw(canvas:Canvas,x:P,y:P)
+		Local index:=current.index		
+		canvas.Scissor=New Recti(x,y,x+width,y+dimension)		
+		For Local quad:=Eachin quads			
+			quad.Flush()
+			Local order:=mask-(index-quad.index)&mask
+			Local xx:=x+order*dimension-xlocal
+			canvas.DrawImage(quad,xx,y)
+		Next
+		canvas.Scissor=null
+	End
+	
+	Method Clear()
+		For Local quad:=Eachin quads
+			quad.Clear()
+		next
+	End
+		
+End
+
 
 Class SynthStyle
 
