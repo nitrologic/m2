@@ -72,7 +72,7 @@ end
 
 Global MainWindow:MainWindowInstance
 
-	Class MainWindowInstance Extends Window
+Class MainWindowInstance Extends Window
 
 	Field _debugging:String
 		
@@ -976,7 +976,9 @@ Global MainWindow:MainWindowInstance
 		Endif
 		
 		If obj.Contains( "windowRect" )
+#if __HOSTOS__<>"pi"
 			Frame=ToRecti( obj["windowRect"] )
+#endif
 		Endif
 		
 		If obj.Contains( "consoleSize" )

@@ -29,8 +29,8 @@ Function Main()
 	New AppInstance
 	
 	Theme.Load()
-	
-	new MainWindowInstance( "BigTed",New Recti( 256,128,800,600 ),WindowFlags.Resizable|WindowFlags.Center )
+ 
+	new MainWindowInstance( "BigTed",New Recti( 0,0,800,600 ),WindowFlags.Resizable|WindowFlags.Center )
 		
 	App.Run()
 End

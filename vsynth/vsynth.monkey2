@@ -1026,6 +1026,8 @@ Class VSynth
 		Select button
 			Case LoopButton
 				Loop()
+			case UserButton
+				App.Terminate()
 			Case NextProgram
 '				oscillator=Wrap(oscillator+1,0,OscillatorNames.Length)
 			Case PrevProgram
