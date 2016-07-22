@@ -20,9 +20,9 @@ Global Octave1:= "Sharps=    W   E       T   Y   U      "
 Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
 Global Controls:="Midi Panic=Escape,Quit=EscapeEscape"
 
-Global LoopNames:=New String[]("Empty","Recording","Looping")
+Global RecordNames:=New String[]("Paused","Recording")
 Global SustainNames:=New String[]("Up","Down")
-Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise","Sample","Mic")
+Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise","Rom","Live Mic","Sampler")
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random1","Random2")
 Global ProgNames:=New String[]("None","Recurse","Ascend","Descend")
@@ -155,7 +155,7 @@ Class Noise Extends Oscillator
 	End
 End
 
-Class Sampler Extends Oscillator
+Class Rompler Extends Oscillator
 	Global SampleCache:=New Map<String,AudioData>
 	Field a:V
 	Field audioData:AudioData
@@ -199,8 +199,47 @@ Class Sampler Extends Oscillator
 	End
 End
 
-Class AudioBuffer Extends Oscillator
-	Field samples:=New Deque<V>
+Alias SampleData:Deque<V>
+
+Class SampleBank
+	Global this:=New SampleBank
+	Field sampleData:=New SampleData
+	Field pitch:=220.0
+	Field freq:=44100
+
+	Function SampleData:SampleData()
+		Return this.sampleData
+	End
+
+	Method Record(sample:V Ptr,count:Int)
+		For Local i:=0 Until count
+			sampleData.PushLast(sample[i])
+		Next
+	End
+End
+	
+Class Sampler Extends Oscillator
+	Field samples:SampleData
+	Field pitch:=220.0
+	Field freq:=44100
+	
+	Method New()
+		samples=SampleBank.SampleData()
+	End
+
+	Method Sample:V(hz:F) Override		
+		If samples.Length=0 Return 0
+		Local t:=hz*freq/(pitch*AudioFrequency)		
+		Local delta0:=delta
+		delta+=t
+		Local f:=delta
+		f=f Mod samples.Length
+		Return samples[f]
+	End	
+End
+
+#rem
+Class AudioBank Extends Sampler
 	
 	Method Sample:V(hz:F) Override			
 		If samples.Empty Poll()
@@ -209,7 +248,9 @@ Class AudioBuffer Extends Oscillator
 				samples.PushLast(0)
 			next 
 			Return 0		
-		endif
+		Endif
+		Return Super.Sample(
+		
 		Return samples.PopLast()
 '		Local t:=hz*audioData.Hertz/(pitch*AudioFrequency)		
 '		Local delta0:=delta
@@ -217,34 +258,51 @@ Class AudioBuffer Extends Oscillator
 	End
 	
 	Method Poll() Virtual
-	end
-end
+	End
+End
 
-Class Microphone Extends AudioBuffer
+Class LiveMicrophone Extends AudioBank
 
+	Method Poll() Virtual
+		Microphone.Default().Poll(
+	End
+End
+#end
+
+Class Microphone
+	Field device:ALCdevice Ptr
+	Field error:Int
+	Field audioFormat:int
 	Field rate:=44100
 	Field fragsize:=4096
-	Field device:ALCdevice Ptr
 	Field buffer:=New Stack<Byte>
-	Field audioFormat:int
-
+	Field recording:Bool
+	
 	Method New()
-
 		local p:=Cast<Byte ptr>(alcGetString(Cast<ALCdevice ptr>(0), ALC_CAPTURE_DEVICE_SPECIFIER))	
 		local s:=String.FromCString(p)
-		print "OpenAL Capture Devices:"+s
-
+		print "OpenAL Inputs:"+s
 		audioFormat=AL_FORMAT_STEREO16
 		device=alcCaptureOpenDevice(NULL,rate,audioFormat,fragsize)
-		Local error:=alGetError()
+		error=alGetError()
 		If error
 			Print "Microphone error "+error
 			Return
 		Endif
-	    alcCaptureStart(device)	
 	End
+	
+	Method Stop()
+		If recording
+			alcCaptureStop(device)
+			recording=false
+		Endif
+	end
 
-	Method Poll() Override
+	Method Poll(sampleData:SampleData)
+		If Not recording
+		    alcCaptureStart(device)		
+			recording=True
+		endif
 		Local sample:Int			
 		alcGetIntegerv(device, ALC_CAPTURE_SAMPLES,4,Varptr sample)
 		If sample=0 Return
@@ -264,8 +322,8 @@ Class Microphone Extends AudioBuffer
 '				Return (udata[i*2+0]-128)/127.0
 			Case AL_FORMAT_STEREO16 
 				For Local i:=0 Until sample
-					samples.PushFirst((sdata[i*4+1]*256+sdata[i*4+0])/32767.0)
-				next
+					sampleData.PushLast((sdata[i*4+1]*256+sdata[i*4+0])/32767.0)
+				Next
 		End
 	End
 		
@@ -292,7 +350,7 @@ Class Voice Implements NotePlayer
 	Field noteOn:Bool
 	Field hz:F
 	Field pan:V
-	Field gain:V=0.12
+	Field gain:V=0.80	'0.12 was pre record setting
 	Field amp:V
 	
 	Method SetOscillator(osc:Int)
@@ -302,8 +360,9 @@ Class Voice Implements NotePlayer
 			Case 2 oscillator=New Sawtooth
 			Case 3 oscillator=New Triangle
 			Case 4 oscillator=New Noise
-			Case 5 oscillator=New Sampler
-			Case 6 oscillator=New Microphone
+			Case 5 oscillator=New Rompler
+'			Case 6 oscillator=New LiveMicrophone
+			Case 7 oscillator=New Sampler
 		End
 	End
 	
@@ -812,6 +871,7 @@ Class MidiSynth Implements Synth
 	Const _NoteOn:=144
 	Const _NoteOff:=128
 	Const _ControllerChange:=176
+	Const _SysEx:=240
 
 	Const _VolumeController:=7
 	Const _ExpressionController:=11
@@ -824,7 +884,7 @@ Class MidiSynth Implements Synth
 	method new(driver:PortMidi,channel:Int)
 		portMidi=driver
 		send=channel
-	end
+	End
 
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
 	End
@@ -834,14 +894,14 @@ Class MidiSynth Implements Synth
 		If volume>1 volume=1
 		local value7:Int=127*volume
 		Local setVolume:Int=(_ControllerChange)|(_VolumeController Shl 8)|(value7 Shl 16)
-		portMidi.OutputData(send,setVolume)
-	end
+		portMidi.SendMessage(send,setVolume)
+	End
 
 	Method SetSustain(depress:Bool)
 		local value7:Int
 		If depress value7=127
 		Local setSustain:Int=(_ControllerChange)|(_SustainPedal Shl 8)|(value7 Shl 16)
-		portMidi.OutputData(send,setSustain)
+		portMidi.SendMessage(send,setSustain)
 	End
 	
 	method SetTone(oscillator:Int,envelope:Int)
@@ -849,13 +909,13 @@ Class MidiSynth Implements Synth
 	
 	Method NoteOn(note:Int,velocity:int)
 		Local noteOn:Int=(_NoteOn)|(note Shl 8)|(velocity Shl 16)
-		portMidi.OutputData(send,noteOn)
+		portMidi.SendMessage(send,noteOn)
 		keymap.NoteOn(note)
 	End
 	
 	Method NoteOff(note:Int)
 		Local noteOff:Int=(_NoteOff)|(note Shl 8)
-		portMidi.OutputData(send,noteOff)
+		portMidi.SendMessage(send,noteOff)
 		keymap.NoteOff(note)
 	End
 			
@@ -871,16 +931,16 @@ Class MidiSynth Implements Synth
 End
 
 
-	Const RewindButton:=1
-	Const PlayButton:=2
-	Const ForwardButton:=3
-	Const LoopButton:=4
-	Const StopButton:=5
-	Const RecordButton:=6
-	Const NextProgram:=7
-	Const PrevProgram:=8
-	Const UserButton:=10
-	Const Patch:=128
+Const RewindButton:=1
+Const PlayButton:=2
+Const ForwardButton:=3
+Const LoopButton:=4
+Const StopButton:=5
+Const RecordButton:=6
+Const NextProgram:=7
+Const PrevProgram:=8
+Const UserButton:=10
+Const Patch:=128
 
 Class VSynth
 	Field audioSpec:SDL_AudioSpec
@@ -893,7 +953,7 @@ Class VSynth
 	Field root:Synth
 	Field arpeggiator:=New Arpeggiator()
 	Field midiSynth:MidiSynth
-	Field synthMode:int
+	Field synthMode:Int
 
 	Field buffer:=New Double[FragmentSize*2]
 	Field detuneBuffer:=New V[FragmentSize]
@@ -903,13 +963,14 @@ Class VSynth
 	Field position:Double
 	Field panSpeed:Double=1.0/1024	'samples per pixel
 	Field panAmp:V
-
+	Field recording:=False
+		
 	Method New()
 		arpeggiator.SetSynth(mono)
 		arpeggiator.SetArpeggiation(1,0)
 		root=arpeggiator
 	End
-
+	
 	Method FillAudioBuffer:Double[](samples:Int)		
 		For Local i:=0 Until samples
 			buffer[i*2+0]=0
@@ -923,6 +984,9 @@ Class VSynth
 			root.FillAudioBuffer(buffer,samples,detuneBuffer,fadeBuffer)			
 			Duration+=samples			
 			PlotScope(samples)
+			If recording
+				Record(samples)
+			Endif
 		Endif
 		Return buffer
 	End
@@ -931,18 +995,22 @@ Class VSynth
 		' green left channel
 		scope.Pen(LowSaturatedGreen)
 		For Local i:=0 Until samples
-			scope.Plot(128+200*buffer[i*2+0])			
+			scope.Plot(buffer[i*2+0])			
 		Next
 		' red right channel
 		scope.Pen(LowSaturatedRed)
 		For Local i:=0 Until samples
-			scope.Plot(128+panAmp*100*buffer[i*2+1])			
+			scope.Plot(panAmp*buffer[i*2+1])			
 		Next
 ' advance head
 		position+=samples*panSpeed
-		scope.Advance(position)
+		scope.Advance(0.25*Int(position))
 	End
-
+	
+	Method Record(samples:Int)
+		Local s:=SampleBank.this
+		s.Record(buffer.Data,samples)
+	End
 	
 	Method SetMidiOutput(portMidi:PortMidi,midiSend:Int)
 		midiSynth=New MidiSynth(portMidi,midiSend)
@@ -980,7 +1048,11 @@ Class VSynth
 				If midiSynth arpeggiator.SetSynth(midiSynth)
 		End
 	End
-	
+		
+	Method CycleRecord()
+		recording=Not recording
+	End
+
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
 		arpeggiator.SetTempo(tempo,divisor,duty,rept)
 	End
@@ -1002,13 +1074,6 @@ Class VSynth
 		arpeggiator.SetHold(hold)
 	End
 	
-	Method LoopState:Bool()
-		Return False
-	End
-	
-	Method Loop()
-	End
-
 	Method Detune(bend:V)
 		detune=bend
 	End
@@ -1024,8 +1089,8 @@ Class VSynth
 	
 	Method OnButton(button:Int)
 		Select button
-			Case LoopButton
-				Loop()
+			Case RecordButton
+				CycleRecord()
 			Case NextProgram
 '				oscillator=Wrap(oscillator+1,0,OscillatorNames.Length)
 			Case PrevProgram
@@ -1134,6 +1199,10 @@ Class VSynthWindow Extends Window
 			
 	Method OpenAudio()
 
+		local p:=Cast<Byte ptr>(alcGetString(Cast<ALCdevice ptr>(0), ALC_DEVICE_SPECIFIER))	
+		local s:=String.FromCString(p)
+		print "OpenAL Outputs:"+s
+
 		New Fiber( Lambda()
 			Local channel:=New Channel
 			Local data:=New AudioData( FragmentSize,AudioFormat.Stereo16,AudioFrequency )
@@ -1164,13 +1233,24 @@ Class VSynthWindow Extends Window
 			portMidi.OpenInput(i)
 		Next
 		For Local i:=0 Until midiOutputs
-			portMidi.OpenOutput(i)
+			portMidi.OpenOutput(i)		
+			SysEx(i)
 		Next
 		If midiSend<midiOutputs
 			midiSendName=portMidi.OutputName(midiSend)
 		Endif			
 	End
+	
+	Method SysEx(output:Int)
+		If volume<0 volume=0
+		If volume>1 volume=1
+		local value7:Int=127*volume
+		Local sysex:Int=(MidiSynth._SysEx)
 		
+'		_ControllerChange)|(_VolumeController Shl 8)|(value7 Shl 16)
+		portMidi.SendMessage(output,sysex)
+	end
+	
 	Method CycleMidiSend()
 		If midiOutputs	
 			midiSend=(midiSend+1)Mod midiOutputs
@@ -1434,10 +1514,12 @@ Class VSynthWindow Extends Window
 				oscillator=5
 			Case Key.Key7
 				oscillator=6
+			Case Key.Key8
+				oscillator=7
 			Case Key.Escape
 				Escape()
 			Case Key.Space
-				vsynth.Loop()
+				vsynth.OnButton(RecordButton)
 			Case Key.LeftBracket
 				envelope=Wrap(envelope-1,0,EnvelopeNames.Length)
 			Case Key.RightBracket
@@ -1517,12 +1599,12 @@ Class VSynthWindow Extends Window
 
 		Local text:String = About+",,"+Octave1+","+Octave0
 		text+=",,Octave=< >="+octave
+		text+=",Sample=Space="+RecordNames[Int(vsynth.recording)]
 		text+=",Sustain=Shift="+SustainNames[sustain]
 		text+=",Volume=PageUpDown="+FloatString(volume)
 		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
 		text+=",,Oscillator=1-5="+OscillatorNames[oscillator]
 		text+=",Envelope=[]="+EnvelopeNames[envelope]
-		text+=",Loop=Space="+LoopNames[vsynth.LoopState()]
 		text+=",,Arpeggiator=F5-F10="+ArpNames[arp]
 		text+=",Hold=Tab="+HoldNames[hold]
 		text+=",Note Divisor=/="+DivisorNames[div]
@@ -1532,7 +1614,7 @@ Class VSynthWindow Extends Window
 		text+=",,Tempo=- +="+tempo
 		text+=",,Synth=Enter Key="+SynthNames[synth]
 		text+=",,"+Controls				
-		text+= ",Buffer=F2="+SampleLatency()+"samples ("+MilliLatency()+"ms)"
+		text+= ",Buffer=F2="+SampleLatency()+"("+MilliLatency()+"ms)"
 		text+=",,Enable MIDI=Backspace"
 		text+=",MidiIn=F3=All ["+midiInputs+"]"
 		text+= ",MidiOut=F4="+midiSendName+"["+midiOutputs+"]"
@@ -1592,6 +1674,7 @@ Global LowSaturatedBlue:=New Color(0.0, 0.0, Low, 1.0)
 ' Quad is a square Image with canvas
 
 Class Quad Extends Image
+	Field dimension:int
 	Field index:int
 	Field canvas:Canvas
 	Field bg:=LowSaturatedBlue
@@ -1600,6 +1683,7 @@ Class Quad Extends Image
 	Method New(dim:Int,id:Int)		
 '		Super.New(dim,dim,TextureFlags.Dynamic|TextureFlags.Filter|TextureFlags.Mipmap)		
 		Super.New(dim,dim,TextureFlags.Dynamic|TextureFlags.Filter)		
+		dimension=dim
 		index=id
 		canvas=New Canvas(Self)	
 		canvas.BlendMode=BlendMode.Additive		
@@ -1612,15 +1696,16 @@ Class Quad Extends Image
 		canvas.Color=fg
 	End
 	
-	Method Plot(x:P,y:P)
+	Method Plot(x:P,v:V)	
+		Local y:=(0.5+0.5*v)*dimension
 		canvas.DrawPoint(x,y)
-	end
+	End
 
 	Method Clear()
 		canvas.Clear(bg)
 		canvas.BlendMode=BlendMode.Additive		
 		canvas.Color=fg
-	end
+	End
 
 	Method ClearRect(x:P,y:P,w:P,h:P)
 		canvas.BlendMode=BlendMode.Opaque
@@ -1648,7 +1733,7 @@ Class Scope
 	Method New(cols:int=4)
 		' TODO: assert columns is power of 2
 		columns=cols
-		dimension=256
+		dimension=128
 		mask=columns-1
 		width=dimension*mask
 		For Local index:=0 Until columns
