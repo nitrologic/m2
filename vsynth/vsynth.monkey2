@@ -834,14 +834,14 @@ Class MidiSynth Implements Synth
 		If volume>1 volume=1
 		local value7:Int=127*volume
 		Local setVolume:Int=(_ControllerChange)|(_VolumeController Shl 8)|(value7 Shl 16)
-		portMidi.OutputData(send,setVolume)
+		portMidi.SendMessage(send,setVolume)
 	end
 
 	Method SetSustain(depress:Bool)
 		local value7:Int
 		If depress value7=127
 		Local setSustain:Int=(_ControllerChange)|(_SustainPedal Shl 8)|(value7 Shl 16)
-		portMidi.OutputData(send,setSustain)
+		portMidi.SendMessage(send,setSustain)
 	End
 	
 	method SetTone(oscillator:Int,envelope:Int)
@@ -849,13 +849,13 @@ Class MidiSynth Implements Synth
 	
 	Method NoteOn(note:Int,velocity:int)
 		Local noteOn:Int=(_NoteOn)|(note Shl 8)|(velocity Shl 16)
-		portMidi.OutputData(send,noteOn)
+		portMidi.SendMessage(send,noteOn)
 		keymap.NoteOn(note)
 	End
 	
 	Method NoteOff(note:Int)
 		Local noteOff:Int=(_NoteOff)|(note Shl 8)
-		portMidi.OutputData(send,noteOff)
+		portMidi.SendMessage(send,noteOff)
 		keymap.NoteOff(note)
 	End
 			
