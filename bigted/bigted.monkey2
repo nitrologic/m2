@@ -24,11 +24,11 @@ Function Main()
 
 	ChangeDir(AppDir())
 
-	Print "BigTed@"+CurrentDir()
+	Print "BigTed@"+CurrentDir()+" assets:"+AssetsDir()
 
 	New AppInstance
 	
-	Theme.Load()
+	Theme.Load("bin/bigted.style.json")
  
 	new MainWindowInstance( "BigTed",New Recti( 0,0,800,600 ),WindowFlags.Resizable|WindowFlags.Center )
 		

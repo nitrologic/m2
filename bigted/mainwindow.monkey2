@@ -904,10 +904,11 @@ Class MainWindowInstance Extends Window
 		Endif
 
 		App.Idle+=AppIdle
-		
+
+DebugStop()		
 		Update()
 		
-		If Not _docTabber.Count OnHelpAbout()
+'		If Not _docTabber.Count OnHelpAbout()
 		
 	End
 	
@@ -1460,10 +1461,8 @@ Class MainWindowInstance Extends Window
 
 #If __HOSTOS__="windows"
         script+=".bat"
-#Else If __HOSTOS__="macos"
-        script="/bin/bash -l "+script+".sh"
 #Else
-        script="/bin/bash -l -c "+script+".sh"
+        script="/bin/bash -l "+script+".sh"
 #Endif
         Local cmd:=script
 				

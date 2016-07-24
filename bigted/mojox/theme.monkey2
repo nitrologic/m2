@@ -17,13 +17,13 @@ Class ThemeInstance
 		Return _clearColor
 	End
 	
-	Method Load()
+	Method Load(path:String)
 	
 		_name="dark"
 		_fontSize=16
 		_monoFontSize=16
-		
-		Local obj:=JsonObject.Load( "bin/ted2.config.json" )
+				
+		Local obj:=JsonObject.Load( path )
 		If obj
 			If obj.Contains( "theme" )
 				_name=obj["theme"].ToString()
@@ -70,6 +70,9 @@ Class ThemeInstance
 		_defaultFont=Font.Open( App.DefaultFontName,_fontSize )
 		_defaultMonoFont=Font.Open( App.DefaultMonoFontName,_monoFontSize )
 
+if not _defaultFont
+print "nofont!"
+endif
 		Local style:Style,state:Style
 		
 		style=Style.GetStyle( "" )
