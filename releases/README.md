@@ -7,7 +7,9 @@
 * Latest monkey2 mx2cc 1.02 prebuilt compiler and libs
 * Usable bigted_pi monkey2 programming environment
 
-[Monkey2 for Raspberry Pi monkey2-pi-03.tar.gz](https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-03.tar.gz)
+Monkey2 for Raspberry Pi lastest release[ monkey2-pi-03.tar.gz](https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-03.tar.gz)
+
+Monkey2 for Raspberry Pi source code only [https://github.com/nitrologic/monkey2](https://github.com/nitrologic/monkey2)
 
 Instructions
 
