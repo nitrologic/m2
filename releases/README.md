@@ -1,6 +1,6 @@
 #Nitrologic m2 Public Binaries
 
-##Monkey2 for Rapsberry Pi release 3.
+##Monkey2 for Raspberry Pi release 3.
 
 * EGL accelerated SDL2 broadcom drivers  
 * X-Windows friendly (but not required)
