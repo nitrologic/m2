@@ -1,5 +1,20 @@
 #Nitrologic m2 Public Binaries
 
+##Monkey2 for Raspberry Pi release 3.
+
+* EGL accelerated SDL2 broadcom drivers  
+* X-Windows friendly (but not required)
+* Latest monkey2 mx2cc 1.02 prebuilt compiler and libs
+* Usable bigted_pi monkey2 programming environment
+
+Monkey2 for Raspberry Pi lastest release[ monkey2-pi-03.tar.gz](https://github.com/nitrologic/m2/raw/master/releases/monkey2-pi-03.tar.gz)
+
+Monkey2 for Raspberry Pi source code only [https://github.com/nitrologic/monkey2](https://github.com/nitrologic/monkey2)
+
+Instructions
+
+Expand the archive in your home folder /home/pi and execute monkey2/bin/bigted_pi
+
 ##VSynth
 
 Modular Synthesis for Monkey2.

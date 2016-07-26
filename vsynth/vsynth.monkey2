@@ -1098,7 +1098,7 @@ Class VSynth
 			Default
 				Print "button@"+button
 		end
-	End
+ 	End
 
 	Method OnButtonUp(button:Int)
 	End	
