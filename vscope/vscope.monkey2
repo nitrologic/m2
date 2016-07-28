@@ -133,7 +133,7 @@ Class AudioIn
 		If result
 			Print "OpenAL audio in failed to open="+result
 			Return
-		endif
+		Endif
 	    alcCaptureStart(device)
 	End
 			
