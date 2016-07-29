@@ -2,6 +2,8 @@
 
 A work in progress API for communication between desktop computers and MIDI instruments. 
 
+This module is currently in development in modules folder of [active fork](https://github.com/nitrologic/monkey2) of [Blitz Research monkey2](http://monkey2.monkey-x.com/).
+
 [PortMidi Documentation](README.txt)
 
 

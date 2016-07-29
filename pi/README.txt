@@ -1,5 +1,8 @@
 #Raspberry Pi Setup for Monkey2 Development
 
+developer libs
+
+sudo apt-get install libasound-dev libopenal-dev libx11-dev libxext-dev libxi-dev
 
 ## Basic Checklist
 
