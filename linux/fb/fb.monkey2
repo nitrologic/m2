@@ -33,12 +33,11 @@ Function EnumerateFramebuffers()
 end
 
 
-
 function Main()
-	print "hello"
 	
-	EnumerateFramebuffers()
-	
-'	Print "testfb:"+testfb()
+	print "Enumarating framebuffer devices."
 
+	EnumerateFramebuffers()
+
+	Print "testfb:"+testfb()
 end

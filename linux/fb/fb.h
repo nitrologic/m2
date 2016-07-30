@@ -12,13 +12,17 @@
 
 int testfb(){
 
+	char filename[128];
 	fb_fix_screeninfo fix[2]={0};
 	fb_var_screeninfo var[2]={0};
 
 	for(int i=0;i<2;i++){
 		sprintf(filename, "/dev/fb%d", i);
 		int fb = open(filename, O_RDWR);
-		if (fb==-1) continue;
+		if (fb==-1){
+			printf("Failed to open device %s\n",filename);
+			continue;
+		}
 
 		if (ioctl(fb,FBIOGET_FSCREENINFO,&fix[i])==-1){
 			printf("Error reading fixed information\n");
@@ -35,17 +39,15 @@ int testfb(){
 		int bpp=var[i].bits_per_pixel;
 		long int n=w*h*bpp/8;
 
-		if(i==1){
-			close(fb);
-			continue;
-		}
+		printf("fix fb%d %s caps=%d\n",i,fix[i].id,fix[i].capabilities);
+		printf("var fb%d %d x %d x %d\n",i,w,h,bpp);
 
+//		printf("var      %dx%d\n",var[i].xres_virtual,var[i].yres_virtual);
+
+
+/*
 //		void *p=mmap(0,n,PROT_READ|PROT_WRITE,MAP_SHARED,fb,0);
 		void *p=mmap(0,n,PROT_WRITE,MAP_SHARED,fb,0);
-
-		printf("fix fb%d %s caps=%d mem=%p\n",i,fix[i].id,fix[i].capabilities,p);
-		printf("var fb%d %d x %d x %d\n",i,w,h,bpp);
-//		printf("var      %dx%d\n",var[i].xres_virtual,var[i].yres_virtual);
 
 		if ((int)p==-1) {
 			printf("Error: failed to map framebuffer device to memory");
@@ -54,7 +56,7 @@ int testfb(){
 			short *s=(short*)p;
 			int dx,dy;
 			int count=1000;
-			while (coiunt--){
+			while (count--){
 				dx++;
 				for(int y=0;y<h;y++){
 					for(int x=0;x<w;x++){
@@ -66,6 +68,8 @@ int testfb(){
 			}
 			munmap(p,n);
 		}
+*/
+
 		close(fb);
 	}
 
