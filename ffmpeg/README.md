@@ -4,7 +4,151 @@
 
 Continued research into most suitable SDK for a kickass monkey2 video IO module.
 
+
+
+## video for linux 2 VFL2
+
+> v4l2-ctl -L
+
+User Controls
+
+                     brightness (int)    : min=0 max=100 step=1 default=50 value=50 flags=slider
+                       contrast (int)    : min=-100 max=100 step=1 default=0 value=0 flags=slider
+                     saturation (int)    : min=-100 max=100 step=1 default=0 value=0 flags=slider
+                    red_balance (int)    : min=1 max=7999 step=1 default=1000 value=1000 flags=slider
+                   blue_balance (int)    : min=1 max=7999 step=1 default=1000 value=1000 flags=slider
+                horizontal_flip (bool)   : default=0 value=0
+                  vertical_flip (bool)   : default=0 value=0
+
+           power_line_frequency (menu)   : min=0 max=3 default=1 value=1
+				0: Disabled
+				1: 50 Hz
+				2: 60 Hz
+				3: Auto
+                      sharpness (int)    : min=-100 max=100 step=1 default=0 value=0 flags=slider
+                  color_effects (menu)   : min=0 max=15 default=0 value=0
+				0: None
+				1: Black & White
+				2: Sepia
+				3: Negative
+				4: Emboss
+				5: Sketch
+				6: Sky Blue
+				7: Grass Green
+				8: Skin Whiten
+				9: Vivid
+				10: Aqua
+				11: Art Freeze
+				12: Silhouette
+				13: Solarization
+				14: Antique
+				15: Set Cb/Cr
+                         rotate (int)    : min=0 max=360 step=90 default=0 value=0
+             color_effects_cbcr (int)    : min=0 max=65535 step=1 default=32896 value=32896
+
+Codec Controls
+
+             video_bitrate_mode (menu)   : min=0 max=1 default=0 value=0 flags=update
+				0: Variable Bitrate
+				1: Constant Bitrate
+                  video_bitrate (int)    : min=25000 max=25000000 step=25000 default=10000000 value=10000000
+         repeat_sequence_header (bool)   : default=0 value=0
+            h264_i_frame_period (int)    : min=0 max=2147483647 step=1 default=60 value=60
+                     h264_level (menu)   : min=0 max=11 default=11 value=11
+				0: 1
+				1: 1b
+				2: 1.1
+				3: 1.2
+				4: 1.3
+				5: 2
+				6: 2.1
+				7: 2.2
+				8: 3
+				9: 3.1
+				10: 3.2
+				11: 4
+                   h264_profile (menu)   : min=0 max=4 default=4 value=4
+				0: Baseline
+				1: Constrained Baseline
+				2: Main
+				4: High
+
+Camera Controls
+
+                  auto_exposure (menu)   : min=0 max=3 default=0 value=0
+				0: Auto Mode
+				1: Manual Mode
+         exposure_time_absolute (int)    : min=1 max=10000 step=1 default=1000 value=1000
+     exposure_dynamic_framerate (bool)   : default=0 value=0
+             auto_exposure_bias (intmenu): min=0 max=24 default=12 value=12
+				0: -4000 (0xfffffffffffff060)
+				1: -3667 (0xfffffffffffff1ad)
+				2: -3333 (0xfffffffffffff2fb)
+				3: -3000 (0xfffffffffffff448)
+				4: -2667 (0xfffffffffffff595)
+				5: -2333 (0xfffffffffffff6e3)
+				6: -2000 (0xfffffffffffff830)
+				7: -1667 (0xfffffffffffff97d)
+				8: -1333 (0xfffffffffffffacb)
+				9: -1000 (0xfffffffffffffc18)
+				10: -667 (0xfffffffffffffd65)
+				11: -333 (0xfffffffffffffeb3)
+				12: 0 (0x0)
+				13: 333 (0x14d)
+				14: 667 (0x29b)
+				15: 1000 (0x3e8)
+				16: 1333 (0x535)
+				17: 1667 (0x683)
+				18: 2000 (0x7d0)
+				19: 2333 (0x91d)
+				20: 2667 (0xa6b)
+				21: 3000 (0xbb8)
+				22: 3333 (0xd05)
+				23: 3667 (0xe53)
+				24: 4000 (0xfa0)
+      white_balance_auto_preset (menu)   : min=0 max=9 default=1 value=1
+				0: Manual
+				1: Auto
+				2: Incandescent
+				3: Fluorescent
+				4: Fluorescent H
+				5: Horizon
+				6: Daylight
+				7: Flash
+				8: Cloudy
+				9: Shade
+            image_stabilization (bool)   : default=0 value=0
+                iso_sensitivity (intmenu): min=0 max=4 default=0 value=0
+				0: 0 (0x0)
+				1: 100 (0x64)
+				2: 200 (0xc8)
+				3: 400 (0x190)
+				4: 800 (0x320)
+         exposure_metering_mode (menu)   : min=0 max=2 default=0 value=0
+				0: Average
+				1: Center Weighted
+				2: Spot
+                     scene_mode (menu)   : min=0 max=13 default=0 value=0
+				0: None
+				8: Night
+				11: Sports
+
+JPEG Compression Controls
+
+            compression_quality (int)    : min=1 max=100 step=1 default=30 value=30
+                     brightness (int)    : min=0 max=100 step=1 default=50 value=50 flags=slider
+                       contrast (int)    : min=-100 max=100 step=1 default=0 value=0 flags=slider
+                     saturation (int)    : min=-100 max=100 step=1 default=0 value=0 flags=slider
+                    red_balance (int)    : min=1 max=7999 step=1 default=1000 value=1000 flags=slider
+                   blue_balance (int)    : min=1 max=7999 step=1 default=1000 value=1000 flags=slider
+                horizontal_flip (bool)   : default=0 value=0
+                  vertical_flip (bool)   : default=0 value=0
+
+
+
 ## configuration for pi build
+
+Followed from here https://www.assetbank.co.uk/support/documentation/install/ffmpeg-debian-squeeze/ffmpeg-debian-jessie/
 
 pi@raspberrypi ~/ffmpeg-2.7.2 $ ./configure --enable-gpl --enable-postproc --enable-swscale --enable-avfilter --enable-libmp3lame --enable-libvorbis --enable-libtheora --enable-libx264 --enable-libspeex --enable-shared --enable-pthreads --enable-libopenjpeg --enable-nonfree
 install prefix            /usr/local
