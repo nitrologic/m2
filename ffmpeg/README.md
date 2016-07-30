@@ -146,9 +146,14 @@ JPEG Compression Controls
 
 
 
-## configuration for pi build
+## ffmpeg configuration for pi build
 
 Followed from here https://www.assetbank.co.uk/support/documentation/install/ffmpeg-debian-squeeze/ffmpeg-debian-jessie/
+
+oops, wrong version, this one is todays second pick:
+
+http://ffmpeg.org/releases/ffmpeg-3.1.1.tar.bz2
+
 
 pi@raspberrypi ~/ffmpeg-2.7.2 $ ./configure --enable-gpl --enable-postproc --enable-swscale --enable-avfilter --enable-libmp3lame --enable-libvorbis --enable-libtheora --enable-libx264 --enable-libspeex --enable-shared --enable-pthreads --enable-libopenjpeg --enable-nonfree
 install prefix            /usr/local
