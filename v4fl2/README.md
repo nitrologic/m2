@@ -1,9 +1,14 @@
-# ffmpeg module research
+# v4l2 and ffmpeg module research
 
 ## Background
 
 Continued research into most suitable SDK for a kickass monkey2 video IO module.
 
+Pi Experiments
+
+Overlay CSI and window layers with broadcom magic
+Memory map vb0 and video0 devices to common monkey2 pixmaps.
+Research CSi DSi chaining.
 
 
 ## video for linux 2 VFL2
