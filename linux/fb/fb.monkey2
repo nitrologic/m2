@@ -8,6 +8,6 @@ Function testfb:int()
 Public
 
 function Main()
-	print "hello"
+	print "Enumarating framebuffer devices."
 	Print "testfb:"+testfb()
 end
