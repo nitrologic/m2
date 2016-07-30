@@ -12,6 +12,7 @@
 
 int testfb(){
 
+	char filename[128];
 	fb_fix_screeninfo fix[2]={0};
 	fb_var_screeninfo var[2]={0};
 
@@ -54,7 +55,7 @@ int testfb(){
 			short *s=(short*)p;
 			int dx,dy;
 			int count=1000;
-			while (coiunt--){
+			while (count--){
 				dx++;
 				for(int y=0;y<h;y++){
 					for(int x=0;x<w;x++){
