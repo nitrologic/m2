@@ -48,9 +48,7 @@ static int fd = -1;
 struct buffer *buffers;
 static unsigned int n_buffers;
 static int out_buf;
-static int force_format;
-static int frame_count = 200;
-static int frame_number = 0;
+static int force_format=0;
 
 static void errno_exit(const char *s)
 {
