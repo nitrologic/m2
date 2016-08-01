@@ -1,20 +1,23 @@
 #import "pixelmap.monkey2"
+#import "i2c.monkey2"
+
+Using libc
+
+Alias FrameBuffer16:PixelMap
 
 #if __HOSTOS__="pi"
 
 #import "fb.h"
-
-Using libc
 
 extern 
 
 Function open:Int( path:CString,mode:Int )
 Function close:Int( fd:int)
 
-Class FrameBuffer
-	Function queryFramebuffer(descriptor:Int,width:Int ptr,height:Int ptr,depth:Int ptr,bytecount:Int Ptr)
-	Function mapFramebuffer:Void Ptr(descriptor:Int,bytecount:Int)
-	Function unmapFrameBuffer(memory:Void ptr,bytecount:Int)
+class fb
+Function queryFramebuffer(descriptor:Int,width:Int ptr,height:Int ptr,depth:Int ptr,bytecount:Int Ptr)
+Function mapFramebuffer:Void Ptr(descriptor:Int,bytecount:Int)
+Function unmapFrameBuffer(memory:Void ptr,bytecount:Int)
 end
 
 Public
@@ -41,7 +44,8 @@ Class LinuxHost
 				If bpp=16 
 					Local memory:=fb.mapFramebuffer(fd,count)
 					If memory
-						fb16.Push(New FrameBuffer16(w,h,memory,count))
+						local mem16:=ushort ptr(memory)
+						fb16.Push(New FrameBuffer16(w,h,mem16,count))
 					Endif
 				Endif
 
@@ -64,9 +68,6 @@ end
 #else
 
 Public
-
-Class FrameBuffer Extends PixelMap
-end
 
 Class VirtualHost
 	Field fb16:=New Stack<FrameBuffer16>

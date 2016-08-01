@@ -1,9 +1,15 @@
+#import "<std>"
+
+Using std..
+
+Alias Pixel:UShort
+
 Class PixelMap
 	Field width:Int
 	Field height:Int
-	Field data:Ushort Ptr
+	Field data:Pixel Ptr
 	Field bytecount:Int
-	Field wspan:int
+	Field wspan:Int
 
 	Method New(w:Int,h:Int,m:Ushort Ptr,n:Int)
 		width=w
@@ -13,10 +19,14 @@ Class PixelMap
 		wspan=bytecount/(2*height)
 	End
 	
-	Method Plot(x:int,y:int,c:Short)
+	Method Plot(x:int,y:int,c:Pixel)
 		data[y*wspan+x]=c
 	End
 	
+	Method Add(x:int,y:int,c:Pixel)
+		data[y*wspan+x]+=c
+	End
+
 	Method Color:Color(x:Int,y:Int)
 		Local c:=data[y*wspan+x]
 		Local r:=((c Shr 11)&$1f)/31.0
@@ -25,7 +35,7 @@ Class PixelMap
 		Return New Color(r,g,b)
 	end
 	
-	Method Box(x:Int,y:Int,w:Int,h:Int,c:Short)
+	Method Box(x:Int,y:Int,w:Int,h:Int,c:Pixel)
 		For Local i:=0 To w
 			Plot(x+i,y,c)
 			Plot(x+i,y+h,c)

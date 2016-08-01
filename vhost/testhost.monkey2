@@ -1,21 +1,23 @@
 #import "<mojo>"
 #import "<std>"
 
-#import "framebuffer.monkey2"
+#import "host.monkey2"
 
 Using std..
 Using mojo..
 
 class MojoWindow extends Window
 
+	Global active:MojoWindow
 	Field host:=GetHost()
 
+	Field fb:PixelMap
 	Field cx:Int
 	Field cy:Int
-
-	Field fb:PixelMap
 	
 	Method New()
+		active=self
+		ClearColor=New Color(0.1,1)
 		print "Enumerating framebuffer devices."
 		Local n:=host.EnumerateFramebuffers()		
 		For Local i:=0 Until n
@@ -23,12 +25,17 @@ class MojoWindow extends Window
 			Print "fb"+i+":"+fbi.width+"x"+fbi.height
 			If fbi.width=8 fb=fbi
 		Next
-		Move(0,0)
+		Move(0,0)		
+		New Timer(5,Tick)
 	End
+	
+	Function Tick()
+		active.OnTimer()
+	end
 	
 	Method OnRender(canvas:Canvas) Override
 		App.RequestRender()
-		
+		canvas.Translate(50,50)		
 		Local n:=24
 		Local n2:=20
 		For Local y:=0 Until fb.height
@@ -39,20 +46,38 @@ class MojoWindow extends Window
 		next
 	end
 	
-	field ink:ushort=$f800
+	Field blinkOn:=false
+	
+	field blink:Pixel=$8010
+	field ink:Pixel=$f800
 
 	Method Move(dx:Int,dy:Int)
+		If blinkOn Blink()
 		cx=(cx+dx)&7
 		cy=(cy+dy)&7
 		fb.Plot(cx,cy,ink)
+	End
+
+	Method Blink()
+		If blinkOn
+			fb.Add(cx,cy,blink)
+		Else
+			fb.Add(cx,cy,$10000-blink)
+		Endif
+		blinkOn=Not blinkOn
 	end
 
 	method Click()
 		ink=(ink shr 3) | (ink shl 13)
+		Move(0,0)
+	End
+	
+	Method OnTimer()
+		Blink()
 	end
 
 	method OnKeyEvent(e:KeyEvent) Override
-		print "KeyEvent!"+int(e.RawKey)
+'		print "KeyEvent!"+int(e.RawKey)
 		Select e.Type
 			Case EventType.KeyDown
 				Select e.Key
@@ -74,6 +99,7 @@ class MojoWindow extends Window
 end
 
 function Main()
+	Print "INT_THS_H_M="+i2c.INT_THS_H_M
 	new AppInstance
 	new MojoWindow
 	App.Run()
