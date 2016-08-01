@@ -1,113 +1,72 @@
 #import "<mojo>"
 #import "<std>"
-#import "fb.h"
 
-Using libc
+#import "framebuffer.monkey2"
+
 Using std..
 Using mojo..
 
-extern 
+class MojoWindow extends Window
 
-Function open:Int( path:CString,mode:Int )
-Function close:Int( fd:int)
+	Field host:=GetHost()
 
-Class fb
-	Function queryFramebuffer(descriptor:Int,width:Int ptr,height:Int ptr,depth:Int ptr,bytecount:Int Ptr)
-	Function mapFramebuffer:Void Ptr(descriptor:Int,bytecount:Int)
-	Function unmapFrameBuffer(memory:Void ptr,bytecount:Int)
-end
+	Field cx:Int
+	Field cy:Int
 
-Public
-
-Class PixelMap
-	Field width:Int
-	Field height:Int
-	Field data:Short Ptr
-	Field bytecount:Int
-	Field wspan:int
-
-	Method New(w:Int,h:Int,m:Short Ptr,n:Int)
-		width=w
-		height=h
-		data=m
-		bytecount=n
-		wspan=bytecount/(2*height)
-	End
+	Field fb:PixelMap
 	
-	Method Plot(x:int,y:int,c:Short)
-		data[y*wspan+x]=c
-	End
-	
-	Method Box(x:Int,y:Int,w:Int,h:Int,c:Short)
-		For Local i:=0 To w
-			Plot(x+i,y,c)
-			Plot(x+i,y+h,c)
+	Method New()
+		print "Enumerating framebuffer devices."
+		Local n:=host.EnumerateFramebuffers()		
+		For Local i:=0 Until n
+			Local fbi:=host.GetFramebuffer(i)
+			Print "fb"+i+":"+fbi.width+"x"+fbi.height
+			If fbi.width=8 fb=fbi
 		Next
+		Move(0,0)
+	End
+	
+	Method OnRender(canvas:Canvas) Override
+		App.RequestRender()
 		
-		For Local i:=1 Until h
-			Plot(x,y+i,c)
-			Plot(x+w,y+i,c)
+		Local n:=24
+		Local n2:=20
+		For Local y:=0 Until fb.height
+			For Local x:=0 Until fb.width
+				canvas.Color=fb.Color(x,y)
+				canvas.DrawRect(x*n,y*n,n2,n2)
+			Next
 		next
 	end
-end
-
-Class FrameBuffer16 Extends PixelMap
-	Method New(w:Int,h:Int,data:Void Ptr,bytecount:int)
-		Super.New(w,h,Short Ptr(data),bytecount)				
-		Plot(0,0,$f800)
-		Box(1,1,5,4,$07e0)
-		Box(4,4,3,3,$001f)
-	End	
-End
-
-Class LinuxHost
-
-	Field fb16:=New Stack<FrameBuffer16>
-
-	Method EnumerateFramebuffers()
-		For Local i:=0 Until 16
-			Local dev:="/dev/fb"+i
-			
-			Local fd:=open(dev,2)
-			
-			If fd<>-1
-
-				Local w:Int,h:int,bpp:int,count:Int
 	
-				fb.queryFramebuffer(fd,Varptr w,Varptr h,Varptr bpp,Varptr count)
-
-				Print "Found "+dev+" "+w+"x"+h+" "+bpp+":bpp count="+count
-				
-				If bpp=16 
-					Local memory:=fb.mapFramebuffer(fd,count)
-					If memory
-						fb16.Push(New FrameBuffer16(w,h,memory,count))
-					Endif
-				Endif
-
-				close(fd)
-			Endif
-		Next	
-		Print "fb16.Count="+fb16.Length
+	Method Move(dx:Int,dy:Int)
+		cx=(cx+dx)&7
+		cy=(cy+dy)&7
+		fb.Plot(cx,cy,$f800)
 	end
-end
-
-class MojoWindow extends Window
 
 	method OnKeyEvent(e:KeyEvent) Override
 		print "KeyEvent!"+int(e.RawKey)
+		Select e.Type
+			Case EventType.KeyDown
+				Select e.Key
+					Case Key.Escape
+						App.Terminate()
+					Case Key.Up
+						Move(0,1)
+					Case Key.Down
+						Move(0,-1)
+					Case Key.Left
+						Move(-1,0)
+					Case Key.Right
+						Move(1,0)
+				End
+		end
 	end
 end
 
 function Main()
-	Local host:=New LinuxHost
-
 	new AppInstance
 	new MojoWindow
-	
-	print "Enumarating framebuffer devices."
-
-	host.EnumerateFramebuffers()
-	
 	App.Run()
 end

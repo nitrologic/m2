@@ -4,6 +4,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#ifdef __LINUX__
+
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <linux/fb.h>
@@ -51,3 +53,5 @@ static void unmapFrameBuffer(void *memory,int sizeBytes){
 }
 
 };
+
+#endif
