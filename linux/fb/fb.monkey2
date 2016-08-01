@@ -53,7 +53,8 @@ Class FrameBuffer16 Extends PixelMap
 	Method New(w:Int,h:Int,data:Void Ptr,bytecount:int)
 		Super.New(w,h,Short Ptr(data),bytecount)				
 		Plot(0,0,$f800)
-		Box(1,1,5,4,$07f0)
+		Box(1,1,5,4,$07e0)
+		Box(4,4,3,3,$001f)
 	End	
 End
 

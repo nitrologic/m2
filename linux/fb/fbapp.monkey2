@@ -39,10 +39,16 @@ class MojoWindow extends Window
 		next
 	end
 	
+	field ink:ushort=$f800
+
 	Method Move(dx:Int,dy:Int)
 		cx=(cx+dx)&7
 		cy=(cy+dy)&7
-		fb.Plot(cx,cy,$f800)
+		fb.Plot(cx,cy,ink)
+	end
+
+	method Click()
+		ink=(ink shr 3) | (ink shl 13)
 	end
 
 	method OnKeyEvent(e:KeyEvent) Override
@@ -52,10 +58,12 @@ class MojoWindow extends Window
 				Select e.Key
 					Case Key.Escape
 						App.Terminate()
+					Case Key.Enter
+						Click()
 					Case Key.Up
-						Move(0,1)
-					Case Key.Down
 						Move(0,-1)
+					Case Key.Down
+						Move(0,1)
 					Case Key.Left
 						Move(-1,0)
 					Case Key.Right

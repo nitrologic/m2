@@ -4,7 +4,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#ifdef __LINUX__
+#if defined(__LINUX__) || defined(__PI__)
 
 #include <sys/ioctl.h>
 #include <sys/mman.h>
