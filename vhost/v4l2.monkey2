@@ -16,6 +16,10 @@ function init_mmap()
 function init_userp(buffer_size:uint)
 #end
 
+
+global frame_data:void ptr
+global frame_size:int
+
 function open_device:Int()
 function init_device()
 function start_capturing()
@@ -38,12 +42,12 @@ function Main()
 	start_capturing()
 
 	for local i:=0 until 20
-		print i
 		local error:=readFrame()
 		if error
 			print "Read frame failed"
 			return
 		endif
+		print frame_size
 	next
 
 	stop_capturing()

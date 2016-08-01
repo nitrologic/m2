@@ -71,6 +71,8 @@ static int frame_number=0;
 static void *frame_data;
 static int frame_size;
 
+// todo: callback to monkey2 device
+
 static void process_image(const void *p, int size)
 {
 	frame_size=size;
