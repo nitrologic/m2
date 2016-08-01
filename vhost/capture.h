@@ -531,27 +531,26 @@ static void init_device(void)
         }
 }
 
-static void close_device(void)
+static int close_device(void)
 {
-        if (-1 == close(fd))
-                errno_exit("close");
-
+        if (-1 == close(fd)) return -1;
         fd = -1;
+        return 0;
 }
 
-static void open_device(void)
+static int open_device(void)
 {
         struct stat st;
 
         if (-1 == stat(dev_name, &st)) {
                 fprintf(stderr, "Cannot identify '%s': %d, %s\n",
                          dev_name, errno, strerror(errno));
-                exit(EXIT_FAILURE);
+                return(-1);
         }
 
         if (!S_ISCHR(st.st_mode)) {
                 fprintf(stderr, "%s is no device\n", dev_name);
-                exit(EXIT_FAILURE);
+                return(-2);
         }
 
         fd = open(dev_name, O_RDWR /* required */ | O_NONBLOCK, 0);
@@ -559,8 +558,9 @@ static void open_device(void)
         if (-1 == fd) {
                 fprintf(stderr, "Cannot open '%s': %d, %s\n",
                          dev_name, errno, strerror(errno));
-                exit(EXIT_FAILURE);
+                return(-3);
         }
+        return 0;
 }
 
 static void usage(FILE *fp, int argc, char **argv)
