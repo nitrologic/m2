@@ -306,7 +306,7 @@ static void uninit_device(void)
 
 static void init_read(unsigned int buffer_size)
 {
-        buffers = calloc(1, sizeof(*buffers));
+        buffers = (buffer*)calloc(1, sizeof(*buffers));
 
         if (!buffers) {
                 fprintf(stderr, "Out of memory\n");
@@ -348,7 +348,7 @@ static void init_mmap(void)
                 exit(EXIT_FAILURE);
         }
 
-        buffers = calloc(req.count, sizeof(*buffers));
+        buffers = (buffer*)calloc(req.count, sizeof(*buffers));
 
         if (!buffers) {
                 fprintf(stderr, "Out of memory\n");
@@ -400,7 +400,7 @@ static void init_userp(unsigned int buffer_size)
                 }
         }
 
-        buffers = calloc(4, sizeof(*buffers));
+        buffers = (buffer*)calloc(4, sizeof(*buffers));
 
         if (!buffers) {
                 fprintf(stderr, "Out of memory\n");
@@ -596,7 +596,7 @@ long_options[] = {
         { 0, 0, 0, 0 }
 };
 
-int main(int argc, char **argv)
+int capture_main(int argc, char **argv)
 {
         dev_name = "/dev/video0";
 

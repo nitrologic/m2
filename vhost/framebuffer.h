@@ -9,7 +9,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <linux/fb.h>
-#include <linux/i2c-dev.h>
+//#include <linux/i2c-dev.h>
 
 class fb{
 

@@ -7,7 +7,7 @@ Alias FrameBuffer16:PixelMap
 
 #if __HOSTOS__="pi"
 
-#import "fb.h"
+#import "framebuffer.h"
 
 extern 
 
