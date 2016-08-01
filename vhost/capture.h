@@ -71,7 +71,7 @@ static void process_image(const void *p, int size)
 {
 	frame_number++;
 	char filename[15];
-	sprintf(filename, "frame-%d.raw", frame_number);
+	sprintf(filename, "~/frame-%d.raw", frame_number);
 	FILE *fp=fopen(filename,"wb");
 	
 	if (out_buf)
@@ -173,42 +173,31 @@ static int read_frame(void)
 	return 1;
 }
 
-static void mainloop(void)
+static int readFrame(void)
 {
-	unsigned int count;
+	for (;;) {
+		fd_set fds;
+		struct timeval tv;
+		int r;
+		FD_ZERO(&fds);
+		FD_SET(fd, &fds);
+// Timeout
+		tv.tv_sec = 2;
+		tv.tv_usec = 0;
+		r = select(fd + 1, &fds, NULL, NULL, &tv);
 
-	count = frame_count;
-
-	while (count-- > 0) {
-		for (;;) {
-			fd_set fds;
-			struct timeval tv;
-			int r;
-
-			FD_ZERO(&fds);
-			FD_SET(fd, &fds);
-
-			/* Timeout. */
-			tv.tv_sec = 2;
-			tv.tv_usec = 0;
-
-			r = select(fd + 1, &fds, NULL, NULL, &tv);
-
-			if (-1 == r) {
-				if (EINTR == errno)
-					continue;
-				errno_exit("select");
-			}
-
-			if (0 == r) {
-				fprintf(stderr, "select timeout\n");
-				exit(EXIT_FAILURE);
-			}
-
-			if (read_frame())
-				break;
-			/* EAGAIN - continue select loop. */
+		if (-1 == r) {
+			if (EINTR == errno) continue;
+			return -1;
 		}
+
+		if (0 == r) {
+			fprintf(stderr, "select timeout\n");
+			return -2;
+		}
+
+		if (read_frame()) return 0;
+// EAGAIN - continue select loop.
 	}
 }
 
