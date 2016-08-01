@@ -52,8 +52,123 @@ Class Document
 		If dirty=_dirty Return
 		
 		_dirty=dirty
-		
 		DirtyChanged()
+
+		Local enamel:=New List<Cube>		
+		For Local cube:=Eachin surface
+			Local sx:=cube.x-org.x
+			Local sy:=cube.y-org.y
+			Local sz:=cube.z-org.z
+			For local x:=-dx To dx
+				For Local y:=-dy To dy
+					For local z:=-dz To dz
+						If (x|y|z)=0 Continue
+						If smooth&1 And ((x&y&z)&1)=1 continue
+						If smooth&2 And (x*y or x*z or y*z) continue
+						If grid[sx+x,sy+y,sz+z]=Null And cube.Vacant(x,y,z)
+							Local cube2:=root.Clone()
+							cube2.x=cube.x+x							
+							cube2.y=cube.y+y
+							cube2.z=cube.z+z							
+							Assert(sx+x=cube2.x-org.x)
+							Assert(sy+y=cube2.y-org.y)
+							Assert(sz+z=cube2.z-org.z)
+							enamel.AddLast(cube2)
+							grid[sx+x,sy+y,sz+z]=cube2
+						Endif
+					Next
+				Next
+			Next
+		Next
+		
+		' second visit all neighbors (none must be inferred)
+		
+		For Local cube:=Eachin enamel
+			AddCube(cube)
+'			surface.AddLast(cube)
+			Local sx:=cube.x-org.x
+			Local sy:=cube.y-org.y
+			Local sz:=cube.z-org.z
+			For local x:=-1 To 1
+				For Local y:=-1 To 1
+					For Local z:=-1 To 1
+						If (x|y|z)=0 Continue
+						Local cube2:=grid[sx+x,sy+y,sz+z]								
+						if cube2<>Null cube.Meet(cube2,x,y,z)
+					Next
+				Next
+			Next
+		Next
+		
+		CullSurface()
+		BakeSort()
+	End
+		
+End
+
+
+Class IsoSkin
+	Field atlas:Image
+	Field pix:=New Pixmap(1024,1024)
+	Field tx:Int
+	Field ty:Int	
+	Field lineheight:Int
+	Field reservewidth:int
+	field rects:=New Stack<Recti>
+	Field balls:=new Stack<Image>
+	
+	Global Center:=New Vec2f( .5,.5 )
+
+	Const D:=7
+	
+	Method DrawCube2(cube:Cube,display:Canvas,zx:Double,zy:Double,rz:Double)
+		Assert(cube.rubit<>RubitMask)
+
+
+		Local sx:Float=(cube.x-cube.z)+zy*cube.y*2
+		Local sy:Float=(cube.x+cube.z)+zx*cube.y*2		
+
+		Local x0:=sx*D
+		Local y0:=sy*D
+		Local x1:=x0+D
+		Local y1:=y0+D
+		Local x2:=x1+zy*D
+		Local y2:=y1+zx*D
+		Local x3:=x0+zy*D
+		Local y3:=y0+zx*D
+
+		display.Color=Color.White
+		
+'		display.DrawImage(tile,sx*D,sy*D,Pi/4,0.125,0.125)	'facing sky
+		display.DrawQuad(x0,y0,x1,y1,x2,y2,x3,y3)
+
+'		display.DrawImage(balls[cube.skin],sx*D,sy*D,rz,0.125,0.25)	'facing eye		
+
+
+'		For Local i:=0 To 5
+'			display.DrawImage(image,sx*D+i*zy,sy*D+i*zx,-Pi/4,0.125,0.125)	'facing sky
+'		next
+	end	
+
+	Method Reserve(w:Int,h:Int)
+		tx+=reservewidth
+		reservewidth=w
+		If tx+w>pix.Width
+			tx=0
+			ty+=lineheight
+			lineheight=0
+		Endif
+		lineheight=Max(lineheight,h)		
+		rects.Push(New Recti(tx,ty,tx+w,ty+h))
+	End
+
+	Method New()
+		pix.Clear(Color.None)				
+		Balls(New Color[](Color.Red,Color.Blue,Color.Green,Color.Yellow,Color.Cyan,Color.Magenta,Color.White,Color.Black))
+		atlas=New Image(pix)
+		For Local rect:=Eachin rects
+			AddBall(rect)
+		Next
 	End
 	
 	Method Load:Bool()
@@ -86,7 +201,79 @@ Class Document
 	Method Close()
 	
 		OnClose()
+	end
 	
+	Method Balls(palette:Color[])
+		For Local color:=Eachin palette
+			Ball(color,Color.Black)
+		Next
+		For Local color:=Eachin palette
+			Ball(color,Color.White)
+		Next
+	End
+	
+	Method Ball(primary:Color,ring:Color)		
+		Reserve(128,128)
+		Circle(64,64,40,Color.DarkGrey)		
+		Circle(64,64,34,ring)		
+		Circle(64,64,30,primary)		
+		Circle(50,52,2,Color.White)	
+	End
+
+	method Circle(rx:int,ry:int,r:int,c:Color)
+		Local x0:=rx-r
+		Local x1:=rx+r
+		Local y0:=ry-r
+		Local y1:=ry+r
+		x0=Max(x0,0)
+		y0=Max(y0,0)
+		For Local y:=y0 To y1
+			For Local x:=x0 To x1
+'				If blend And ((x+y)&1) Continue
+				Local dd:=(x-rx)*(x-rx)+(y-ry)*(y-ry)
+				If dd<r*r
+					local sh:=0.5+0.25*Sin(float(y)/24)-0.25*Cos(float(x)/24)
+					pix.SetPixel(x+tx,y+ty,c*new Color(sh,1))
+				Endif
+			Next
+		Next
+	End
+	
+	method Rect(rx:Int,ry:int,rw:int,rh:Int,c:Color)
+		For Local y:=ry Until ry+rh
+			For Local x:=rx until rx+rw
+				pix.SetPixel(x+tx,y+ty,c)
+			Next
+		Next
+	End
+	
+	Method DrawCube(cube:Cube,display:Canvas,zx:Double,zy:Double,rz:Double)
+		Assert(cube.rubit<>RubitMask)
+		Local sx:Float=(cube.x-cube.z)+zy*cube.y*2
+		Local sy:Float=(cube.x+cube.z)+zx*cube.y*2		
+'		display.DrawImage(tile,sx*D,sy*D,Pi/4,0.125,0.125)	'facing sky
+
+		display.DrawImage(balls[cube.skin],sx*D,sy*D,rz,0.125,0.25)	'facing eye		
+
+'		For Local i:=0 To 5
+'			display.DrawImage(image,sx*D+i*zy,sy*D+i*zx,-Pi/4,0.125,0.125)	'facing sky
+'		next
+	end	
+	
+	Global verts:=new Float[65536*2]
+	
+	Method DrawMesh(mesh:IsoMesh,display:Canvas,t:Mat4<Float>)
+		Local n:=mesh.vertCount
+		For Local i:=0 Until n
+			Local vert:=mesh.verts[i]
+			Local sx:=vert.x * t.i.x + vert.y * t.j.x + vert.z * t.k.x + t.t.x
+			Local sy:=vert.x * t.i.y + vert.y * t.j.y + vert.z * t.k.y + t.t.y
+			verts[i*2+0]=sx
+			verts[i*2+1]=sy
+		Next	
+		Local iptr:Int Ptr=mesh.tris.Data
+		local vptr:Float Ptr=verts.Data
+		display.DrawPrimitives(3,mesh.triCount,vptr,8,Null,0,iptr)
 	End
 	
 	Protected
@@ -320,8 +507,7 @@ Class GridWindow Extends Window
 			Case Key.Key8
 				grid.root.skin=14
 			Case Key.Key9
-				grid.root.skin=16
-				
+				grid.root.skin=16				
 			Case Key.C
 				gridspace.Clear()
 			Case Key.G

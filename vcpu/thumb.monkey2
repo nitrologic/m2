@@ -46,7 +46,7 @@ Class ThumbCPU Extends CPU
 
 		field _cpsr:Int 'NZCV synchronized from below on demand
 		field _nzr:Int 'register value last generating NZ operation for on demand testing
-		field _c:Int '0 1 for fast carry / borrow actions
+		field _c:Bool '0 1 for fast carry / borrow actions
 		field _v:Bool 'true false for detecting signed overflow
 		field _t:Bool 'thumb mode
 
@@ -485,14 +485,14 @@ Class ThumbCPU Extends CPU
 
 
 		Method armex:void(op:int)
-			s:string
-			grp:int,i,j,o,rd,rn,rm,rs
-			cc:int
+			Local s:string
+			Local grp:int,i,j,o,rd,rn,rm,rs
+			Local cc:int
 			
-			bool n=(_r[_nzr]<0)?true:false
-			bool z=(_r[_nzr]=0)?true:false
+			Local n:=(_r[_nzr]<0)
+			Local z:=(_r[_nzr]=0)
 
-			bool t=true
+			local t:=true
 
 			cc=(op shr 28)&15
 			select(cc)
@@ -504,35 +504,63 @@ Class ThumbCPU Extends CPU
 				case 5:t=n=false
 				case 6:t=_v=true
 				case 7:t=_v=false
-				case 8:t=(_c=1) && (z=false)
-				case 9:t=(_c=0) || (z=true)
+				case 8:t=(_c=True) And (z=false)
+				case 9:t=(_c=False) Or (z=true)
 				case 10:t=(n=_v)
 				case 11:t=(n<>_v)
-				case 12:t=(z=false) && (n=_v)
-				case 13:t=(z=true) && (n<>_v)
+				case 12:t=(z=false) And (n=_v)
+				case 13:t=(z=true) And (n<>_v)
 			End
-			if(!t)
-				return
+			if(Not t)
+				Return
 			End
 	
 			grp=0
 			s=""
+			
+			Local opco:=((op shr 25)&7)
 
-			select ((op shr 25)&7)
-				case 0:
-					if ((op&$10)=0) if ((op&$01b00000)=$01200000) grp=7else grp=1End
-					if ((op&$01b00000)=$01000000) grp=5End
-					if ((op&$80)=0) if ((op&$01f000f0)=$01200010) grp=8else grp=2End
-					if ((op&$01b000f0)=$01000090) grp=13End
-					if ((op&$010000f0)=$00000090) if ((op&$00800000)<>0) grp=4else grp=3End
-					if ((op&$00200000)<>0) grp=11else grp=12
-				case 1:if ((op&$01b00000)=$01200000) grp=6else grp=0
-				case 2:grp=9
-				case 3:if ((op&$10)<>0) grp=20else grp=10
-				case 4:grp=14
-				case 5:grp=18
-				case 6:grp=17
-				case 7:if ((op&$01000000)<>0) grp=19Endif ((op&$10)<>0) grp=16else grp=15
+			select opco
+				case 0
+					if ((op&$10)=0) 
+						if ((op&$01b00000)=$01200000) grp=7else grp=1
+					Else
+						if ((op&$01b00000)=$01000000) 
+							grp=5
+						Else
+							if ((op&$80)=0) 
+								if ((op&$01f000f0)=$01200010) grp=8 else grp=2
+							Else
+								if ((op&$01b000f0)=$01000090) 
+									grp=13
+								else
+									if ((op&$010000f0)=$00000090) 
+										if ((op&$00800000)<>0) grp=4 else grp=3
+									Else
+										if ((op&$00200000)<>0) grp=11 else grp=12
+									Endif
+								Endif
+							Endif
+						Endif
+					endif
+				case 1
+					If ((op&$01b00000)=$01200000) grp=6 else grp=0
+				case 2
+					grp=9
+				case 3
+					if ((op&$10)<>0) grp=20 else grp=10
+				case 4
+					grp=14
+				case 5
+					grp=18
+				Case 6
+					grp=17
+				Case 7
+					if ((op&$01000000)<>0) 
+						grp=19
+					else
+						if ((op&$10)<>0) grp=16else grp=15
+					endif
 			End
 
 			rn=(op shr 16)&15
@@ -540,99 +568,105 @@ Class ThumbCPU Extends CPU
 			rs=(op shr 8)&15
 			rm=op&15
 
-			select (grp)
-			case 0:
+			select grp
+			case 0
 				o=(op shr 21)&15
 				s+=opname[o]
 				s+=cc
-				if ((op&$00100000)<>0)
-					s+='s'
-				End
+				if ((op&$00100000)<>0) s+="s"
 	'			j=(op&255) shl ((op shr 7)&30)
 				i=op&255
 				j=(op shr 7)&30
 				i=(i shr j)|(i shl (32-j))
 ' "and","eor","sub","rsb","add","adc","sbc","rsc","tst","teq","cmp","cmn","orr","mov","bic","mvn"	
 				select (o)
-					case 0:_r[rd]&=i 'and
-					case 1:_r[rd]^=i 'eor
-					case 2:_r[rd]=_r[rd]-i 'sub
-					case 3:_r[rd]=i-_r[rd] 'rsb
-					case 4:_r[rd]+=i 'add
-					case 5:_r[rd]+=i+_c 'adc
-					case 6:_r[rd]=_r[rd]-i-_c 'sbc
-					case 7:_r[rd]=i-_r[rd]-_c 'rsc
-					case 8:rd=rn'tst
-					case 9:rd=16_r[16]=_r[rn]^i'teq
-					case 10:_cmp(_r[rn],i) 'cmp
-					case 11:_cmp(_r[rd],_r[rs])'cmn
-					case 12:_r[rd]|=_r[rs]'orr
-					case 13:_r[rd]=i'mov
-					case 14:_r[rd]=_r[rn]&~(i)'bic
-					case 15:_r[rd]=~i'mvn
+					case 0 _r[rd]&=i 'and
+					case 1 _r[rd]~=i 'eor
+					case 2 _r[rd]=_r[rd]-i 'sub
+					case 3 _r[rd]=i-_r[rd] 'rsb
+					case 4 _r[rd]+=i 'add
+					case 5 _r[rd]+=i+_c 'adc
+					case 6 _r[rd]=_r[rd]-i-_c 'sbc
+					case 7 _r[rd]=i-_r[rd]-_c 'rsc
+					case 8 rd=rn'tst
+					case 9 'todo update N and Z flags rd=(_r[16]=_r[rn]~i)'teq
+					case 10 _cmp(_r[rn],i) 'cmp
+					case 11 _cmp(_r[rd],_r[rs])'cmn
+					case 12 _r[rd]|=_r[rs]'orr
+					case 13 _r[rd]=i'mov
+					case 14 _r[rd]=_r[rn]&~(i)'bic
+					case 15 _r[rd]=~i'mvn
 				End
 				_nzr=rd
 				return
-			case 1:
+			case 1
 				o=(op shr 21)&15
 				s+=opname[o]
 				s+=cc
 				if ((op&$00100000)<>0)
-					s+='s'
+					s+="s"
 				End
-				i=(op shr 5)&3j=(op shr 7)&31
+				i=(op shr 5)&3 
+				j=(op shr 7)&31
 				select (o)
-					case 13:
-					case 15:
+					case 13
+					case 15
 						s+="\tr"+rd+",r"+rm
 						break 'mov mvn
-					case 8:
-					case 9:
-					case 10:
-					case 11:
+					case 8
+					case 9
+					case 10
+					case 11
 						s+="\tr"+rn+",r"+rm
 						break	'tst teq cmp cmn
-					default:
+					Default
 						s+="\tr"+rd+",r"+rn+",r"+rm
 						break
 				End
-				if ((i=3)&&(j=0)) s+=",rrx"else s+=","+shifts[i]+" #"+j
-				break
-			case 2:
+				if i=3 And j=0
+					s+=",rrx"
+				else 
+					s+=","+shifts[i]+" #"+j
+				Endif
+
+			case 2
 				s+=opname[(op shr 21)&15]
 				s+=cc
-				if ((op&$00100000)<>0) s+='s'
-				i=(op shr 5)&3j=(op shr 7)&31
+				if ((op&$00100000)<>0) s+="s"
+				i=(op shr 5)&3
+				j=(op shr 7)&31
 				s+="\tr"+rd+",r"+rn+",r"+rm+" "+shifts[i]+" r"+rs
 				break
-			case 3:
-				if ((op&$00200000)=0)
-				
-					s+="mul"s+=cc
-					if ((op&$00100000)<>0) s+='s'
+			case 3
+				if ((op&$00200000)=0)				
+					s+="mul"
+					s+=cc
+					if ((op&$00100000)<>0) s+="s"
 					s+="\tr"+rd+",r"+rm+",r"+rs
-				End
-				else
-				
-					s+="mla"s+=cc
-					if ((op&$00100000)<>0) s+='s'
+				Else				
+					s+="mla"
+					s+=cc
+					if ((op&$00100000)<>0) s+="s"
 					s+="\tr"+rn+",r"+rm+",r"+rs+",r"+rd	'rn<->rd???
 				End
 				break
-			case 4:
-				s+=muls[(op shr 21)&3]s+=cc
-				if ((op&$00100000)<>0) s+='s'
+			case 4
+				s+=muls[(op shr 21)&3]
+				s+=cc
+				if ((op&$00100000)<>0) s+="s"
 				s+="\tr"+rd+",r"+rn+",r"+rm+",r"+rs
 				break
-			case 5:
-				s+="mrs"s+=cc
+			case 5
+				s+="mrs"
+				s+=cc
 				if ((op&$00400000)=0)
 					s+="\tr"+rd+",cpsr"
 				else
 					s+="\tr"+rs+",spsr"
-				break
-			case 6:
-				s+="msr"s+=cc
+				Endif
+			case 6
+				s+="msr"
+				s+=cc
 	'			i=(op&255) shl ((op shr 7)&30
 				i=op&255
 				j=(op shr 7)&30
@@ -641,27 +675,31 @@ Class ThumbCPU Extends CPU
 					s+="\tcpsr_"+rn+",#"+i
 				else
 					s+="\tspsr_"+rn+",#"+i
-				break
-			case 7:
-				s+="msr"s+=cc
+				endif
+			case 7
+				s+="msr"
+				s+=cc
 				if ((op&$00400000)=0)
 					s+="\tcpsr_"+rn+",r"+rm
 				else
 					s+="\tspsr_"+rn+",r"+rm
-				break
-			case 8:
-				s+="bx"s+=ccs+="\tr"s+=rm
-			case 9:
+				Endif
+			case 8
+				s+="bx"
+				s+=cc
+				s+="\tr"
+				s+=rm
+			case 9
 				i=(op shr 20)&1
-				if ((op&$01200000)=$00200000) i+=2
-				i=op&$fffif ((op&$00800000)=0) i=-i
-				select(i)
+				If ((op&$01200000)=$00200000) i+=2
+				i=op&$fff
+				if ((op&$00800000)=0) i=-i
+				Select i
 					case 0:break'"str"
 					case 1:break'"ldr"
 					case 2:break'"strt"
 					case 3:break'"ldrt"
 				End
-				break
 #Rem
 
 				
@@ -745,124 +783,138 @@ In a virtual memory based environment (ie. not in the GBA), aborts (ie. page
 faults) may take place during execution, if so, Rm and Rn should not specify
 the same register when post-indexing is used, as the abort-handler might have
 problems to reconstruate the original value of the register.
+
 #End
 
 
-			case 10:
-				i=(op shr 20)&1if ((op&$01200000)=$00200000) i+=2		'str|ldrtEnd
-				s+=strldr[i]s+=cc
-				if ((op&$00400000)<>0) s+='b'
+			case 10
+				i=(op shr 20)&1
+				if ((op&$01200000)=$00200000) i+=2		'str|ldrtEnd
+				s+=strldr[i]
+				s+=cc
+				if ((op&$00400000)<>0) s+="b"
 				s+="\tr"+rd+",[r"+rn			'r5,[r3
-				if ((op&$01000000)=0)
-				
+				if (op&$01000000)=0				
 					s+="],"
-					if ((op&$00800000)=0) s+='-'
+					if (op&$00800000)=0 s+="-"
 					s+="r"+rm
-					if ((op&$0ff0)<>0)
-					
-						i=(op shr 5)&3j=(op shr 7)&31
-						if ((i=3)&&(j=0))
+					if (op&$0ff0)<>0
+						i=(op shr 5)&3
+						j=(op shr 7)&31
+						if i=3 And j=0
 							s+=",rrx"
 						else
 							s+=","+shifts[i]+" #"+j
-					End
-				End
-				else
-				
-					if ((op&$00800000)=0) s+='-'
+						Endif
+					Endif
+				Else				
+					if (op&$00800000)=0 s+="-"
 					s+="r"+rm
-					if ((op&$0ff0)<>0)
-					
-						i=(op shr 5)&3j=(op shr 7)&31
-						if ((i=3)&&(j=0))
+					if (op&$0ff0)<>0					
+						i=(op shr 5)&3
+						j=(op shr 7)&31
+						if i=3 And j=0
 							s+=",rrx"
 						else
 							s+=","+shifts[i]+" #"+j
-					End
-					s+=']'
-					if ((op&$00200000)<>0) s+='!'
-				End
-				break
-			case 11:
-				s+=strldr[(op shr 20)&1]s+=cc
+						endif
+					Endif
+					s+="]"
+					if ((op&$00200000)<>0) s+="!"
+				Endif
+
+			case 11
+				s+=strldr[(op shr 20)&1]
+				s+=cc
 				s+=bhsbsh[(op shr 5)&3]
 				s+="\tr"+rd+",["+rn
-				i=((op&$0f00) shr 4)|(op&$0f)if ((op&$00800000)=0) i=-i
-				if ((op&$01000000)=0)
-				
+				i=((op&$0f00) shr 4)|(op&$0f)
+				if ((op&$00800000)=0) i=-i
+				if ((op&$01000000)=0)				
 					s+="],#"+i
-				End
-				else
-				
+				Else				
 					s+="#"+i+"]"
-					if ((op&$00200000)<>0) s+='!'
+					if ((op&$00200000)<>0) s+="!"
 				End
-				break
-			case 12:
-				s+=strldr[(op shr 20)&1]s+=cc
+
+			case 12
+				s+=strldr[(op shr 20)&1]
+				s+=cc
 				s+=bhsbsh[(op shr 5)&3]
 				s+="\tr"+rd+",["+rn
-				i=((op&$0f00) shr 4)|(op&$0f)if ((op&$00800000)=0) i=-i
-				if ((op&$01000000)=0)
-				
+				i=((op&$0f00) shr 4)|(op&$0f)
+				if ((op&$00800000)=0) i=-i
+				if (op&$01000000)=0
 					if ((op&$00800000)=0) s+="],-r" else s+="],r"
 					s+=rm
-				End
-				else
-				
+				Else				
 					if ((op&$00800000)=0) s+=",-r" else s+=",r"
-					s+=rms+=']'
-					if ((op&$00200000)<>0) s+='!'
-				End
-				break
-			case 13:
-				s+="swp"s+=ccs+="\tr"+rd+",r"+rm+",[r"+rn+"]"
-				break 
-			case 14:
-				s+=stmldm[(op shr 20)&1]s+=cc
-				if ((op&$00800000)=0) s+='d'else s+='i'
-				if ((op&$01000000)=0) s+='a'else s+='b'
-				s+="\tr"+rnif ((op&$00200000)<>0) s+='!'
-				s+=','
+					s+=rm
+					s+="]"
+					if ((op&$00200000)<>0) s+="!"
+				Endif
+				
+			case 13
+				s+="swp"
+				s+=cc
+				s+="\tr"+rd+",r"+rm+",[r"+rn+"]"
+
+			case 14
+				s+=stmldm[(op shr 20)&1]
+				s+=cc
+				if (op&$00800000)=0 s+="d" else s+="i"
+				if ((op&$01000000)=0) s+="a" else s+="b"
+				s+="\tr"+rnif ((op&$00200000)<>0) 
+				s+="!"
+				s+=","
 				s+=reglist(op&$ffff)
-				if ((op&$00400000)<>0) s+='^'
-				break
-			case 15:
-				s+="cdp"s+=cc
+				if ((op&$00400000)<>0) s+="^"
+			case 15
+				s+="cdp"
+				s+=cc
 				s+="\ts"+rs+","+((op shr 20)&15)+",c"+rd+",c"+rn+",c"+rm+","+((op shr 5)&7)
-				break
-			case 16:
-				s+=mcrmrc[(op shr 20)&1]s+=cc
+			case 16
+				s+=mcrmrc[(op shr 20)&1]
+				s+=cc
 				s+="\ts"+rs+","+((op shr 21)&7)+",c"+rd+",c"+rn+",c"+rm+","+((op shr 5)&7)
-				break
-			case 17:
-				s+=stcldc[(op shr 20)&1]s+=cc
+			Case 17
+				s+=stcldc[(op shr 20)&1]
+				s+=cc
 				s+="\tc"+rs+"cr"+rd+",[r"+rn	'cp_num,crd,[r
-				i=op&255if ((op&$00800000)=0) i=-i
-				if ((op&$01000000)=0) s+="],#"+i*4End
-				else s+="#"+i*4+"]"if ((op&$00200000)<>0) s+='!'End
-				break
-			case 18:
-				's+='b'if ((op&$01000000)<>0) s+='l's+=ccs+='\t'i=(op&$00ffffff) shl 8i=i shr 6s+=i
+				i=op&255
+				if ((op&$00800000)=0) i=-i
+				if ((op&$01000000)=0) 
+					s+="],#"+i*4
+				Else
+					 s+="#"+i*4+"]"
+					 if (op&$00200000)<>0 s+="!"
+				Endif
+			Case 18
+				s+="b"
+				if ((op&$01000000)<>0) s+="l"
+				s+=cc
+				s+="\t"
+				i=(op&$00ffffff) shl 8
+				i=i shr 6
+				s+=i
 				i=(op&$00ffffff) shl 8
 				i=i shr 6
 				_r[15]+=4+i
-				break
-			case 19:
-				s+="swi"s+=cc
-				s+='\t's+=op&$00ffffff
-				break
-			case 20:
+			case 19
+				s+="swi"
+				s+=cc
+				s+="\t"
+				s+=op&$00ffffff
+			Case 20
 				s+="undefined"
-				break
 			End
 		End
 
 
 		Method armop:string(op:int)
-			int			i,j,o,n,rd,rn,rm,rs
-			string		cc,s
-
+			Local i:int,j:int,o:int,n:int,rd:int,rn:int,rm:int,rs:Int
+			Local cc:String
+			Local s:String
 			n=0
 			s=""
 
@@ -892,7 +944,7 @@ problems to reconstruate the original value of the register.
 				s+=opname[o]
 				s+=cc
 				if ((op&$00100000)<>0)
-					s+='s'
+					s+="s"
 				End
 	'			j=(op&255) shl ((op shr 7)&30)
 				i=op&255
@@ -919,7 +971,7 @@ problems to reconstruate the original value of the register.
 				s+=opname[o]
 				s+=cc
 				if ((op&$00100000)<>0)
-					s+='s'
+					s+="s"
 				End
 				i=(op shr 5)&3j=(op shr 7)&31
 				select (o)
@@ -942,7 +994,7 @@ problems to reconstruate the original value of the register.
 			case 2:
 				s+=opname[(op shr 21)&15]
 				s+=cc
-				if ((op&$00100000)<>0) s+='s'
+				if ((op&$00100000)<>0) s+="s"
 				i=(op shr 5)&3j=(op shr 7)&31
 				s+="\tr"+rd+",r"+rn+",r"+rm+" "+shifts[i]+" r"+rs
 				break
@@ -950,19 +1002,19 @@ problems to reconstruate the original value of the register.
 				if ((op&$00200000)=0)
 				
 					s+="mul"s+=cc
-					if ((op&$00100000)<>0) s+='s'
+					if ((op&$00100000)<>0) s+="s"
 					s+="\tr"+rd+",r"+rm+",r"+rs
 				End
 				else
 				
 					s+="mla"s+=cc
-					if ((op&$00100000)<>0) s+='s'
+					if ((op&$00100000)<>0) s+="s"
 					s+="\tr"+rn+",r"+rm+",r"+rs+",r"+rd	'rn<->rd???
 				End
 				break
 			case 4:
 				s+=muls[(op shr 21)&3]s+=cc
-				if ((op&$00100000)<>0) s+='s'
+				if ((op&$00100000)<>0) s+="s"
 				s+="\tr"+rd+",r"+rn+",r"+rm+",r"+rs
 				break
 			case 5:
