@@ -65,18 +65,30 @@ static int xioctl(int fh, int request, void *arg)
 	return r;
 }
 
+
+static int frame_number=0;
+
+static void *frame_data;
+static int frame_size;
+
 static void process_image(const void *p, int size)
 {
+	frame_size=size;
+	frame_data=p;
+	return;
+
+#ifdef ProcessToDisk 
 	frame_number++;
 	char filename[15];
 	sprintf(filename, "~/frame-%d.raw", frame_number);
 	FILE *fp=fopen(filename,"wb");
-	
+
 	if (out_buf)
 		fwrite(p, size, 1, fp);
 
 	fflush(fp);
 	fclose(fp);
+#endif
 }
 
 static int read_frame(void)
