@@ -31,8 +31,16 @@
 #define V4L2_PIX_FMT_H264	 v4l2_fourcc('H', '2', '6', '4') /* H264 with start codes */
 #endif
 
-#ifndef V4L2_PIX_FMT_YUV2
-#define V4L2_PIX_FMT_YUV2	 v4l2_fourcc('Y', 'U', 'V', '2') /* YUV2 with start codes */
+#ifndef V4L2_PIX_FMT_YU12
+#define V4L2_PIX_FMT_YU12	 v4l2_fourcc('Y', 'U', '1', '2') /* YUV2 with start codes */
+#endif
+
+#ifndef V4L2_PIX_FMT_GREY
+#define V4L2_PIX_FMT_GREY	 v4l2_fourcc('Y', '8', '0', '0') /* G8 with start codes */
+#endif
+
+#ifndef V4L2_PIX_FMT_RGB
+#define V4L2_PIX_FMT_RGB	 v4l2_fourcc('B', 'G', 'R', '4') /* RGB4 with start codes */
 #endif
 
 enum io_method {
@@ -52,7 +60,7 @@ static int fd = -1;
 struct buffer *buffers;
 static unsigned int n_buffers=1;
 static int out_buf;
-static int force_format=0;
+static int force_format=1;
 
 static void errno_exit(const char *s)
 {
@@ -421,8 +429,6 @@ static void init_userp(unsigned int buffer_size)
 static void init_device(void)
 {
 	struct v4l2_capability cap;
-	struct v4l2_cropcap cropcap;
-	struct v4l2_crop crop;
 	struct v4l2_format fmt;
 	unsigned int min;
 
@@ -436,7 +442,7 @@ static void init_device(void)
 		}
 	}
 
-	printf("%s %s\n",cap.)
+	printf("%s %s %s %x\n",cap.driver,cap.card,cap.bus_info,cap.capabilities);
 
 	if (!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
 		fprintf(stderr, "%s is no video capture device\n",
@@ -466,37 +472,13 @@ static void init_device(void)
 
 	/* Select video input, video standard and tune here. */
 
-
-	CLEAR(cropcap);
-
-	cropcap.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-
-	if (0 == xioctl(fd, VIDIOC_CROPCAP, &cropcap)) {
-		crop.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		crop.c = cropcap.defrect; /* reset to default */
-
-		if (-1 == xioctl(fd, VIDIOC_S_CROP, &crop)) {
-			switch (errno) {
-			case EINVAL:
-				/* Cropping not supported. */
-				break;
-			default:
-				/* Errors ignored. */
-				break;
-			}
-		}
-	} else {
-		/* Errors ignored. */
-	}
-
-
 	CLEAR(fmt);
 
 	fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	if (force_format) {
-		fmt.fmt.pix.width=640;
-		fmt.fmt.pix.height=480;
-		fmt.fmt.pix.pixelformat=V4L2_PIX_FMT_YUV2;
+		fmt.fmt.pix.width=320;
+		fmt.fmt.pix.height=240;
+		fmt.fmt.pix.pixelformat=V4L2_PIX_FMT_RGB;
 		fmt.fmt.pix.field=V4L2_FIELD_ANY;
 /*		
 	fprintf(stderr, "Set H264\r\n");
@@ -538,6 +520,33 @@ static void init_device(void)
 		init_userp(fmt.fmt.pix.sizeimage);
 		break;
 	}
+
+	struct v4l2_crop crop;
+	v4l2_cropcap cropcap={0};
+	cropcap.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+	if (0 == xioctl(fd, VIDIOC_CROPCAP, &cropcap)) {
+
+		crop.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		crop.c = cropcap.defrect; /* reset to default */
+
+		v4l2_rect &r=cropcap.defrect;
+		printf("crop %d,%d %d x %d\n",r.left,r.top,r.width,r.height);
+
+		if (-1 == xioctl(fd, VIDIOC_S_CROP, &crop)) {
+			switch (errno) {
+			case EINVAL:
+				/* Cropping not supported. */
+				break;
+			default:
+				/* Errors ignored. */
+				break;
+			}
+		}
+	} else {
+		printf("VIDIOC_CROPCAP failed\n");
+	}
+
 }
 
 static int close_device(void)
@@ -571,6 +580,23 @@ static int open_device(void)
 			 dev_name, errno, strerror(errno));
 		return(-3);
 	}
+
+
+	v4l2_fmtdesc desc={0};
+	desc.type=V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	for(int i=0;i<256;i++){
+		desc.index=i;
+		if (-1 == xioctl(fd, VIDIOC_ENUM_FMT, &desc)) break;
+		printf("%d %s %x\n",i,desc.description,desc.pixelformat);
+	}
+
+	v4l2_audio audio={0};
+	for(int i=0;i<256;i++){
+		audio.index=i;
+		if (-1 == xioctl(fd, VIDIOC_ENUMAUDIO, &audio)) break;
+		printf("%d %s\n",i,audio.name);
+	}
+
 	return 0;
 }
 
