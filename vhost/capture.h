@@ -31,6 +31,10 @@
 #define V4L2_PIX_FMT_H264	 v4l2_fourcc('H', '2', '6', '4') /* H264 with start codes */
 #endif
 
+#ifndef V4L2_PIX_FMT_YUV2
+#define V4L2_PIX_FMT_YUV2	 v4l2_fourcc('Y', 'U', 'V', '2') /* YUV2 with start codes */
+#endif
+
 enum io_method {
 	IO_METHOD_READ,
 	IO_METHOD_MMAP,
@@ -432,6 +436,8 @@ static void init_device(void)
 		}
 	}
 
+	printf("%s %s\n",cap.)
+
 	if (!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
 		fprintf(stderr, "%s is no video capture device\n",
 			 dev_name);
@@ -488,16 +494,23 @@ static void init_device(void)
 
 	fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	if (force_format) {
+		fmt.fmt.pix.width=640;
+		fmt.fmt.pix.height=480;
+		fmt.fmt.pix.pixelformat=V4L2_PIX_FMT_YUV2;
+		fmt.fmt.pix.field=V4L2_FIELD_ANY;
+/*		
 	fprintf(stderr, "Set H264\r\n");
 		fmt.fmt.pix.width	   = 640; //replace
 		fmt.fmt.pix.height	  = 480; //replace
 		fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_H264; //replace
 		fmt.fmt.pix.field	   = V4L2_FIELD_ANY;
+*/
 
 		if (-1 == xioctl(fd, VIDIOC_S_FMT, &fmt))
 			errno_exit("VIDIOC_S_FMT");
 
 		/* Note VIDIOC_S_FMT may change width and height. */
+
 	} else {
 		/* Preserve original settings as set by v4l2-ctl for example */
 		if (-1 == xioctl(fd, VIDIOC_G_FMT, &fmt))
