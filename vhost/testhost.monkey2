@@ -18,8 +18,14 @@ Class MojoWindow extends Window
 	Method New()
 		active=self
 		ClearColor=New Color(0.1,1)
+
 		print "Enumerating framebuffer devices."
 		Local n:=host.EnumerateFramebuffers()		
+
+		print "Enumerating I2C bus"
+		Local i2cCount:=host.EnumerateI2C()				
+		Print "i2cCount="+i2cCount
+
 		For Local i:=0 Until n
 			Local fbi:=host.GetFramebuffer(i)
 			Print "fb"+i+":"+fbi.width+"x"+fbi.height
