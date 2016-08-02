@@ -32,8 +32,8 @@ Class PixelMap
 		data[y*wspan+x]=c
 	End
 	
-	Method Add(x:int,y:int,c:Pixel)
-		data[y*wspan+x]+=c
+	Method Xor(x:int,y:int,c:Pixel)
+		data[y*wspan+x]~=c
 	End
 
 	Method Color:Color(x:Int,y:Int)

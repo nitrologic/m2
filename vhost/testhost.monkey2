@@ -6,7 +6,7 @@
 Using std..
 Using mojo..
 
-class MojoWindow extends Window
+Class MojoWindow extends Window
 
 	Global active:MojoWindow
 	Field host:=GetHost()
@@ -26,7 +26,7 @@ class MojoWindow extends Window
 			If fbi.width=8 fb=fbi
 		Next
 		Move(0,0)		
-		New Timer(5,Tick)
+		New Timer(2,Tick)
 	End
 	
 	Function Tick()
@@ -43,38 +43,38 @@ class MojoWindow extends Window
 				canvas.Color=fb.Color(x,y)
 				canvas.DrawRect(x*n,y*n,n2,n2)
 			Next
-		next
-	end
+		Next
+	End
 	
 	Field blinkOn:=false
 	field enterMillis:int
 	
-	field blink:Pixel=$2004
-	field blink1:Pixel=$8010
+	field blink:Pixel=$4208
+	field blink2:Pixel=$2104
 	field ink:Pixel=$f800
+	Field ink2:Pixel=$7000
 
 	Method Move(dx:Int,dy:Int)
 		If blinkOn Blink()
 		cx=(cx+dx)&7
 		cy=(cy+dy)&7
-		fb.Plot(cx,cy,ink)
+		fb.Plot(cx,cy,ink2)
 	End
 
-	method Clear()
+
+	Method Clear()
 		fb.Clear()
-	end
+	End
 
 	Method Blink()
-		If blinkOn
-			fb.Add(cx,cy,blink)
-		Else
-			fb.Add(cx,cy,$10000-blink)
-		Endif
+		fb.Xor(cx,cy,blink)
 		blinkOn=Not blinkOn
-	end
+	End
 
 	method Click()
 		ink=(ink shr 3) | (ink shl 13)
+		ink2=(ink Shr 1)&$7bef
+		ink2=(ink2 Shr 1)&$7bef
 		Move(0,0)
 	End
 	
@@ -108,6 +108,12 @@ class MojoWindow extends Window
 					Case Key.Right
 						Move(1,0)
 				End
+
+			Case EventType.KeyUp
+				Select e.Key
+					Case Key.Enter
+						enterMillis=0
+				end
 		end
 	end
 end
@@ -116,5 +122,23 @@ function Main()
 	Print "INT_THS_H_M="+i2c.INT_THS_H_M
 	new AppInstance
 	new MojoWindow
-	App.Run()
-end
+	App.Run(
+	)
+	
+
+End
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
