@@ -4,4 +4,4 @@ Currently vhost supports a pure linux implementation of framebuffers, video inpu
 
 A virtual model is also supplied to emulate the Pi SenseHat 8x8 LED array and allow testing and devlopment on non linux platforms.
 
-![pihat](pihat.png?raw=true "PiSenseHat")
+![pihat](pihat.jpg?raw=true "PiSenseHat")
