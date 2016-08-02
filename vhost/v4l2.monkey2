@@ -30,7 +30,7 @@ End
 Function HexList:String(binary:byte ptr,count:int)
 	Local h:String
 	For Local i:=0 Until count
-		h+=HexByte(binary[count])+" "	
+		h+=HexByte(binary[i])+" "	
 	Next
 	Return h
 End
@@ -62,8 +62,6 @@ function Main()
 			print frame_size+":"+HexList(i,20)
 		endif
 
-		finishFrame()
-		
 	next
 
 	stop_capturing()

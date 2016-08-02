@@ -77,18 +77,9 @@ static int frame_type=0;
 static void process(v4l2_buffer &buf)
 {
 	assert(buf.index < n_buffers);
-
 	frame_data=(void*)buffers[buf.index].start;
 	frame_size=buf.bytesused;
 	frame_type=buf.type;
-
-	char *c=(char*)frame_data;
-	for(int i=0;i<20;i++){
-		printf("%02X ",c[i]);
-	}
-	printf("\n");
-
-	return;
 }
 
 static bool cleanMe=false;
@@ -120,7 +111,7 @@ static int read_frame(void)
 		break;
 
 	case IO_METHOD_MMAP:
-//		CLEAR(buf);
+		CLEAR(buf);
 
 		buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		buf.memory = V4L2_MEMORY_MMAP;
@@ -139,6 +130,9 @@ static int read_frame(void)
 // tested with pi
 		process(buf);
 
+		if (-1 == xioctl(fd, VIDIOC_QBUF, &buf)){
+			errno_exit("VIDIOC_QBUF");
+		}
 		break;
 /*
 	case IO_METHOD_USERPTR:
@@ -179,10 +173,13 @@ static int read_frame(void)
 }
 
 static void finishFrame(void){
-	if (-1 == xioctl(fd, VIDIOC_QBUF, &buf)){
-		errno_exit("VIDIOC_QBUF");
+	char *c=(char*)frame_data;
+	for(int i=0;i<20;i++){
+		printf("%02X ",c[i]);
 	}
+	printf("\n");
 
+	return;
 }
 
 static int readFrame(void)
