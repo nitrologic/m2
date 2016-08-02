@@ -46,7 +46,7 @@ static char *dev_name;
 static enum io_method io = IO_METHOD_MMAP;
 static int fd = -1;
 struct buffer *buffers;
-static unsigned int n_buffers;
+static unsigned int n_buffers=1;
 static int out_buf;
 static int force_format=0;
 
@@ -67,35 +67,36 @@ static int xioctl(int fh, int request, void *arg)
 
 
 static int frame_number=0;
-
 static void *frame_data;
-static int frame_size;
+static int frame_size=0;
+static int frame_type=0;
 
 // todo: callback to monkey2 device
 
-static void process_image(const void *p, int size)
+
+static void process(v4l2_buffer &buf)
 {
-	frame_size=size;
-	frame_data=p;
+	assert(buf.index < n_buffers);
+
+	frame_data=(void*)buffers[buf.index].start;
+	frame_size=buf.bytesused;
+	frame_type=buf.type;
+
+	char *c=(char*)frame_data;
+	for(int i=0;i<20;i++){
+		printf("%02X ",c[i]);
+	}
+	printf("\n");
+
 	return;
-
-#ifdef ProcessToDisk 
-	frame_number++;
-	char filename[15];
-	sprintf(filename, "~/frame-%d.raw", frame_number);
-	FILE *fp=fopen(filename,"wb");
-
-	if (out_buf)
-		fwrite(p, size, 1, fp);
-
-	fflush(fp);
-	fclose(fp);
-#endif
 }
+
+static bool cleanMe=false;
+
+struct v4l2_buffer buf;
 
 static int read_frame(void)
 {
-	struct v4l2_buffer buf;
 	unsigned int i;
 
 	switch (io) {
@@ -114,12 +115,12 @@ static int read_frame(void)
 				errno_exit("read");
 			}
 		}
-
-		process_image(buffers[0].start, buffers[0].length);
+// not tested
+//		process(buffers[0]);
 		break;
 
 	case IO_METHOD_MMAP:
-		CLEAR(buf);
+//		CLEAR(buf);
 
 		buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 		buf.memory = V4L2_MEMORY_MMAP;
@@ -128,25 +129,18 @@ static int read_frame(void)
 			switch (errno) {
 			case EAGAIN:
 				return 0;
-
 			case EIO:
-				/* Could ignore EIO, see spec. */
-
-				/* fall through */
-
+				return 0;
 			default:
 				errno_exit("VIDIOC_DQBUF");
 			}
 		}
 
-		assert(buf.index < n_buffers);
+// tested with pi
+		process(buf);
 
-		process_image(buffers[buf.index].start, buf.bytesused);
-
-		if (-1 == xioctl(fd, VIDIOC_QBUF, &buf))
-			errno_exit("VIDIOC_QBUF");
 		break;
-
+/*
 	case IO_METHOD_USERPTR:
 		CLEAR(buf);
 
@@ -159,9 +153,8 @@ static int read_frame(void)
 				return 0;
 
 			case EIO:
-				/* Could ignore EIO, see spec. */
-
-				/* fall through */
+//				Could ignore EIO, see spec. fall through 
+				return 0;
 
 			default:
 				errno_exit("VIDIOC_DQBUF");
@@ -174,15 +167,22 @@ static int read_frame(void)
 				break;
 
 		assert(i < n_buffers);
-
-		process_image((void *)buf.m.userptr, buf.bytesused);
+//		process_image((void *)buf.m.userptr, buf.bytesused);
 
 		if (-1 == xioctl(fd, VIDIOC_QBUF, &buf))
 			errno_exit("VIDIOC_QBUF");
 		break;
+*/
 	}
 
 	return 1;
+}
+
+static void finishFrame(void){
+	if (-1 == xioctl(fd, VIDIOC_QBUF, &buf)){
+		errno_exit("VIDIOC_QBUF");
+	}
+
 }
 
 static int readFrame(void)

@@ -47,8 +47,10 @@ class MojoWindow extends Window
 	end
 	
 	Field blinkOn:=false
+	field enterMillis:int
 	
-	field blink:Pixel=$8010
+	field blink:Pixel=$2004
+	field blink1:Pixel=$8010
 	field ink:Pixel=$f800
 
 	Method Move(dx:Int,dy:Int)
@@ -57,6 +59,10 @@ class MojoWindow extends Window
 		cy=(cy+dy)&7
 		fb.Plot(cx,cy,ink)
 	End
+
+	method Clear()
+		fb.Clear()
+	end
 
 	Method Blink()
 		If blinkOn
@@ -74,6 +80,13 @@ class MojoWindow extends Window
 	
 	Method OnTimer()
 		Blink()
+		if enterMillis
+			local enterTime:=Millisecs()-enterMillis
+			if enterTime>200
+				Clear()
+				enterMillis=0
+			endif
+		endif
 	end
 
 	method OnKeyEvent(e:KeyEvent) Override
@@ -85,6 +98,7 @@ class MojoWindow extends Window
 						App.Terminate()
 					Case Key.Enter
 						Click()
+						enterMillis=Millisecs()
 					Case Key.Up
 						Move(0,-1)
 					Case Key.Down

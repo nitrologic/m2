@@ -18,6 +18,15 @@ Class PixelMap
 		bytecount=n
 		wspan=bytecount/(2*height)
 	End
+
+	method Clear()
+		for local y:=0 until height
+			local p:Pixel Ptr=data+y*wspan
+			for local x:=0 until width
+				p[x]=0
+			next
+		next
+	end
 	
 	Method Plot(x:int,y:int,c:Pixel)
 		data[y*wspan+x]=c
