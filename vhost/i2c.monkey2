@@ -1,5 +1,14 @@
 namespace i2c
 
+#import "<linux/i2c-dev.h>"
+
+extern
+
+function i2c_smbus_read_word_data:int(file:int, reg:int)
+function i2c_smbus_write_word_data(file:int, reg:int, value:int)
+
+public
+
 Function Bin:Int(s:string)
 	Local b:=0
 	For Local i:=0 Until 7
@@ -7,6 +16,8 @@ Function Bin:Int(s:string)
 	Next
 	Return b
 End
+
+const I2C_SLAVE:=$703
 
 Const ACT_THS:=Bin("0000100")
 Const ACT_DUR:=Bin("0000101")

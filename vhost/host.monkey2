@@ -13,6 +13,8 @@ extern
 
 Function open:Int( path:CString,mode:Int )
 Function close:Int( fd:int)
+function ioctl:int( fd:int,request:uint,memory:void ptr)
+function ioctl:int( fd:int,request:uint,value:int)
 
 class fb
 Function queryFramebuffer(descriptor:Int,width:Int ptr,height:Int ptr,depth:Int ptr,bytecount:Int Ptr)
@@ -21,7 +23,6 @@ Function unmapFrameBuffer(memory:Void ptr,bytecount:Int)
 end
 
 Public
-
 
 Class I2C
 	Field file:int
@@ -32,13 +33,14 @@ Class I2C
 	End
 	
 	Method Test()
-
-		if ioctl(file, I2C_SLAVE, $6a) < 0
-			Print("Error: Could not select gyro"
+		if ioctl(file, i2c.I2C_SLAVE, $6a) < 0
+			Print "Could not select gyro"
 			Return
 		endif
 
 	End
+End
+
 #rem	
 	writeGyrReg(CTRL_REG1_G, 0b00001111)") // Normal power mode, all axes enabled
 	writeGyrReg(CTRL_REG4_G, 0b00110000)") // Continuos update, 2000 dps full scale

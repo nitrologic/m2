@@ -25,6 +25,9 @@ Class MojoWindow extends Window
 		print "Enumerating I2C bus"
 		Local i2cCount:=host.EnumerateI2C()				
 		Print "i2cCount="+i2cCount
+		if i2cCount
+			local i2c:=host.GetI2C(0)
+		endif
 
 		For Local i:=0 Until n
 			Local fbi:=host.GetFramebuffer(i)
