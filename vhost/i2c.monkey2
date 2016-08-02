@@ -1,8 +1,10 @@
+#import "posix.monkey2"
+
+' #import "<linux/i2c-dev.h>"
+
 namespace i2c
 
-#import "<linux/i2c-dev.h>"
-
-extern
+extern 
 
 function i2c_smbus_read_word_data:int(file:int, reg:int)
 function i2c_smbus_write_word_data(file:int, reg:int, value:int)
@@ -19,26 +21,34 @@ End
 
 const I2C_SLAVE:=$703
 
-Const ACT_THS:=Bin("0000100")
-Const ACT_DUR:=Bin("0000101")
-Const INT_GEN_CFG_XL:=Bin("0000110")
-Const INT_GEN_THS_X_XL:=Bin("0000111")
-Const INT_GEN_THS_Y_XL:=Bin("0001000")
-Const INT_GEN_THS_Z_XL:=Bin("0001001")
-Const INT_GEN_DUR_XL:=Bin("0001010")
-Const REFERENCE_G:=Bin("0001011")
-Const INT1_CTRL:=Bin("0001100")
-Const INT2_CTRL:=Bin("0001101")
+Const ACT_THS:=$04		'Bin("0000100")
+Const ACT_DUR:=$05		'Bin("0000101")
+Const INT_GEN_CFG_XL:=$06	'Bin("0000110")
+Const INT_GEN_THS_X_XL:=$07	'Bin("0000111")
+Const INT_GEN_THS_Y_XL:=$08	'Bin("0001000")
+Const INT_GEN_THS_Z_XL:=$09	'Bin("0001001")
+Const INT_GEN_DUR_XL:=$0a	'Bin("0001010")
+Const REFERENCE_G:=$0b		'Bin("0001011")
+Const INT1_CTRL:=$0c		'Bin("0001100")
+Const INT2_CTRL:=$0d		'Bin("0001101")
+Const WHO_AM_I:=$0f		'Bin("0001111")
 
-Const WHO_AM_I:=Bin("0001111")
-Const CTRL_REG1_G:=Bin("0010000")
-Const CTRL_REG2_G:=Bin("0010001")
-Const CTRL_REG3_G:=Bin("0010010")
-Const ORIENT_CFG_G:=Bin("0010011")
-Const INT_GEN_SRC_G:=Bin("0010100")
-Const OUT_TEMP_L:=Bin("0010101")
-Const OUT_TEMP_H:=Bin("0010110")
-Const STATUS_REG0:=Bin("0010111")
+Const CTRL_REG1_G:=$10		'Bin("0010000")
+Const CTRL_REG2_G:=$11	'Bin("0010001")
+Const CTRL_REG3_G:=$12	'Bin("0010010")
+Const CTRL_REG4_G:=$13	'Bin("0010011")
+Const ORIENT_CFG_G:=$13	'Bin("0010011")
+
+Const INT_GEN_SRC_G:=$24	'Bin("0010100")
+Const OUT_TEMP_L:=$25		'Bin("0010101")
+Const OUT_TEMP_H:=$26		'Bin("0010110")
+Const STATUS_REG0:=$27		'Bin("0010111")
+
+const OUT_X_L_A:=$28
+const OUT_X_H_A:=$29
+const OUT_Y_L_A:=$2a
+const OUT_Y_H_A:=$2b
+
 Const OUT_X_L_G:=Bin("0011000")
 Const OUT_X_H_G:=Bin("0011001")
 Const OUT_Y_L_G:=Bin("0011010")
@@ -47,6 +57,7 @@ Const OUT_Z_L_G:=Bin("0011100")
 Const OUT_Z_H_G:=Bin("0011101")
 Const CTRL_REG4:=Bin("0011110")
 Const CTRL_REG5_XL:=Bin("0011111")
+
 Const CTRL_REG6_XL:=Bin("0100000")
 Const CTRL_REG7_XL:=Bin("0100001")
 Const CTRL_REG8:=Bin("0100010")
@@ -102,6 +113,66 @@ Const INT_SRC_M:=Bin("0110001")
 Const INT_THS_L_M:=Bin("0110010")
 Const INT_THS_H_M:=Bin("0110011")
 
+
+Class I2C
+	Field file:int
+	field buf:=new ubyte[4]
+	
+	Method New(fd:Int)
+		file=fd
+		TestGyro()
+	End
+
+	method Close()
+		posix.close(file)
+		file=0
+	end
+	
+	method Write(reg:int,value:int)
+		buf[0]=ubyte(reg)
+		buf[1]=ubyte(value)
+		buf[2]=ubyte(value shr 8)
+		write(file,buf.Data,3)
+'		i2c_smbus_write_word_data(file,reg,value)
+	end
+	
+	method Read:int(reg:int,buffer:ubyte ptr,count:int)
+		return read(file,buffer,count)
+'		return is2_smbus_read_word_data(file,reg)
+	end
+	
+	Method TestGyro()
+		if posix.ioctl(file, i2c.I2C_SLAVE, $6a) < 0
+			Print "Could not select gyro"
+			Return
+		endif
+
+		Write(CTRL_REG1_G,$0f)	'power onm axes enables
+		Write(CTRL_REG4_G,$30)	'continuous
+		
+		local gyroData:=new ubyte[6]
+
+		for local i:=0 until 50
+			local n:=Read($80|OUT_X_L_A,gyroData.Data,8)
+			if n<>8 exit	
+			print gyroData[0]
+		next
+		print "gyro test complete"
+
+#rem
+	writeGyrReg(CTRL_REG1_G, 0b00001111)") // Normal power mode, all axes enabled
+	writeGyrReg(CTRL_REG4_G, 0b00110000)") // Continuos update, 2000 dps full scale
+
+	while(true){
+	 uint8_t b[6]")
+ 	readBlock(0x80 | OUT_X_L_A, sizeof(b), b)")
+		printf("packet $d $d $d $d $d $d\n",b[0],b[1],b[2],b[3],b[4],b[5])")
+	}
+
+#end
+
+	End
+End
 
 
 #rem

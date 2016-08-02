@@ -6,10 +6,11 @@
 Using std..
 Using mojo..
 
+global host:=GetHost()
+
 Class MojoWindow extends Window
 
 	Global active:MojoWindow
-	Field host:=GetHost()
 
 	Field fb:PixelMap
 	Field cx:Int
@@ -21,13 +22,6 @@ Class MojoWindow extends Window
 
 		print "Enumerating framebuffer devices."
 		Local n:=host.EnumerateFramebuffers()		
-
-		print "Enumerating I2C bus"
-		Local i2cCount:=host.EnumerateI2C()				
-		Print "i2cCount="+i2cCount
-		if i2cCount
-			local i2c:=host.GetI2C(0)
-		endif
 
 		For Local i:=0 Until n
 			Local fbi:=host.GetFramebuffer(i)
@@ -128,12 +122,19 @@ Class MojoWindow extends Window
 end
 
 function Main()
+
 	Print "INT_THS_H_M="+i2c.INT_THS_H_M
-	new AppInstance
-	new MojoWindow
-	App.Run(
-	)
-	
+
+	print "Enumerating I2C bus"
+	Local i2cCount:=host.EnumerateI2C()				
+	Print "i2cCount="+i2cCount
+	if i2cCount
+		local i2c:=host.GetI2C(0)
+	endif
+
+'	new AppInstance
+'	new MojoWindow
+'	App.Run()	
 
 End
 
