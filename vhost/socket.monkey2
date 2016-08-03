@@ -3,18 +3,21 @@ namespace socket
 #import "posix.monkey2"
 #import "<arpa/inet.h>"
 
-' #import "<linux/i2c-dev.h>"
-
 Extern
 
 function htons:ushort(hostshort:UShort)
+function htonl:uint(hostlong:UInt)
 
 public
 
 Const FIONBIO:=126
 Const MSG_DONTWAIT:=$40
+Const SOL_SOCKET:=$ffff
+Const SO_REUSEADDR:=$4
+Const INADDR_ANY:=0
 
 Class Socket
+
 	Field fd:int
 	field buf:=new ubyte[65536]
 	
@@ -25,7 +28,48 @@ Class Socket
 '		posix.ioctl(fd, FIONBIO, &iMode);		
 	End
 	
-	Method Listen()
+	Function Listen:Socket(port:Int)
+		Local fd:=posix.socket(AF_INET,SOCK_STREAM,0)
+		If fd=-1 
+			Print "posix.socket create failure "+posix.ErrorString()
+			Return Null
+		Endif
+		Local reuse:Int=1
+		Local setoptResult:=posix.setsockopt(fd,SOL_SOCKET,SO_REUSEADDR,Varptr reuse,4)
+		Local address:=New sockaddr_in
+		address.sin_family = AF_INET
+'		address.sin_addr = htonl(INADDR_ANY)
+		address.sin_port = htons(port)
+' make safe array access
+		Local result:=posix.bind(fd,address,16)
+		If result=-1
+			Print "posix.bind error "+posix.ErrorString()
+			Return null
+		Endif
+
+		Local backlog:=32
+		result=posix.listen(fd,backlog)
+		if result=-1
+			Print "posix.listen error "+posix.ErrorString()
+			Return Null	
+		Endif
+
+		return new Socket(fd)
+	End
+	
+	Method Accept:Socket()
+		Local from:=New sockaddr_in
+		Local len:UInt=20
+		Local flags:=0
+		
+		Local fd2:=posix.accept(fd,from,Varptr len)
+
+		If fd2=-1
+			Print "posix.accept error "+posix.ErrorString()
+			Return Null	
+		Endif
+		
+		Return New Socket(fd2)
 	End
 	
 	Function Connect:Socket(host:String,port:Int)
@@ -86,7 +130,7 @@ Class Socket
 	
 	Method Read:String()
 		Local buffer:=New char_t[1024]
-		Local flags:=MSG_DONTWAIT
+		Local flags:=0'MSG_DONTWAIT
 		Local n:=posix.recv(fd,buffer.Data,1024,flags)
 		If n=-1
 			Print "socket read error:"+posix.ErrorString()
@@ -114,178 +158,6 @@ end
 
 
 #rem
-nitroSocket* nitroSocket::connect(const char *host,int port){
-
-	int result;
-
-	int domain=AF_INET;
-	int type=SOCK_STREAM;
-	int protocol=0;
-
-	int fd = socket(domain, type, protocol);	
-	printf("nitroSocket::socket fd=%d\n",fd);
-
-	hostent *server = gethostbyname(host);
-	if (server == NULL) {
-		printf("nitroSOcket::ERROR, no such host\n");
-		return 0;
-	}
-	
-	unsigned char *ip32=(unsigned char *)server->h_addr;	
-	printf("gethostbyname %d.%d.%d.%d len=%d\n",
-		ip32[0],ip32[1],ip32[2],ip32[3], 
-		server->h_length);
-	fflush(stdout);
-
-	sockaddr_in address={0};
-	address.sin_family=AF_INET;
-	address.sin_port=htons(port);
-	memcpy( &address.sin_addr.s_addr, ip32, server->h_length);
-
-printf("connecting..\n");
-	fflush(stdout);
-
-	result=::connect(fd,(sockaddr *)&address,sizeof(sockaddr_in));
-
-printf("connected result=%d\n",result);
-	fflush(stdout);
-
-	if (posixError(result)) return 0;
-
-	printf("nitroSocket::socket connected\n");		
-	return new nitroSocket(fd);
-}
-
-nitroSocket *nitroSocket::open(int port, int flags){
-	int domain=AF_INET;
-	int type=SOCK_STREAM;
-	int protocol=0;
-	int fd = socket(domain, type, protocol);	
-	printf("nitroSocket::socket fd=%d\n",fd);
-	if(fd<0){
-		return 0;
-	}
-	int reuse=1;
-	int setoptResult=setsockopt(fd,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse));
-	sockaddr_in address={0};
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = htonl(INADDR_ANY);
-	address.sin_port = htons(port);
-	// todo: make safe array access
-	int result = bind(fd,(sockaddr *)&address,sizeof(sockaddr_in));
-	if (posixError(result)) return 0;
-	return new nitroSocket(fd);
-}
-
-
-
-int nitroSocket::listen(Connection *service)
-{
-	int backlog=32;
-	int result=::listen(fd,backlog);
-	if (posixError(result)) return 0;
-	
-	bool listening=true;
-
-	while(listening){
-
-		printf("nitroSocket::listening...\n");
-
-		sockaddr_in from={0};
-		socklen_t len=sizeof(sockaddr_in);
-	
-		int fd2;
-		fd2=accept(fd,(sockaddr *) &from,&len);
-
-		if(fd2<0){
-			printf("nitroSocket::accept fd2=%d\n",fd2);
-			listening=false;
-			continue;
-		}
-
-		nitroSocket *link=new nitroSocket(fd2);
-		if(service){
-			std::string address(inet_ntoa(from.sin_addr));
-			service->onConnect(link,address);
-		}
-	}
-	
-}
-
-nitroSocket::nitroSocket(int descriptor){
-	fd=descriptor;
-}
-
-nitroSocket::~nitroSocket(){
-	if(fd){
-		close();
-	}
-}
-
-const char *nitroSocket::read(){
-	buffer[0]=0;
-	
-	ssize_t count=::recv(fd,buffer,BufferSize-1,0);	//MSG_DONTWAIT
-	if(count>0){
-		buffer[count]=0;
-//		printf("nitroSocket::read count=%d\n",count);
-	}else{
-		if (count==0){
-			printf("nitroSocket::read is end of stream\n",count);				
-			return 0;			
-		}
-		if (count==-1){
-			printf("nitroSocket::read has error\n",count);
-			return 0;			
-		}
-	}
-	return buffer;
-}
-
-int nitroSocket::write(const char *bytes,int count){
-	// todo: make me safe	
-	if (count==0){
-		count=strlen(bytes);
-	}
-	size_t result=::write(fd,bytes,count);	
-//	printf("nitroSocket::write count=%d result=%d\n",count,result);	
-	return result;
-}
-	
-void nitroSocket::close(){
-	::close(fd);
-	fd=0;
-}
-
-
-#rem
-
-#include <sys/types.h>
-#include <sys/socket.h>
-//#include <sys/unistd.h>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <errno.h>
-#include <sys/ioctl.h>
-#include <sys/uio.h>
-
-// on nonzero result input prints string version of errno
-
-bool posixError(int result){
-	if(result==0) return false;
-	result=errno;
-	const char *err=strerror(errno);
-	printf("nitroSocket::posix_error(%d) %s\n",errno,err);
-	return true;
-}
-
-float peekf(void *p){
-	// convert from big-endian (network btye order)
-	const uint32_t i = ntohl(*((uint32_t *) p));
-	return *((float *) (&i));
-}
-
 
 // thanks to http://www.microhowto.info/howto/listen_for_and_receive_udp_datagrams_in_c.html
 
@@ -382,154 +254,5 @@ int nitroSocket::testOSCOut(){
 
 	return 0;
 }
-
-
-nitroSocket* nitroSocket::connect(const char *host,int port){
-
-	int result;
-
-	int domain=AF_INET;
-	int type=SOCK_STREAM;
-	int protocol=0;
-
-	int fd = socket(domain, type, protocol);	
-	printf("nitroSocket::socket fd=%d\n",fd);
-
-	hostent *server = gethostbyname(host);
-	if (server == NULL) {
-		printf("nitroSOcket::ERROR, no such host\n");
-		return 0;
-	}
-	
-	unsigned char *ip32=(unsigned char *)server->h_addr;	
-	printf("gethostbyname %d.%d.%d.%d len=%d\n",
-		ip32[0],ip32[1],ip32[2],ip32[3], 
-		server->h_length);
-	fflush(stdout);
-
-	sockaddr_in address={0};
-	address.sin_family=AF_INET;
-	address.sin_port=htons(port);
-	memcpy( &address.sin_addr.s_addr, ip32, server->h_length);
-
-printf("connecting..\n");
-	fflush(stdout);
-
-	result=::connect(fd,(sockaddr *)&address,sizeof(sockaddr_in));
-
-printf("connected result=%d\n",result);
-	fflush(stdout);
-
-	if (posixError(result)) return 0;
-
-	printf("nitroSocket::socket connected\n");		
-	return new nitroSocket(fd);
-}
-
-nitroSocket *nitroSocket::open(int port, int flags){
-	int domain=AF_INET;
-	int type=SOCK_STREAM;
-	int protocol=0;
-	int fd = socket(domain, type, protocol);	
-	printf("nitroSocket::socket fd=%d\n",fd);
-	if(fd<0){
-		return 0;
-	}
-	int reuse=1;
-	int setoptResult=setsockopt(fd,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse));
-	sockaddr_in address={0};
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = htonl(INADDR_ANY);
-	address.sin_port = htons(port);
-	// todo: make safe array access
-	int result = bind(fd,(sockaddr *)&address,sizeof(sockaddr_in));
-	if (posixError(result)) return 0;
-	return new nitroSocket(fd);
-}
-
-#include <arpa/inet.h>
-
-int nitroSocket::listen(Connection *service)
-{
-	int backlog=32;
-	int result=::listen(fd,backlog);
-	if (posixError(result)) return 0;
-	
-	bool listening=true;
-
-	while(listening){
-
-		printf("nitroSocket::listening...\n");
-
-		sockaddr_in from={0};
-		socklen_t len=sizeof(sockaddr_in);
-	
-		int fd2;
-		fd2=accept(fd,(sockaddr *) &from,&len);
-
-		if(fd2<0){
-			printf("nitroSocket::accept fd2=%d\n",fd2);
-			listening=false;
-			continue;
-		}
-
-		nitroSocket *link=new nitroSocket(fd2);
-		if(service){
-			std::string address(inet_ntoa(from.sin_addr));
-			service->onConnect(link,address);
-		}
-	}
-	
-}
-
-nitroSocket::nitroSocket(int descriptor){
-	fd=descriptor;
-// make non blocking
-//	int iMode=1;
-//	ioctl(fd, FIONBIO, &iMode);		
-}
-
-nitroSocket::~nitroSocket(){
-	if(fd){
-		close();
-	}
-}
-
-const char *nitroSocket::read(){
-	buffer[0]=0;
-	
-	ssize_t count=::recv(fd,buffer,BufferSize-1,0);	//MSG_DONTWAIT
-	if(count>0){
-		buffer[count]=0;
-//		printf("nitroSocket::read count=%d\n",count);
-	}else{
-		if (count==0){
-			printf("nitroSocket::read is end of stream\n",count);				
-			return 0;			
-		}
-		if (count==-1){
-			printf("nitroSocket::read has error\n",count);
-			return 0;			
-		}
-	}
-	return buffer;
-}
-
-int nitroSocket::write(const char *bytes,int count){
-	// todo: make me safe	
-	if (count==0){
-		count=strlen(bytes);
-	}
-	size_t result=::write(fd,bytes,count);	
-//	printf("nitroSocket::write count=%d result=%d\n",count,result);	
-	return result;
-}
-	
-void nitroSocket::close(){
-	::close(fd);
-	fd=0;
-}
-
-#endif
 
 #end

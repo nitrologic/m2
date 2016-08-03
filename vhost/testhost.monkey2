@@ -122,8 +122,8 @@ Class MojoWindow extends Window
 	end
 end
 
-function Main()
 
+Function TestSocketConnect()
 	Local s:=Socket.Connect("google.com",80)
 	Local res:=s.Write("GET / HTTP/1.0~r~n~r~n")
 	While True
@@ -132,7 +132,29 @@ function Main()
 		Print t
 	Wend
 	s.Close()
-	
+End
+
+
+Function TestSocketListen()
+	Local s1:=Socket.Listen(8080)
+	If s1=Null
+		Print "Listen failed"
+		Return
+	endif
+	Local s2:=s1.Accept()
+	Print "Got Connection"
+	While True
+		Local t:=s2.Read()
+		If t.Length=0 Exit
+		Print t
+	Wend
+	s2.Close()
+	s1.Close()
+End
+
+
+function Main()
+'	TestSocketListen()
 
 	Print "INT_THS_H_M="+i2c.INT_THS_H_M
 

@@ -10,8 +10,6 @@ namespace posix
 
 Using libc
 
-'#if __HOSTOS__="pi"
-
 extern 
 
 Class sockaddr Extends Void
@@ -60,7 +58,9 @@ Function close:Int( fd:int)
 Function connect:int(sock:Int,addr:sockaddr,addrlen:Int)
 
 Function listen:int(fd:Int,backlog:Int)
-Function accept:Int(addr:sockaddr_in ptr,addrlen:Int Ptr,flags:int)
+Function bind:Int(fd:Int,addr:sockaddr,addrlen:Int)
+Function setsockopt:Int(fd:Int,level:Int,name:Int,val:Void Ptr,size:Int)
+Function accept:Int(fd:Int,addr:sockaddr,addrlen:uInt Ptr)
 Function recv:Int(fd:int,buffer:Void ptr,BufferSize:int,flags:Int)
 Function send:Int(fd:int,buffer:Void ptr,BufferSize:int,flags:Int)
 
@@ -84,6 +84,3 @@ Function ErrorString:String()
 	Local s:=strerror(errno)
 	Return String.FromCString(s)
 end
-
-
-'#endif
