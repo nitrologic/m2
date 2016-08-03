@@ -89,7 +89,7 @@ Class Socket
 		Local flags:=MSG_DONTWAIT
 		Local n:=posix.recv(fd,buffer.Data,1024,flags)
 		If n=-1
-			Print posix.ErrorString()
+			Print "socket read error:"+posix.ErrorString()
 			Return Null
 		Endif
 		Return String.FromCString(buffer.Data,n)
@@ -99,6 +99,9 @@ Class Socket
 		Local buffer:=New char_t[1024]
 		s.ToCString(buffer.Data,1024)
 		Local n:=posix.write(fd,buffer.Data,s.Length)
+		If n=-1
+			Print "socket write error:"+posix.ErrorString()		
+		endif
 		Return n
 	End
 	
