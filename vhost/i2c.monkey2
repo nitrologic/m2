@@ -6,6 +6,8 @@ namespace i2c
 
 extern 
 
+' note: not currently used
+
 function i2c_smbus_read_word_data:int(file:int, reg:int)
 function i2c_smbus_write_word_data(file:int, reg:int, value:int)
 
@@ -21,28 +23,28 @@ End
 
 const I2C_SLAVE:=$703
 
-Const ACT_THS:=$04		'Bin("0000100")
-Const ACT_DUR:=$05		'Bin("0000101")
-Const INT_GEN_CFG_XL:=$06	'Bin("0000110")
-Const INT_GEN_THS_X_XL:=$07	'Bin("0000111")
-Const INT_GEN_THS_Y_XL:=$08	'Bin("0001000")
-Const INT_GEN_THS_Z_XL:=$09	'Bin("0001001")
-Const INT_GEN_DUR_XL:=$0a	'Bin("0001010")
-Const REFERENCE_G:=$0b		'Bin("0001011")
-Const INT1_CTRL:=$0c		'Bin("0001100")
-Const INT2_CTRL:=$0d		'Bin("0001101")
-Const WHO_AM_I:=$0f		'Bin("0001111")
+Const ACT_THS:=$04		
+Const ACT_DUR:=$05		
+Const INT_GEN_CFG_XL:=$06	
+Const INT_GEN_THS_X_XL:=$07	
+Const INT_GEN_THS_Y_XL:=$08	
+Const INT_GEN_THS_Z_XL:=$09	
+Const INT_GEN_DUR_XL:=$0a	
+Const REFERENCE_G:=$0b		
+Const INT1_CTRL:=$0c		
+Const INT2_CTRL:=$0d		
+Const WHO_AM_I:=$0f		
 
-Const CTRL_REG1_G:=$10		'Bin("0010000")
-Const CTRL_REG2_G:=$11	'Bin("0010001")
-Const CTRL_REG3_G:=$12	'Bin("0010010")
-Const CTRL_REG4_G:=$13	'Bin("0010011")
-Const ORIENT_CFG_G:=$13	'Bin("0010011")
+Const CTRL_REG1_G:=$10		
+Const CTRL_REG2_G:=$11	
+Const CTRL_REG3_G:=$12	
+Const CTRL_REG4_G:=$13	
+Const ORIENT_CFG_G:=$13	
 
-Const INT_GEN_SRC_G:=$24	'Bin("0010100")
-Const OUT_TEMP_L:=$25		'Bin("0010101")
-Const OUT_TEMP_H:=$26		'Bin("0010110")
-Const STATUS_REG0:=$27		'Bin("0010111")
+Const INT_GEN_SRC_G:=$24
+Const OUT_TEMP_L:=$25		
+Const OUT_TEMP_H:=$26		
+Const STATUS_REG0:=$27
 
 const OUT_X_L_A:=$28
 const OUT_X_H_A:=$29

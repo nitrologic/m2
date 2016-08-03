@@ -1,6 +1,7 @@
 #import "pixelmap.monkey2"
 #import "posix.monkey2"
 #import "i2c.monkey2"
+#import "socket.monkey2"
 
 Using libc
 Using i2c

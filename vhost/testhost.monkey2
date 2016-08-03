@@ -5,6 +5,7 @@
 
 Using std..
 Using mojo..
+Using socket
 
 global host:=GetHost()
 
@@ -122,6 +123,16 @@ Class MojoWindow extends Window
 end
 
 function Main()
+
+	Local s:=Socket.Connect("google.com",80)
+	Local res:=s.Write("GET / HTTP/1.0~r~n~r~n")
+	While True
+		Local t:=s.Read()
+		If t.Length=0 Exit
+		Print t
+	Wend
+	s.Close()
+	
 
 	Print "INT_THS_H_M="+i2c.INT_THS_H_M
 
