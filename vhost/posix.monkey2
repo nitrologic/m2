@@ -4,23 +4,44 @@ namespace posix
 #import "<sys/ioctl.h>"
 #import "<sys/types.h>"
 #import "<sys/socket.h>"
+#import "<sys/mman.h>"
 #import "<netdb.h>"
 #import "<errno.h>"
+#import "<arpa/inet.h>"
+
 #import "<libc>"
 
 Using libc
 
 extern 
 
-Class sockaddr Extends Void
-End
+Global errno:Int
 
-Class sockaddr_in Extends sockaddr
+Global AF_UNSPEC:Int
+Global AF_INET:Int
+Global AF_INET6:int
+Global PF_INET6:int
+Global SOCK_STREAM:int
+Global SOCK_DGRAM:int
+global INADDR_ANY:Int
+
+Global FIONBIO:Int	'=126
+Global MSG_DONTWAIT:Int	'=$40
+global SOL_SOCKET:Int	':=$ffff
+global SO_REUSEADDR:Int	':=$4
+
+Global AI_PASSIVE:Int
+Global AI_ADDRCONFIG:Int
+
+Class sockaddr Extends Void
 	Field sin_family:Short
 	Field sin_port:UShort
 	Field sin_addr:ULong
 	Field pad0:Int
 	Field pad1:Int
+End
+
+Class sockaddr_in Extends sockaddr
 End
 
 Class sockaddr_in6 Extends sockaddr
@@ -63,17 +84,17 @@ Function setsockopt:Int(fd:Int,level:Int,name:Int,val:Void Ptr,size:Int)
 Function accept:Int(fd:Int,addr:sockaddr,addrlen:uInt Ptr)
 Function recv:Int(fd:int,buffer:Void ptr,BufferSize:int,flags:Int)
 Function send:Int(fd:int,buffer:Void ptr,BufferSize:int,flags:Int)
-
+Function recvfrom:Int(fd:Int,buffer:Void ptr,BufferSize:int,flags:Int,addr:sockaddr,addrlen:UInt Ptr)
 Function getaddrinfo:Int(hostname:CString, servername:CString, hints:addrinfo, res:addrinfo ptr)
 Function freeaddrinfo(ai:addrinfo)
 
 Function socket:Int(domain:Int,socketType:Int,socketProtocol:Int)
 
-Global errno:Int
-Global AF_INET:Int
-Global AF_INET6:int
-Global PF_INET6:int
-Global SOCK_STREAM:int
+function htons:ushort(hostshort:UShort)
+function htonl:uint(hostlong:UInt)
+
+function mmap:void ptr(address:void ptr,len:int,flags:int,fd:int,offset:int)
+function munmap(memory:void ptr,len:int)
 
 Function strerror:char_t Ptr(error:Int)
 

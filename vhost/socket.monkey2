@@ -1,20 +1,6 @@
 namespace socket
 
 #import "posix.monkey2"
-#import "<arpa/inet.h>"
-
-Extern
-
-function htons:ushort(hostshort:UShort)
-function htonl:uint(hostlong:UInt)
-
-public
-
-Const FIONBIO:=126
-Const MSG_DONTWAIT:=$40
-Const SOL_SOCKET:=$ffff
-Const SO_REUSEADDR:=$4
-Const INADDR_ANY:=0
 
 Class Socket
 
@@ -40,7 +26,6 @@ Class Socket
 		address.sin_family = AF_INET
 '		address.sin_addr = htonl(INADDR_ANY)
 		address.sin_port = htons(port)
-' make safe array access
 		Local result:=posix.bind(fd,address,16)
 		If result=-1
 			Print "posix.bind error "+posix.ErrorString()
@@ -123,10 +108,6 @@ Class Socket
 
 		Return New Socket(fd)		
 	End
-
-	Function Open:Socket(port:Int,flags:Int)
-		Return Null
-	End
 	
 	Method Read:String()
 		Local buffer:=New char_t[1024]
@@ -153,24 +134,140 @@ Class Socket
 		posix.close(fd)
 		fd=0
 	End
-	
-end
 
+'// thanks to http://www.microhowto.info/howto/listen_for_and_receive_udp_datagrams_in_c.html
+
+	Function TestOSCIn:int(host:String,service:String)
+		
+		Local hints:=New posix.addrinfo		
+		local result:posix.addrinfo
+		hints.ai_socktype=SOCK_DGRAM		
+		hints.ai_flags=AI_PASSIVE|AI_ADDRCONFIG
+
+		Local res:Int
+		
+		res=posix.getaddrinfo(host,service,hints,Varptr result)
+		If res<>0
+			Print "posix.getaddrinfo="+res+":"+posix.ErrorString()
+			Return Null
+		Endif
+		
+		Local fd:=posix.socket(AF_INET,SOCK_DGRAM,0)
+		If fd=-1 
+			Print "posix.socket create failure "+posix.ErrorString()
+			Return -1
+		Endif
+	
+		res=posix.bind(fd,result.ai_addr,result.ai_addrlen)
+		If res=-1
+			Print "posix.bind failed "+posix.ErrorString()
+			Return Null
+		else
+			Print "connected"
+		endif
+		
+		posix.freeaddrinfo(result)
+
+		Local buffer:=New char_t[549]
+
+		Local src_address:=New sockaddr
+		Local src_address_len:Uint=20
+
+		While True
+
+'Function recvfrom:Int(fd:Int,buffer:Void ptr,BufferSize:int,flags:Int,addr:sockaddr Ptr,addrlen:Int Ptr)
+
+			Local count:=posix.recvfrom(fd, buffer.Data, 549, 0, src_address, Varptr src_address_len)
+
+			if count=-1
+				Print "posix.recvfrom failed "+posix.ErrorString()
+				Return -1
+			Endif
+			
+			If count=549 
+				Print "datagram too large for buffer: truncated"
+			else
+				Print "processOSC(buffer,count)"+count
+			Endif
+		wend
+	
+		Return 0
+	End
+
+	Function TestOSCOut:Int(host:String,service:String)
+		
+		Local hints:=New posix.addrinfo		
+		local result:posix.addrinfo
+		hints.ai_socktype=SOCK_DGRAM		
+		hints.ai_flags=AI_PASSIVE|AI_ADDRCONFIG
+
+		Local res:Int
+		
+		res=posix.getaddrinfo(host,service,hints,Varptr result)
+		If res<>0
+			Print "posix.getaddrinfo="+res+":"+posix.ErrorString()
+			Return Null
+		Endif
+		
+		Local fd:=posix.socket(AF_INET,SOCK_DGRAM,0)
+		If fd=-1 
+			Print "posix.socket create failure "+posix.ErrorString()
+			Return -1
+		Endif
+	
+		Return 0
+	End
+
+End
+
+#rem	
+//	char content[32];
+	
+	char content[]={"/1/rotary1\0\0,f\0\0\0\0\0\0"};
+	
+	addrinfo hints={0};
+	hints.ai_family=AF_UNSPEC;
+	hints.ai_socktype=SOCK_DGRAM;
+	hints.ai_protocol=0;
+	hints.ai_flags=AI_ADDRCONFIG;
+	
+	addrinfo* res=0;
+	int err=getaddrinfo(host,port,&hints,&res);
+	if (err!=0) {
+		printf("failed to resolve remote socket address (err=%d)\n",err);
+		return -1;
+	}
+	
+	int fd=socket(res->ai_family,res->ai_socktype,res->ai_protocol);
+	if (fd==-1) {
+		printf("%s\n",strerror(errno));
+		return -2;
+	}
+	
+	
+	int broadcast=1;
+	if (setsockopt(fd,SOL_SOCKET,SO_BROADCAST, &broadcast,sizeof(broadcast))==-1) {
+		printf("%s\n",strerror(errno));
+		return -3;
+	}
+	
+	
+	if (sendto(fd,content,sizeof(content),0, res->ai_addr,res->ai_addrlen)==-1) {
+		printf("%s\n",strerror(errno));
+		return -3;
+	}
+
+	return 0;
+#end
 
 #rem
-
-// thanks to http://www.microhowto.info/howto/listen_for_and_receive_udp_datagrams_in_c.html
-
-int nitroSocket::testOSCIn(){
 	const char *host=0;
 	const char *port="7000";
-
 	addrinfo hints={0};
 	hints.ai_family=AF_UNSPEC;
 	hints.ai_socktype=SOCK_DGRAM;
 	hints.ai_protocol=0;
 	hints.ai_flags=AI_PASSIVE|AI_ADDRCONFIG;
-
 	addrinfo* res=0;
 	int err=getaddrinfo(host,port,&hints,&res);
 	if (err!=0) {

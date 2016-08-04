@@ -11,6 +11,9 @@ Alias FrameBuffer16:PixelMap
 
 #if __HOSTOS__="pi"
 
+#import "fb.monkey2"
+
+#rem
 #import "framebuffer.h"
 
 extern 
@@ -20,8 +23,9 @@ Function queryFramebuffer(descriptor:Int,width:Int ptr,height:Int ptr,depth:Int 
 Function mapFramebuffer:Void Ptr(descriptor:Int,bytecount:Int)
 Function unmapFrameBuffer(memory:Void ptr,bytecount:Int)
 end
-
 Public
+
+#end
 
 Class LinuxHost
 

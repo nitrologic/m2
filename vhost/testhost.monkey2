@@ -136,6 +136,7 @@ End
 
 
 Function TestSocketListen()
+	Print "Listening on port 8080"
 	Local s1:=Socket.Listen(8080)
 	If s1=Null
 		Print "Listen failed"
@@ -148,23 +149,27 @@ Function TestSocketListen()
 		If t.Length=0 Exit
 		Print t
 	Wend
+	Print "Lost Connection"
 	s2.Close()
 	s1.Close()
 End
 
 
-function Main()
-'	TestSocketListen()
-
-	Print "INT_THS_H_M="+i2c.INT_THS_H_M
-
+Function TestI2CBus()
 	print "Enumerating I2C bus"
 	Local i2cCount:=host.EnumerateI2C()				
 	Print "i2cCount="+i2cCount
 	if i2cCount
 		local i2c:=host.GetI2C(0)
 	endif
+end
 
+function Main()
+'	TestSocketListen()
+'	TestSocketConnect()
+'	TestI2CBus()
+'	Socket.TestOSCIn(Null,"7000")
+	Socket.TestOSCOut("192.168.1.255","7000")
 '	new AppInstance
 '	new MojoWindow
 '	App.Run()	
