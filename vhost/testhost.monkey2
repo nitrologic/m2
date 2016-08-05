@@ -26,23 +26,38 @@ Function HexList:String(binary:byte ptr,count:int)
 End
 
 Class TextureStream
-	Field image:Image
-	Field pixmap:Pixmap
-	Field size:int
+	Field width:Int
+	Field height:Int
+	Field images:Image[]
+	Field pixmaps:=New Stack<Pixmap>
+	Field size:Int
+	Field write:int
 	
-	Method New(w:Int,h:Int)
-		pixmap=New Pixmap(w,h)
+	Method New(w:Int,h:Int,n:Int)
+		width=w
+		height=h
+		images=New Image[w*h]
+		For Local i:=0 Until n
+			pixmaps.Push(new Pixmap(w,h))			
+		Next		
 		size=w*h*4
 	End
 	
 	Method Write(src:Int Ptr)	
+		Local index:=write Mod pixmaps.Length 
+		Local pixmap:=pixmaps[index]
 		memcpy(pixmap.Data,src,size)
-		image=New Image(pixmap)
+		Local image:=New Image(pixmap)		
+		If images[index] images[index].Discard()
+		images[index]=image		
+		write+=1
 	end
 	
-	Method Draw(canvas:Canvas,x:Float,y:Float)
-		If image canvas.DrawImage(image,x,y)
-	end
+	Method Draw(canvas:Canvas,frame:Int,x:Float,y:Float,z:Float)
+		Local index:=frame Mod pixmaps.Length
+		Local image:=images[index]	
+		If image canvas.DrawImage(image,x,y,0,z,z)
+	End
 
 End
 
@@ -54,10 +69,10 @@ Class MojoWindow extends Window
 	Field cx:Int
 	Field cy:Int
 	Field cap:video.Capture
-	Field vid:=New TextureStream(320,240)
+	Field vid:=New TextureStream(320,240,300)
 	
 	Method New()
-		active=self
+		active=Self
 		ClearColor=New Color(0.1,1)
 
 		print "Enumerating framebuffer devices."
@@ -76,15 +91,6 @@ Class MojoWindow extends Window
 			cap.Open()
 			cap.Start()
 		Endif
-
-		Local test:=New Int[320*240]
-		For Local y:=0 Until 240
-			Local p:=Varptr test[y*320]
-			For Local x:=0 Until 320
-				p[x]=$ff884400
-			Next
-		Next
-		vid.Write(test.Data)
 		
 		New Timer(2,Tick)
 	End
@@ -92,8 +98,30 @@ Class MojoWindow extends Window
 	Function Tick()
 		active.OnTimer()
 	End
-	
+
+	Method UpdateTestFrame()
+		Local test:=New Int[320*240]
+		Local tx:=vid.write Mod 320
+		For Local y:=0 Until 240
+			Local p:=Varptr test[y*320]
+			For Local x:=0 Until 320
+				If x=tx
+				p[x]=-1
+				else
+				p[x]=$ff884400
+				endif
+			Next
+		Next
+		vid.Write(test.Data)
+	End
+		
 	Method UpdateCapture()
+	
+		If cap=Null
+			UpdateTestFrame()
+			return
+		Endif
+	
 		If cap.Read()
 			Print "Capture Error"
 		Else
@@ -127,17 +155,25 @@ Class MojoWindow extends Window
 			
 	Method OnRender(canvas:Canvas) Override
 
-		If cap UpdateCapture()
+		UpdateCapture()
 		
 		App.RequestRender()
-		
-		canvas.Translate(50,50)		
-		vid.Draw(canvas,0,0)
 
-		canvas.Translate(50,250)		
-		DrawHat(canvas)
-		
-		
+		Local cx:=0
+		Local cy:=0				
+		For Local i:=0 Until 80
+			Local index:=vid.write-i-1
+			If index<0 index=0
+			vid.Draw(canvas,index,10+cx,10+cy,0.125)
+			cx=cx+50
+			If cx+50>Width
+				cx=0
+				cy+=44
+			Endif
+		Next
+
+		canvas.Translate(Width-200,Height-200)		
+		DrawHat(canvas)		
 	End
 	
 	Field blinkOn:=false
