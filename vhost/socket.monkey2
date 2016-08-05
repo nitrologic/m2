@@ -2,6 +2,8 @@ namespace socket
 
 #import "posix.monkey2"
 
+Using posix
+
 Class Socket
 
 	Field fd:int

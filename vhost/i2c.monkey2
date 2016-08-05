@@ -134,12 +134,12 @@ Class I2C
 		buf[0]=ubyte(reg)
 		buf[1]=ubyte(value)
 		buf[2]=ubyte(value shr 8)
-		write(file,buf.Data,3)
+		posix.write(file,buf.Data,3)
 '		i2c_smbus_write_word_data(file,reg,value)
 	end
 	
 	method Read:int(reg:int,buffer:ubyte ptr,count:int)
-		return read(file,buffer,count)
+		return posix.read(file,buffer,count)
 '		return is2_smbus_read_word_data(file,reg)
 	end
 	

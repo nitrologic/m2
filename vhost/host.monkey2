@@ -88,6 +88,10 @@ end
 
 Public
 
+Using i2c
+
+Alias FrameBuffer16:PixelMap
+
 Class VirtualHost
 	Field fb16:=New Stack<FrameBuffer16>
 	Field fb0:=New UShort[64]
