@@ -1,5 +1,5 @@
 		
-#Import "mojox/mojox"
+#Import "<mojox>"
 
 #Import "mainwindow"
 #Import "projectview"

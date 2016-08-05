@@ -1,7 +1,7 @@
 
 Namespace ted2
 
-#Import "assets/debug_icons.png@/ted2"
+#Import "assets/debug_icons.png@/bigted"
 
 Private
 
