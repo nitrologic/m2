@@ -20,24 +20,6 @@ function close_device:Int()
 
 public
 
-
-Global HexDigits:=New String[]("0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F")
-
-Function HexByte:String(value:Int)
-	Local v0:=(value Shr 4)&15
-	Local v1:=value&15
-	Return HexDigits[v0]+HexDigits[v1]
-End
-
-Function HexList:String(binary:byte ptr,count:int)
-	Local h:String
-	For Local i:=0 Until count
-		h+=HexByte(binary[i])+" "	
-	Next
-	Return h
-End
-
-
 Class Device Implements video.Capture
 
 	method Open:Int()
@@ -63,9 +45,17 @@ Class Device Implements video.Capture
 		uninit_device()
 		close_device()
 	End
-
-End
 	
+	Method Data:Void Ptr()
+		Return frame_data
+	End
+
+	Method DataLen:Int()
+		Return frame_size
+	end
+End
+
+#rem	
 function TestV4L2()
 	print "hello"
 
@@ -102,3 +92,5 @@ function TestV4L2()
 
 	Print "Capture Complete"
 end
+
+#end

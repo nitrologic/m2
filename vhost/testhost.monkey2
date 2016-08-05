@@ -9,6 +9,24 @@ Using socket
 
 global host:=GetHost()
 
+
+Global HexDigits:=New String[]("0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F")
+
+Function HexByte:String(value:Int)
+	Local v0:=(value Shr 4)&15
+	Local v1:=value&15
+	Return HexDigits[v0]+HexDigits[v1]
+End
+
+Function HexList:String(binary:byte ptr,count:int)
+	Local h:String
+	For Local i:=0 Until count
+		h+=HexByte(binary[i])+" "	
+	Next
+	Return h
+End
+
+
 Class MojoWindow extends Window
 
 	Global active:MojoWindow
@@ -16,6 +34,7 @@ Class MojoWindow extends Window
 	Field fb:PixelMap
 	Field cx:Int
 	Field cy:Int
+	Field cap:video.Capture
 	
 	Method New()
 		active=self
@@ -30,6 +49,12 @@ Class MojoWindow extends Window
 			If fbi.width=8 fb=fbi
 		Next
 		Move(0,0)		
+		
+		host.EnumerateVideoCapture()
+		cap=host.GetVideoCapture(0)
+		cap.Open()
+		cap.Start()
+
 		New Timer(2,Tick)
 	End
 	
@@ -38,6 +63,26 @@ Class MojoWindow extends Window
 	end
 	
 	Method OnRender(canvas:Canvas) Override
+
+		If cap.Read()
+			Print "Capture Error"
+		Else
+			If cap.DataLen()
+'				local src:=byte ptr(cap.Data())
+'				Print HexList(src,32)
+				For Local y:=0 To 8
+					local src:=byte ptr(cap.Data())+y*320*4
+					For Local x:=0 To 8
+						Local c16:Int=((src[0] Shr 4)Shl 11) | ((src[1] Shr 3)Shl 5) | (src[2] Shr 4)
+						src+=4					
+						fb.Plot(x,y,c16)
+					Next
+				next						
+			endif	
+'			print frame_size+":"+HexList(i,20)
+
+		Endif
+		
 		App.RequestRender()
 		canvas.Translate(50,50)		
 		Local n:=24

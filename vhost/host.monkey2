@@ -20,7 +20,7 @@ Class LinuxHost
 
 	Field fb16:=New Stack<FrameBuffer16>
 	Field i2c:=New Stack<I2C>
-	Field vidcap:=New Stack<VideoCapture>
+	Field vidcap:=New Stack<video.Capture>
 
 	Method EnumerateI2C:Int()
 		i2c.Clear()

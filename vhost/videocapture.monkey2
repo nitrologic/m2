@@ -6,4 +6,6 @@ Interface Capture
 	Method Read:Int()
 	Method Stop()
 	Method Close()
+	Method Data:Void Ptr()
+	Method DataLen:Int()
 End
