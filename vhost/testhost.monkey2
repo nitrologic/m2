@@ -9,7 +9,6 @@ Using socket
 
 global host:=GetHost()
 
-
 Global HexDigits:=New String[]("0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F")
 
 Function HexByte:String(value:Int)
@@ -26,6 +25,26 @@ Function HexList:String(binary:byte ptr,count:int)
 	Return h
 End
 
+Class TextureStream
+	Field image:Image
+	Field pixmap:Pixmap
+	Field size:int
+	
+	Method New(w:Int,h:Int)
+		pixmap=New Pixmap(w,h)
+		size=w*h*4
+	End
+	
+	Method Write(src:Int Ptr)	
+		memcpy(pixmap.Data,src,size)
+		image=New Image(pixmap)
+	end
+	
+	Method Draw(canvas:Canvas,x:Float,y:Float)
+		If image canvas.DrawImage(image,x,y)
+	end
+
+End
 
 Class MojoWindow extends Window
 
@@ -35,6 +54,7 @@ Class MojoWindow extends Window
 	Field cx:Int
 	Field cy:Int
 	Field cap:video.Capture
+	Field vid:=New TextureStream(320,240)
 	
 	Method New()
 		active=self
@@ -52,18 +72,28 @@ Class MojoWindow extends Window
 		
 		host.EnumerateVideoCapture()
 		cap=host.GetVideoCapture(0)
-		cap.Open()
-		cap.Start()
+		If cap
+			cap.Open()
+			cap.Start()
+		Endif
 
+		Local test:=New Int[320*240]
+		For Local y:=0 Until 240
+			Local p:=Varptr test[y*320]
+			For Local x:=0 Until 320
+				p[x]=$ff884400
+			Next
+		Next
+		vid.Write(test.Data)
+		
 		New Timer(2,Tick)
 	End
 	
 	Function Tick()
 		active.OnTimer()
-	end
+	End
 	
-	Method OnRender(canvas:Canvas) Override
-
+	Method UpdateCapture()
 		If cap.Read()
 			Print "Capture Error"
 		Else
@@ -82,9 +112,9 @@ Class MojoWindow extends Window
 '			print frame_size+":"+HexList(i,20)
 
 		Endif
-		
-		App.RequestRender()
-		canvas.Translate(50,50)		
+	End
+	
+	Method DrawHat(canvas:Canvas)
 		Local n:=24
 		Local n2:=20
 		For Local y:=0 Until fb.height
@@ -93,6 +123,21 @@ Class MojoWindow extends Window
 				canvas.DrawRect(x*n,y*n,n2,n2)
 			Next
 		Next
+	End
+			
+	Method OnRender(canvas:Canvas) Override
+
+		If cap UpdateCapture()
+		
+		App.RequestRender()
+		
+		canvas.Translate(50,50)		
+		vid.Draw(canvas,0,0)
+
+		canvas.Translate(50,250)		
+		DrawHat(canvas)
+		
+		
 	End
 	
 	Field blinkOn:=false
@@ -221,18 +266,3 @@ function Main()
 	App.Run()	
 
 End
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
