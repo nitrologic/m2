@@ -99,7 +99,7 @@ function queryFramebuffer:int(fd:int,width:int ptr,height:int ptr,depth:int ptr,
 		return -1
 	endif
 
-	Local variable:posix.fb_var_screeninfo
+	Local variable:fb_var_screeninfo
 	if ioctl(fd,FBIOGET_VSCREENINFO,Varptr variable)=-1
 		Print "Error reading fixed information"
 		return -2

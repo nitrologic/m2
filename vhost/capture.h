@@ -8,7 +8,7 @@ void stop_capturing(void);
 void start_capturing(void);
 int readFrame(void);
 
-extern int frame_number=0;
+extern int frame_number;
 extern void *frame_data;
-extern int frame_size=0;
-extern int frame_type=0;
+extern int frame_size;
+extern int frame_type;
