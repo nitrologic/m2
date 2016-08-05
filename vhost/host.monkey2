@@ -1,31 +1,20 @@
+#import "videocapture.monkey2"
 #import "pixelmap.monkey2"
+#import "videocapture.monkey2"
 #import "posix.monkey2"
 #import "i2c.monkey2"
 #import "socket.monkey2"
+
+#if __HOSTOS__="pi"
+
+#import "fb.monkey2"
+#import "v4l2.monkey2"
 
 Using libc
 Using i2c
 using posix
 
 Alias FrameBuffer16:PixelMap
-
-#if __HOSTOS__="pi"
-
-#import "fb.monkey2"
-
-#rem
-#import "framebuffer.h"
-
-extern 
-
-class fb
-Function queryFramebuffer(descriptor:Int,width:Int ptr,height:Int ptr,depth:Int ptr,bytecount:Int Ptr)
-Function mapFramebuffer:Void Ptr(descriptor:Int,bytecount:Int)
-Function unmapFrameBuffer(memory:Void ptr,bytecount:Int)
-end
-Public
-
-#end
 
 Class LinuxHost
 
@@ -79,9 +68,17 @@ Class LinuxHost
 	
 	Method GetFramebuffer:FrameBuffer16(index:Int)
 		Return fb16[index]
-	end
+	End
+			
+	Method EnumerateVideo:Int()
+		Return 1
+	End
 	
-end
+	Method GetVideo:video.Capture(index:Int)
+		Return New v4l2.Device()
+	End
+	
+End
 
 Function GetHost:LinuxHost()
 	Return New LinuxHost

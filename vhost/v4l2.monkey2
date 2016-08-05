@@ -1,7 +1,8 @@
-#import "<libc>"
-#import "capture.h"
+Namespace v4l2
 
-using libc..
+#import "capture.h"
+#import "capture.cpp"
+#import "videocapture.monkey2"
 
 Extern
 
@@ -12,12 +13,12 @@ function open_device:Int()
 function init_device()
 function start_capturing()
 function readFrame:int()
-function finishFrame()
 function stop_capturing()
 function uninit_device()
 function close_device:Int()
 
 public
+
 
 Global HexDigits:=New String[]("0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F")
 
@@ -35,7 +36,36 @@ Function HexList:String(binary:byte ptr,count:int)
 	Return h
 End
 
-function Main()
+
+Class Device Implements video.Capture
+
+	method Open:Int()
+		Local res:=open_device()
+		If res Return res
+		init_device()
+		Return 0
+	end
+
+	Method Start()
+		start_capturing()
+	end
+	
+	method Read:Int()
+		Return readFrame()
+	End
+		
+	method Stop()
+		stop_capturing()
+	End
+	
+	method Close()
+		uninit_device()
+		close_device()
+	End
+
+End
+	
+function TestV4L2()
 	print "hello"
 
  	Local res:=open_device()
@@ -44,6 +74,7 @@ function Main()
 	if res<>0 return
  	
 	init_device()
+
 	start_capturing()
 
 	for local i:=0 until 20
@@ -56,10 +87,10 @@ function Main()
 		endif
 		
 		if frame_size
-
 			local i:=byte ptr(frame_data)
-
 			print frame_size+":"+HexList(i,20)
+		Else
+			Print "empty"
 		endif
 
 	next
