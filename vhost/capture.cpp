@@ -25,6 +25,11 @@
 
 #include <linux/videodev2.h>
 
+void *frame_data;
+int frame_size=0;
+int frame_type=0;
+int frame_number=0;
+
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 
 #ifndef V4L2_PIX_FMT_H264
@@ -77,14 +82,7 @@ int xioctl(int fh, int request, void *arg)
 	return r;
 }
 
-
-int frame_number=0;
-void *frame_data;
-int frame_size=0;
-int frame_type=0;
-
 // todo: callback to monkey2 device
-
 
 void process(v4l2_buffer &buf)
 {
