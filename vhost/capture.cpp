@@ -62,13 +62,13 @@ static unsigned int n_buffers=1;
 static int out_buf;
 static int force_format=1;
 
-static void errno_exit(const char *s)
+void errno_exit(const char *s)
 {
 	fprintf(stderr, "%s error %d, %s\n", s, errno, strerror(errno));
 	exit(EXIT_FAILURE);
 }
 
-static int xioctl(int fh, int request, void *arg)
+int xioctl(int fh, int request, void *arg)
 {
 	int r;
 	do {
@@ -86,7 +86,7 @@ int frame_type=0;
 // todo: callback to monkey2 device
 
 
-static void process(v4l2_buffer &buf)
+void process(v4l2_buffer &buf)
 {
 	assert(buf.index < n_buffers);
 	frame_data=(void*)buffers[buf.index].start;
@@ -98,7 +98,7 @@ static bool cleanMe=false;
 
 struct v4l2_buffer buf;
 
-static int read_frame(void)
+int read_frame(void)
 {
 	unsigned int i;
 
@@ -184,7 +184,7 @@ static int read_frame(void)
 	return 1;
 }
 
-static void finishFrame(void){
+void finishFrame(void){
 	char *c=(char*)frame_data;
 	for(int i=0;i<20;i++){
 		printf("%02X ",c[i]);
@@ -194,7 +194,7 @@ static void finishFrame(void){
 	return;
 }
 
-static int readFrame(void)
+int readFrame(void)
 {
 	for (;;) {
 		fd_set fds;
@@ -222,7 +222,7 @@ static int readFrame(void)
 	}
 }
 
-static void stop_capturing(void)
+void stop_capturing(void)
 {
 	enum v4l2_buf_type type;
 
@@ -240,7 +240,7 @@ static void stop_capturing(void)
 	}
 }
 
-static void start_capturing(void)
+void start_capturing(void)
 {
 	unsigned int i;
 	enum v4l2_buf_type type;
@@ -288,7 +288,7 @@ static void start_capturing(void)
 	}
 }
 
-static void uninit_device(void)
+void uninit_device(void)
 {
 	unsigned int i;
 
@@ -312,7 +312,7 @@ static void uninit_device(void)
 	free(buffers);
 }
 
-static void init_read(unsigned int buffer_size)
+void init_read(unsigned int buffer_size)
 {
 	buffers = (buffer*)calloc(1, sizeof(*buffers));
 
@@ -330,7 +330,7 @@ static void init_read(unsigned int buffer_size)
 	}
 }
 
-static void init_mmap(void)
+void init_mmap(void)
 {
 	struct v4l2_requestbuffers req;
 
@@ -388,7 +388,7 @@ static void init_mmap(void)
 	}
 }
 
-static void init_userp(unsigned int buffer_size)
+void init_userp(unsigned int buffer_size)
 {
 	struct v4l2_requestbuffers req;
 
@@ -426,7 +426,7 @@ static void init_userp(unsigned int buffer_size)
 	}
 }
 
-static void init_device(void)
+void init_device(void)
 {
 	struct v4l2_capability cap;
 	struct v4l2_format fmt;
@@ -549,14 +549,14 @@ static void init_device(void)
 
 }
 
-static int close_device(void)
+int close_device(void)
 {
 	if (-1 == close(fd)) return -1;
 	fd = -1;
 	return 0;
 }
 
-static int open_device(void)
+int open_device(void)
 {
 	dev_name = "/dev/video0";
 
@@ -602,7 +602,7 @@ static int open_device(void)
 
 #ifdef old
 
-static void usage(FILE *fp, int argc, char **argv)
+void usage(FILE *fp, int argc, char **argv)
 {
 	fprintf(fp,
 		 "Usage: %s [options]\n\n"
