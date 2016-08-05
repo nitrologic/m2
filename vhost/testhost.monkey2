@@ -169,10 +169,11 @@ function Main()
 '	TestSocketConnect()
 '	TestI2CBus()
 '	Socket.TestOSCIn(Null,"7000")
-	Socket.TestOSCOut("192.168.1.255","7000")
-'	new AppInstance
-'	new MojoWindow
-'	App.Run()	
+'	Socket.TestOSCOut("192.168.1.255","7000")
+
+	new AppInstance
+	new MojoWindow
+	App.Run()	
 
 End
 
