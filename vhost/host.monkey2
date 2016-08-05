@@ -20,6 +20,7 @@ Class LinuxHost
 
 	Field fb16:=New Stack<FrameBuffer16>
 	Field i2c:=New Stack<I2C>
+	Field vidcap:=New Stack<VideoCapture>
 
 	Method EnumerateI2C:Int()
 		i2c.Clear()
@@ -70,13 +71,15 @@ Class LinuxHost
 		Return fb16[index]
 	End
 			
-	Method EnumerateVideo:Int()
-		Return 1
-	End
-	
-	Method GetVideo:video.Capture(index:Int)
-		Return New v4l2.Device()
-	End
+	Method EnumerateVideoCapture:Int()			
+		vidcap.Clear()
+		vidcap.Push(new v4l2.Device)
+		return vidcap.Length
+	end
+
+	method GetVideoCapture:video.Capture(index:int)
+		return vidcap[index]
+	end
 	
 End
 
@@ -95,6 +98,7 @@ Alias FrameBuffer16:PixelMap
 Class VirtualHost
 	Field fb16:=New Stack<FrameBuffer16>
 	Field fb0:=New UShort[64]
+	Field vidcap:=New Stack<video.Capture>
 
 	Method New()	
 	End
@@ -115,6 +119,14 @@ Class VirtualHost
 	
 	Method GetFramebuffer:FrameBuffer16(index:Int)
 		Return fb16[index]
+	end
+
+	Method EnumerateVideoCapture:Int()			
+		return 0
+	end
+
+	method GetVideoCapture:video.Capture(index:int)
+		return null
 	end
 End
 
