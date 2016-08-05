@@ -138,7 +138,7 @@ Class MojoWindow extends Window
 				next						
 			endif	
 '			print frame_size+":"+HexList(i,20)
-
+			vid.Write(Int Ptr(cap.Data()))
 		Endif
 	End
 	
