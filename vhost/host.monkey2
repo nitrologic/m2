@@ -40,6 +40,12 @@ Class LinuxHost
 
 	Method EnumerateFramebuffers:Int()
 		fb16.Clear()
+
+		fb16.Clear()
+		fb16.Push(New FrameBuffer16(8,8,fb0.Data,128))
+		Return fb16.Length
+
+
 		For Local i:=0 Until 16
 			Local dev:="/dev/fb"+i
 			
