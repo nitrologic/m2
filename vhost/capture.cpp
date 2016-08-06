@@ -585,20 +585,24 @@ int open_device(void)
 
 
 	v4l2_fmtdesc desc={0};
+	v4l2_frmsizeenum fdesc={0};
+
 	desc.type=V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	for(int i=0;i<256;i++){
 		desc.index=i;
 		if (-1 == xioctl(fd, VIDIOC_ENUM_FMT, &desc)) break;
 		char *fcc=(char *)&desc.pixelformat;
 		printf("%d %s %c%c%c%c\n",i,desc.description,fcc[0],fcc[1],fcc[2],fcc[3]);
-	}
 
+		fdesc.pixel_format=desc.pixelformat;
+		for(int j=0;j<256;j++){
+			fdesc.index=j;
+			if (-1 == xioctl(fd, VIDIOC_ENUM_FRAMESIZES, &fdesc)) break;
 
-	v4l2_frmsizeenum fdesc={0};
-	for(int i=0;i<256;i++){
-		desc.index=i;
-		if (-1 == xioctl(fd, VIDIOC_ENUM_FRAMESIZES, &fdesc)) break;
-		printf("%d: %d x %d\n",i,desc.width,desc.height);
+			if (fdesc.type!=V4L2_FRMSIZE_TYPE_DISCRETE) break;
+
+			printf("  %d: %d x %d\n",j,fdesc.discrete.width,fdesc.discrete.height);
+		}
 	}
 
 	v4l2_audio audio={0};
