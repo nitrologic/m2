@@ -586,6 +586,7 @@ int open_device(void)
 
 	v4l2_fmtdesc desc={0};
 	v4l2_frmsizeenum fdesc={0};
+ 	v4l2_frmivalenum freqs={0};
 
 	desc.type=V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	for(int i=0;i<256;i++){
@@ -593,15 +594,41 @@ int open_device(void)
 		if (-1 == xioctl(fd, VIDIOC_ENUM_FMT, &desc)) break;
 		char *fcc=(char *)&desc.pixelformat;
 		printf("%d %s %c%c%c%c\n",i,desc.description,fcc[0],fcc[1],fcc[2],fcc[3]);
-
 		fdesc.pixel_format=desc.pixelformat;
+		freqs.pixel_format=desc.pixelformat;
 		for(int j=0;j<256;j++){
 			fdesc.index=j;
-			if (-1 == xioctl(fd, VIDIOC_ENUM_FRAMESIZES, &fdesc)) break;
-
+			int w=0;
+			int h=0;
+			if (-1 == xioctl(fd, VIDIOC_ENUM_FRAMESIZES, &fdesc)) break;			
+			switch(fdesc.type){
+				case V4L2_FRMSIZE_TYPE_DISCRETE:
+					w=fdesc.discrete.width;
+					h=fdesc.discrete.height;
+					printf("  %d: %d x %d ",j,w,h);
+					break;
+				case V4L2_FRMSIZE_TYPE_STEPWISE:
+					w=fdesc.stepwise.min_width;
+					h=fdesc.stepwise.min_height;
+					printf("  %d: %dx%d .. %dx%d ",j,w,h,fdesc.stepwise.max_width,fdesc.stepwise.max_height);
+					break;			
+			}
+			for(int k=0;k<256;k++){
+				freqs.index=k;
+				freqs.width=w;
+				freqs.height=h;
+				if (-1 == xioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &freqs)) break;							
+				switch(freqs.type){
+					case V4L2_FRMIVAL_TYPE_DISCRETE:
+						printf(" %d:%d",freqs.discrete.numerator,freqs.discrete.denominator);
+						break;
+					case V4L2_FRMIVAL_TYPE_STEPWISE:
+						printf(" %d",freqs.stepwise.max);
+						break;			
+				}
+			}
+			printf("\n");
 			if (fdesc.type!=V4L2_FRMSIZE_TYPE_DISCRETE) break;
-
-			printf("  %d: %d x %d\n",j,fdesc.discrete.width,fdesc.discrete.height);
 		}
 	}
 
