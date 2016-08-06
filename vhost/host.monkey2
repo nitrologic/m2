@@ -38,13 +38,15 @@ Class LinuxHost
 		Return i2c[index]
 	end
 
-	Method EnumerateFramebuffers:Int()
-		fb16.Clear()
+	Field fb0:=New UShort[64]
 
+	Method EnumerateFramebuffers:Int()
 		fb16.Clear()
 		fb16.Push(New FrameBuffer16(8,8,fb0.Data,128))
 		Return fb16.Length
 
+#rem
+		fb16.Clear()
 
 		For Local i:=0 Until 16
 			Local dev:="/dev/fb"+i
@@ -71,6 +73,7 @@ Class LinuxHost
 			Endif
 		Next	
 		Return fb16.Length
+#end
 	End
 	
 	Method GetFramebuffer:FrameBuffer16(index:Int)

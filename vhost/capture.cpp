@@ -44,8 +44,12 @@ int frame_number=0;
 #define V4L2_PIX_FMT_GREY	 v4l2_fourcc('Y', '8', '0', '0') /* G8 with start codes */
 #endif
 
-#ifndef V4L2_PIX_FMT_RGB
-#define V4L2_PIX_FMT_RGB	 v4l2_fourcc('B', 'G', 'R', '4') /* RGB4 with start codes */
+#ifndef V4L2_PIX_FMT_RGB4
+#define V4L2_PIX_FMT_RGB4	 v4l2_fourcc('B', 'G', 'R', '4') /* RGB4 with start codes */
+#endif
+
+#ifndef V4L2_PIX_FMT_RGB3
+#define V4L2_PIX_FMT_RGB3	 v4l2_fourcc('R', 'G', 'B', '3') /* RGB4 with start codes */
 #endif
 
 enum io_method {
@@ -474,9 +478,9 @@ void init_device(void)
 
 	fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	if (force_format) {
-		fmt.fmt.pix.width=320;
-		fmt.fmt.pix.height=240;
-		fmt.fmt.pix.pixelformat=V4L2_PIX_FMT_RGB;
+		fmt.fmt.pix.width=640;
+		fmt.fmt.pix.height=480;
+		fmt.fmt.pix.pixelformat=V4L2_PIX_FMT_RGB3;
 		fmt.fmt.pix.field=V4L2_FIELD_ANY;
 /*		
 	fprintf(stderr, "Set H264\r\n");
@@ -585,7 +589,8 @@ int open_device(void)
 	for(int i=0;i<256;i++){
 		desc.index=i;
 		if (-1 == xioctl(fd, VIDIOC_ENUM_FMT, &desc)) break;
-		printf("%d %s %x\n",i,desc.description,desc.pixelformat);
+		char *fcc=(char *)&desc.pixelformat;
+		printf("%d %s %c%c%c%c\n",i,desc.description,fcc[0],fcc[1],fcc[2],fcc[3]);
 	}
 
 	v4l2_audio audio={0};

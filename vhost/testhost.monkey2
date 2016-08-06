@@ -38,9 +38,9 @@ Class TextureStream
 		height=h
 		images=New Image[w*h]
 		For Local i:=0 Until n
-			pixmaps.Push(new Pixmap(w,h))			
+			pixmaps.Push(new Pixmap(w,h,PixelFormat.RGB24))			
 		Next		
-		size=w*h*4
+		size=w*h*3
 	End
 	
 	Method Write(src:Int Ptr)	
@@ -56,7 +56,7 @@ Class TextureStream
 	Method Draw(canvas:Canvas,frame:Int,x:Float,y:Float,z:Float)
 		Local index:=frame Mod pixmaps.Length
 		Local image:=images[index]	
-		If image canvas.DrawImage(image,x,y,0,z,z)
+		If image canvas.DrawImage(image,x,y,0,z,-z)
 	End
 
 End
@@ -69,7 +69,7 @@ Class MojoWindow extends Window
 	Field cx:Int
 	Field cy:Int
 	Field cap:video.Capture
-	Field vid:=New TextureStream(320,240,300)
+	Field vid:=New TextureStream(640,480,160)
 	
 	Method New()
 		active=Self
@@ -160,11 +160,14 @@ Class MojoWindow extends Window
 		App.RequestRender()
 
 		Local cx:=0
-		Local cy:=0				
-		For Local i:=0 Until 80
+		Local cy:=32				
+		For Local i:=0 Until 240
 			Local index:=vid.write-i-1
 			If index<0 index=0
 			vid.Draw(canvas,index,10+cx,10+cy,0.125)
+			If i=0
+				vid.Draw(canvas,index,0,Height-40,1.0)		
+			endif
 			cx=cx+50
 			If cx+50>Width
 				cx=0
