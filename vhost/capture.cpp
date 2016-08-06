@@ -595,7 +595,6 @@ int open_device(void)
 		char *fcc=(char *)&desc.pixelformat;
 		printf("%d %s %c%c%c%c\n",i,desc.description,fcc[0],fcc[1],fcc[2],fcc[3]);
 		fdesc.pixel_format=desc.pixelformat;
-		freqs.pixel_format=desc.pixelformat;
 		for(int j=0;j<256;j++){
 			fdesc.index=j;
 			int w=0;
@@ -615,6 +614,7 @@ int open_device(void)
 			}
 			for(int k=0;k<256;k++){
 				freqs.index=k;
+				freqs.pixel_format=desc.pixelformat;
 				freqs.width=w;
 				freqs.height=h;
 				if (-1 == xioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &freqs)) break;							
@@ -622,6 +622,7 @@ int open_device(void)
 					case V4L2_FRMIVAL_TYPE_DISCRETE:
 						printf(" %d:%d",freqs.discrete.numerator,freqs.discrete.denominator);
 						break;
+					case V4L2_FRMIVAL_TYPE_CONTINUOUS:
 					case V4L2_FRMIVAL_TYPE_STEPWISE:
 						printf(" %d",freqs.stepwise.max);
 						break;			
