@@ -593,39 +593,39 @@ int open_device(void)
 		desc.index=i;
 		if (-1 == xioctl(fd, VIDIOC_ENUM_FMT, &desc)) break;
 		char *fcc=(char *)&desc.pixelformat;
-		printf("%d %s %c%c%c%c\n",i,desc.description,fcc[0],fcc[1],fcc[2],fcc[3]);
+		printf("format[%d] %s %c%c%c%c ",i,desc.description,fcc[0],fcc[1],fcc[2],fcc[3]);
 		fdesc.pixel_format=desc.pixelformat;
 		for(int j=0;j<256;j++){
 			fdesc.index=j;
 			int w=0;
 			int h=0;
-			if (-1 == xioctl(fd, VIDIOC_ENUM_FRAMESIZES, &fdesc)) break;			
+			if (-1 == xioctl(fd, VIDIOC_ENUM_FRAMESIZES, &fdesc)) break;
 			switch(fdesc.type){
 				case V4L2_FRMSIZE_TYPE_DISCRETE:
 					w=fdesc.discrete.width;
 					h=fdesc.discrete.height;
-					printf("  %d: %d x %d ",j,w,h);
+					printf(" [%d]%dx%d",j,w,h);
 					break;
 				case V4L2_FRMSIZE_TYPE_STEPWISE:
 					w=fdesc.stepwise.min_width;
 					h=fdesc.stepwise.min_height;
-					printf("  %d: %dx%d .. %dx%d ",j,w,h,fdesc.stepwise.max_width,fdesc.stepwise.max_height);
-					break;			
+					printf(" [%d]%dx%d..%dx%d",j,w,h,fdesc.stepwise.max_width,fdesc.stepwise.max_height);
+					break;
 			}
 			for(int k=0;k<256;k++){
 				freqs.index=k;
 				freqs.pixel_format=desc.pixelformat;
 				freqs.width=w;
 				freqs.height=h;
-				if (-1 == xioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &freqs)) break;							
+				if (-1 == xioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &freqs)) break;
 				switch(freqs.type){
 					case V4L2_FRMIVAL_TYPE_DISCRETE:
 						printf(" %d:%d",freqs.discrete.numerator,freqs.discrete.denominator);
 						break;
 					case V4L2_FRMIVAL_TYPE_CONTINUOUS:
 					case V4L2_FRMIVAL_TYPE_STEPWISE:
-						printf(" %d",freqs.stepwise.max);
-						break;			
+						printf(" %d-%d",freqs.stepwise.min,freqs.stepwise.max);
+						break;
 				}
 			}
 			printf("\n");
@@ -638,6 +638,21 @@ int open_device(void)
 		audio.index=i;
 		if (-1 == xioctl(fd, VIDIOC_ENUMAUDIO, &audio)) break;
 		printf("%d %s\n",i,audio.name);
+	}
+
+	v4l2_input in={0};
+	for(int i=0;i<256;i++){
+		in.index=i;
+		if (-1 == xioctl(fd, VIDIOC_ENUMINPUT, &in)) break;
+		printf("%d %s\n",i,in.name);
+	}
+
+
+	v4l2_output out={0};
+	for(int i=0;i<256;i++){
+		out.index=i;
+		if (-1 == xioctl(fd, VIDIOC_ENUMOUTPUT, &out)) break;
+		printf("%d %s\n",i,out.name);
 	}
 
 	return 0;
