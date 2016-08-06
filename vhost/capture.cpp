@@ -593,6 +593,14 @@ int open_device(void)
 		printf("%d %s %c%c%c%c\n",i,desc.description,fcc[0],fcc[1],fcc[2],fcc[3]);
 	}
 
+
+	v4l2_frmsizeenum fdesc={0};
+	for(int i=0;i<256;i++){
+		desc.index=i;
+		if (-1 == xioctl(fd, VIDIOC_ENUM_FRAMESIZES, &fdesc)) break;
+		printf("%d: %d x %d\n",i,desc.width,desc.height);
+	}
+
 	v4l2_audio audio={0};
 	for(int i=0;i<256;i++){
 		audio.index=i;
