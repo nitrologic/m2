@@ -24,227 +24,25 @@ Global MainWindow:GridWindow
 
 Class GridView Extends View
 
-	Method OnRender(canvas:Canvas) Override
-		canvas.Clear(Color.Blue)
-	end
-End
-
-#rem
-	Field _path:String
-	Field _view:View
-	Field _dirty:Bool
-
-	Field DirtyChanged:Void()
-
-	Method New( path:String )
-	
-		_path=path
-	End
-	
-	Property Path:String()
-
-		Return _path
-	End
-	
-	Property View:View()
-	
-'		If Not _view _view=OnCreateView()
-		
-		Return _view
-	End
-#End
-
-
-Class GridWindow Extends Window
 	Field gridspace:GridSpace
-	Field status:String
-	
+
 	Field zoom:Float
-	Field framecount:Int
-	Field drawcount:Int
-	Field mousecount:Int
-	Field cx:Float
-	Field cy:Float
-	
+	Field radius:Float
 	Field rot:Double
 	Field rotSpeed:Double
-	
-	Field radius:Float
-		
-	Method New(title:String)
-		Super.New(title,1024,800,WindowFlags.Resizable)		
 
-		MainWindow=Self
-		
-'		Theme.Load("vgrid.theme.json")
-
-'		ClearColor=Color.Black
+	Method New()
 		zoom=.5
 		radius=2.5			
 		Local style:=new IsoSkin()
 		gridspace=New GridSpace(style)
-
-'		ClearColor=Theme.ClearColor	
-		SwapInterval=1
-		
-'		InitPaths()
-'		InitActions()
-'		InitMenus()
-
-		InitViews()
-'		AddChild( _docker )
-		
-'		LoadState()		
-'		DeleteTmps()		
-'		UpdateRecentFilesMenu()
-'		UpdateCloseProjectMenu()
-		
-		App.Idle+=AppIdle
-
-'		Update()
-		
-'		_console.Document.ReplaceText(1024,1024,"VGrid 0.1~n]")
-'		_console.MoveLine(2)
-'		_console.MakeKeyView()
-	End
-
-	Field _menuBar:MenuBar
-	Field _dock:DockingView
-	Field _console:TextView
-	Field _tabs:TabView
-
-'	Field _currentDoc:Document
-'	Field _openDocs:=New Stack<Document>
-
-
-	Method NewDocument()
-'		_currentDoc=New Document
-		_tabs.AddTab("Untitled",New GridView())
-	end
-
-#rem
-
-	Method UpdateKeyView()
-	
-		If Not _currentDoc Return
-		
-		_currentDoc.View.MakeKeyView()
+		Activated=Lambda()
+			MakeKeyView()
+		end
 	End
 	
-	Method MakeCurrent( doc:Document )
-	
-		If doc=_currentDoc Return
-		
-		If doc And _tabs.CurrentView<>doc.View
-			_tabs.CurrentView=doc.View
-		Endif
-		
-		_currentDoc=doc
-'		_currentTextView=Null
-'		If doc _currentTextView=Cast<TextView>( doc.View )
-				
-		App.Idle+=Lambda()
-			If _currentDoc
-				Title="VGrid - "+_currentDoc.Path
-			Else
-				Title="VGrid"
-			Endif
-		End
-
-		UpdateKeyView()
-		
-'		Update()
-	End
-
-	Method FindDocument:Document( path:String )
-		For Local doc:=Eachin _openDocs
-			If doc.Path=path Return doc
-		Next
-		Return Null
-	End	
-
-	Method FindDocument:Document( view:View )
-		For Local doc:=Eachin _openDocs
-			If doc.View=view Return doc
-		Next
-		Return Null
-	End	
-#end
-
-	Method InitViews()
-		InitMenuBar()
-		_console=New TextView	
-
-		_tabs=New TabView( TabViewFlags.ClosableTabs|TabViewFlags.DraggableTabs )
-		
-'		_tabs.CurrentChanged=Lambda()
-'			MakeCurrent( FindDocument( _docTabber.CurrentView ) )
-'		End		
-
-		_tabs.RightClicked=Lambda()
-		
-			Local menu:=New Menu
-			menu.AddAction( "Action 1" )
-			menu.AddAction( "Action 2" )
-			menu.AddAction( "Action 3" )
-			
-			menu.Open()
-		End
-		
-		_tabs.CloseClicked=Lambda( index:Int )
-'		_tabs.RemoveTab( index )
-'		If tabView.CurrentView Or Not tabView.Count Return
-'		If index=tabView.Count index-=1
-'		tabView.CurrentIndex=index
-		End
-		_dock=New DockingView
-		_dock.ContentView=_tabs
-		_dock.AddView( _console,"bottom",200 )
-		_dock.AddView( _menuBar,"top" )
-		ContentView=_dock
-	End
-		
-	Method AppIdle()	
-'		UpdateActions()		
-		App.RequestRender()
-		App.Idle+=AppIdle
-		GCCollect()	'thrash that GC!
-	End
-			
-	Method DrawStats(display:Canvas)
-		Local cy:=10
-		
-		display.Color=SmokedGlass
-		display.DrawRect(0,0,200,Height)
-		display.Color=Color.Grey
-		
-		Local content:=AboutApp
-		content+=",,"+Controls
-		
-		Local grid:=gridspace.grid
-
-		content+=",,Surface="+grid.surface.Count()
-		content+=",Volume="+grid.volume
-
-		content+=",CubeCounter="+Cube.CubeCounter
-
-		content+=",Quadrant="+gridspace.DrawQuadrant
-
-		content+=","+Contact+","+Credits
-		
-		For Local line:=Eachin content.Split(",")				
-			Local cx:=10
-			For Local tab:=Eachin line.Split("=")
-				tab=tab.Replace(":)",":=")
-				display.DrawText(tab,cx,cy)
-				cx+=100
-			Next
-			cy+=16
-		Next
-	End
-	
-	Method OnRender2( display:Canvas )' Override	
-		App.RequestRender()						
+	Method OnRender(canvas:Canvas) Override
+		canvas.Clear(Color.Blue)
 		rot+=rotSpeed*rotSpeed*rotSpeed							
 		If rot<0
 			rot=Pi*2-((-rot) Mod (Pi*2))
@@ -252,16 +50,34 @@ Class GridWindow Extends Window
 			rot=rot Mod (Pi*2)
 		Endif		
 		
-		gridspace.DrawGrid(display,Width,Height,rot,zoom)
+		gridspace.DrawGrid(canvas,Width,Height,rot,zoom)
 
-		DrawStats(display)		
-	End
+'		DrawStats(canvas)		
 
-	Method Hold()
-		rotSpeed=0
-		rot=0
-	End
-		
+		RequestRender()
+	end
+
+	Method OnMouseEvent( event:MouseEvent ) Override	
+		Select event.Type
+		Case EventType.MouseDown
+			MakeKeyView()
+		Case EventType.MouseUp
+			Select event.Button
+			Case MouseButton.Right			
+				Local menu:=New Menu
+				menu.AddAction( "Action 1" )
+				menu.AddAction( "Action 2" )
+				menu.AddAction( "Action 3" )				
+				menu.Open( event.Location,event.View )				
+				event.Eat()
+			end
+		Case EventType.MouseWheel
+			local w:=event.Wheel.Y
+			zoom-=w/8.0
+			If zoom<1.0/8 zoom=1.0/8				
+		End
+	End	
+	
 	Method OnKeyEvent( event:KeyEvent ) Override	
 		Local smooth:=0
 		If event.Modifiers&Modifier.Shift smooth|=1
@@ -303,8 +119,6 @@ Class GridWindow Extends Window
 				gridspace.Generate(false,false,True,smooth)
 			Case Key.Escape
 				App.Terminate()
-			Case Key.F1
-				Fullscreen = Not Fullscreen
 			Case Key.F5
 				gridspace.Mesh()
 			Case Key.Space
@@ -321,12 +135,164 @@ Class GridWindow Extends Window
 		End
 	End
 	
-	Field newFile:=New Action("New").Triggered=Lambda()
-		NewDocument()
+	Method Hold()
+		rotSpeed=0
+		rot=0
 	End
 
-								
+end
+
+Class GridWindow Extends Window
+	Field status:String
+	Field framecount:Int
+	Field drawcount:Int
+	Field mousecount:Int
+	Field cx:Float
+	Field cy:Float
+			
+	Method New(title:String)
+		Super.New(title,1024,800,WindowFlags.Resizable)		
+		MainWindow=Self
+		Local style:=new IsoSkin()
+		SwapInterval=1		
+		InitViews()
+		App.Idle+=AppIdle
+	End
+
+	Method AppIdle()	
+'		UpdateActions()		
+		App.RequestRender()
+		App.Idle+=AppIdle
+		GCCollect()	'thrash that GC!
+	End
+
+	Field _menuBar:MenuBar
+	Field _dock:DockingView
+	Field _console:TextView
+	Field _tabs:TabView
+
+	Method NewDocument()
+		Local g:=New GridView()
+		_tabs.AddTab("Untitled",g)
+		_tabs.CurrentIndex=_tabs.TabIndex(g)
+		g.MakeKeyView()
+	end
+
+	Method CloseDocument()
+		If _tabs.NumTabs=0
+			App.Terminate()
+		Else
+			Local i:=_tabs.CurrentIndex
+			_tabs.RemoveTab(_tabs.CurrentIndex)
+			If i>=_tabs.NumTabs i-=1
+			If i>=0 _tabs.CurrentIndex=i
+		Endif
+	End
+		
+	Method NextDocument()
+		Local i:=_tabs.CurrentIndex+1
+		If i>=_tabs.NumTabs i=0
+		_tabs.CurrentIndex=i
+	End
+	
+	Method PrevDocument()
+		Local i:=_tabs.CurrentIndex-1
+		If i<0 i=_tabs.NumTabs-1
+		_tabs.CurrentIndex=i
+	End
+
+	Method InitViews()
+		InitMenuBar()
+		_console=New TextView	
+		_tabs=New TabView( TabViewFlags.ClosableTabs|TabViewFlags.DraggableTabs )		
+		_tabs.RightClicked=Lambda()
+			Local menu:=New Menu
+			menu.AddAction( "Action 1" )
+			menu.AddAction( "Action 2" )
+			menu.AddAction( "Action 3" )
+			
+			menu.Open()
+		End
+		
+		_tabs.CloseClicked=Lambda( index:Int )
+'		_tabs.RemoveTab( index )
+'		If tabView.CurrentView Or Not tabView.Count Return
+'		If index=tabView.Count index-=1
+'		tabView.CurrentIndex=index
+		End
+		_dock=New DockingView
+		_dock.ContentView=_tabs
+		_dock.AddView( _console,"bottom",200 )
+		_dock.AddView( _menuBar,"top" )
+		ContentView=_dock
+	End
+					
+	Method DrawStats(display:Canvas,gridspace:GridSpace)
+		Local cy:=10
+		
+		display.Color=SmokedGlass
+		display.DrawRect(0,0,200,Height)
+		display.Color=Color.Grey
+		
+		Local content:=AboutApp
+		content+=",,"+Controls
+		
+		Local grid:=gridspace.grid
+
+		content+=",,Surface="+grid.surface.Count()
+		content+=",Volume="+grid.volume
+
+		content+=",CubeCounter="+Cube.CubeCounter
+
+		content+=",Quadrant="+gridspace.DrawQuadrant
+
+		content+=","+Contact+","+Credits
+		
+		For Local line:=Eachin content.Split(",")				
+			Local cx:=10
+			For Local tab:=Eachin line.Split("=")
+				tab=tab.Replace(":)",":=")
+				display.DrawText(tab,cx,cy)
+				cx+=100
+			Next
+			cy+=16
+		Next
+	End
+		
+	Field newFile:Action
+	Field closeFile:Action
+	Field nextFile:Action
+	Field prevFile:Action
+									
 	Method InitMenuBar()
+	
+		newFile=New Action("New")
+		newFile.HotKey=Key.F3
+		newFile.Triggered=Lambda()
+			NewDocument()
+		End
+	
+		closeFile=New Action("Close")
+		closeFile.HotKey=Key.W
+		closeFile.HotKeyModifiers=Modifier.Gui
+		closeFile.Triggered=Lambda()
+			CloseDocument()
+		End
+		
+		nextFile=New Action("Next")
+		nextFile.HotKey=Key.Tab
+		nextFile.HotKeyModifiers=Modifier.Control	
+		nextFile.Triggered=Lambda()
+			NextDocument()
+		End
+
+		prevFile=New Action("Previous")
+		prevFile.HotKey=Key.Tab
+		prevFile.HotKeyModifiers=Modifier.Control|Modifier.Shift
+		prevFile.Triggered=Lambda()
+			PrevDocument()
+		End
+
 		Local fileMenu:=New Menu( "File" )
 		
 		fileMenu.AddAction( newFile )
@@ -350,10 +316,8 @@ Class GridWindow Extends Window
 		
 		fileMenu.AddSeparator()
 
-		fileMenu.AddAction( "Close" ).Triggered=Lambda()
-			Alert( "Close Selected..." )
-		End
-		
+		fileMenu.AddAction( closeFile )
+				
 		fileMenu.AddAction( "Quit" ).Triggered=Lambda()
 			App.Terminate()
 		End
@@ -378,25 +342,16 @@ Class GridWindow Extends Window
 		_menuBar.AddMenu( editMenu )
 	End
 	
-	Method OnMouseEvent( event:MouseEvent ) Override	
+	Method OnKeyEvent( event:KeyEvent ) Override	
 		Select event.Type
-		Case EventType.MouseUp
-			Select event.Button
-			Case MouseButton.Right			
-				Local menu:=New Menu
-				menu.AddAction( "Action 1" )
-				menu.AddAction( "Action 2" )
-				menu.AddAction( "Action 3" )				
-				menu.Open( event.Location,event.View )				
-				event.Eat()
-			end
-		Case EventType.MouseWheel
-			local w:=event.Wheel.Y
-			zoom-=w/8.0
-			If zoom<1.0/8 zoom=1.0/8				
+		Case EventType.KeyDown
+			Select event.Key			
+			Case Key.F1
+				Fullscreen = Not Fullscreen
+			End
 		End
-	End	
-
+	End
+	
 End
 
 Function Main()
