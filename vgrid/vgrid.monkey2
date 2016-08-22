@@ -22,7 +22,17 @@ Global Hot:=New Color(1,0.8,0.5,1)
 
 Global MainWindow:GridWindow
 
-Class Document
+Class GridView Extends View
+
+	Method OnRender(canvas:Canvas) Override
+		canvas.Clear(Color.Blue)
+	end
+End
+
+#rem
+	Field _path:String
+	Field _view:View
+	Field _dirty:Bool
 
 	Field DirtyChanged:Void()
 
@@ -38,271 +48,12 @@ Class Document
 	
 	Property View:View()
 	
-		If Not _view _view=OnCreateView()
+'		If Not _view _view=OnCreateView()
 		
 		Return _view
 	End
-	
-	Property Dirty:Bool()
-	
-		Return _dirty
-	
-	Setter( dirty:Bool)
+#End
 
-		If dirty=_dirty Return
-		
-		_dirty=dirty
-		DirtyChanged()
-
-		Local enamel:=New List<Cube>		
-		For Local cube:=Eachin surface
-			Local sx:=cube.x-org.x
-			Local sy:=cube.y-org.y
-			Local sz:=cube.z-org.z
-			For local x:=-dx To dx
-				For Local y:=-dy To dy
-					For local z:=-dz To dz
-						If (x|y|z)=0 Continue
-						If smooth&1 And ((x&y&z)&1)=1 continue
-						If smooth&2 And (x*y or x*z or y*z) continue
-						If grid[sx+x,sy+y,sz+z]=Null And cube.Vacant(x,y,z)
-							Local cube2:=root.Clone()
-							cube2.x=cube.x+x							
-							cube2.y=cube.y+y
-							cube2.z=cube.z+z							
-							Assert(sx+x=cube2.x-org.x)
-							Assert(sy+y=cube2.y-org.y)
-							Assert(sz+z=cube2.z-org.z)
-							enamel.AddLast(cube2)
-							grid[sx+x,sy+y,sz+z]=cube2
-						Endif
-					Next
-				Next
-			Next
-		Next
-		
-		' second visit all neighbors (none must be inferred)
-		
-		For Local cube:=Eachin enamel
-			AddCube(cube)
-'			surface.AddLast(cube)
-			Local sx:=cube.x-org.x
-			Local sy:=cube.y-org.y
-			Local sz:=cube.z-org.z
-			For local x:=-1 To 1
-				For Local y:=-1 To 1
-					For Local z:=-1 To 1
-						If (x|y|z)=0 Continue
-						Local cube2:=grid[sx+x,sy+y,sz+z]								
-						if cube2<>Null cube.Meet(cube2,x,y,z)
-					Next
-				Next
-			Next
-		Next
-		
-		CullSurface()
-		BakeSort()
-	End
-		
-End
-
-
-Class IsoSkin
-	Field atlas:Image
-	Field pix:=New Pixmap(1024,1024)
-	Field tx:Int
-	Field ty:Int	
-	Field lineheight:Int
-	Field reservewidth:int
-	field rects:=New Stack<Recti>
-	Field balls:=new Stack<Image>
-	
-	Global Center:=New Vec2f( .5,.5 )
-
-	Const D:=7
-	
-	Method DrawCube2(cube:Cube,display:Canvas,zx:Double,zy:Double,rz:Double)
-		Assert(cube.rubit<>RubitMask)
-
-
-		Local sx:Float=(cube.x-cube.z)+zy*cube.y*2
-		Local sy:Float=(cube.x+cube.z)+zx*cube.y*2		
-
-		Local x0:=sx*D
-		Local y0:=sy*D
-		Local x1:=x0+D
-		Local y1:=y0+D
-		Local x2:=x1+zy*D
-		Local y2:=y1+zx*D
-		Local x3:=x0+zy*D
-		Local y3:=y0+zx*D
-
-		display.Color=Color.White
-		
-'		display.DrawImage(tile,sx*D,sy*D,Pi/4,0.125,0.125)	'facing sky
-		display.DrawQuad(x0,y0,x1,y1,x2,y2,x3,y3)
-
-'		display.DrawImage(balls[cube.skin],sx*D,sy*D,rz,0.125,0.25)	'facing eye		
-
-
-'		For Local i:=0 To 5
-'			display.DrawImage(image,sx*D+i*zy,sy*D+i*zx,-Pi/4,0.125,0.125)	'facing sky
-'		next
-	end	
-
-	Method Reserve(w:Int,h:Int)
-		tx+=reservewidth
-		reservewidth=w
-		If tx+w>pix.Width
-			tx=0
-			ty+=lineheight
-			lineheight=0
-		Endif
-		lineheight=Max(lineheight,h)		
-		rects.Push(New Recti(tx,ty,tx+w,ty+h))
-	End
-
-	Method New()
-		pix.Clear(Color.None)				
-		Balls(New Color[](Color.Red,Color.Blue,Color.Green,Color.Yellow,Color.Cyan,Color.Magenta,Color.White,Color.Black))
-		atlas=New Image(pix)
-		For Local rect:=Eachin rects
-			AddBall(rect)
-		Next
-	End
-	
-	Method Load:Bool()
-	
-		If Not OnLoad() Return False
-
-		Dirty=False
-		
-		Return True
-	End
-	
-	Method Save:Bool()
-	
-		If Not _dirty Return True
-		
-		If Not OnSave() Return False
-		
-		Dirty=False
-
-		Return True
-	End
-	
-	Method Rename( path:String )
-	
-		_path=path
-		
-		Dirty=True
-	End
-	
-	Method Close()
-	
-		OnClose()
-	end
-	
-	Method Balls(palette:Color[])
-		For Local color:=Eachin palette
-			Ball(color,Color.Black)
-		Next
-		For Local color:=Eachin palette
-			Ball(color,Color.White)
-		Next
-	End
-	
-	Method Ball(primary:Color,ring:Color)		
-		Reserve(128,128)
-		Circle(64,64,40,Color.DarkGrey)		
-		Circle(64,64,34,ring)		
-		Circle(64,64,30,primary)		
-		Circle(50,52,2,Color.White)	
-	End
-
-	method Circle(rx:int,ry:int,r:int,c:Color)
-		Local x0:=rx-r
-		Local x1:=rx+r
-		Local y0:=ry-r
-		Local y1:=ry+r
-		x0=Max(x0,0)
-		y0=Max(y0,0)
-		For Local y:=y0 To y1
-			For Local x:=x0 To x1
-'				If blend And ((x+y)&1) Continue
-				Local dd:=(x-rx)*(x-rx)+(y-ry)*(y-ry)
-				If dd<r*r
-					local sh:=0.5+0.25*Sin(float(y)/24)-0.25*Cos(float(x)/24)
-					pix.SetPixel(x+tx,y+ty,c*new Color(sh,1))
-				Endif
-			Next
-		Next
-	End
-	
-	method Rect(rx:Int,ry:int,rw:int,rh:Int,c:Color)
-		For Local y:=ry Until ry+rh
-			For Local x:=rx until rx+rw
-				pix.SetPixel(x+tx,y+ty,c)
-			Next
-		Next
-	End
-	
-	Method DrawCube(cube:Cube,display:Canvas,zx:Double,zy:Double,rz:Double)
-		Assert(cube.rubit<>RubitMask)
-		Local sx:Float=(cube.x-cube.z)+zy*cube.y*2
-		Local sy:Float=(cube.x+cube.z)+zx*cube.y*2		
-'		display.DrawImage(tile,sx*D,sy*D,Pi/4,0.125,0.125)	'facing sky
-
-		display.DrawImage(balls[cube.skin],sx*D,sy*D,rz,0.125,0.25)	'facing eye		
-
-'		For Local i:=0 To 5
-'			display.DrawImage(image,sx*D+i*zy,sy*D+i*zx,-Pi/4,0.125,0.125)	'facing sky
-'		next
-	end	
-	
-	Global verts:=new Float[65536*2]
-	
-	Method DrawMesh(mesh:IsoMesh,display:Canvas,t:Mat4<Float>)
-		Local n:=mesh.vertCount
-		For Local i:=0 Until n
-			Local vert:=mesh.verts[i]
-			Local sx:=vert.x * t.i.x + vert.y * t.j.x + vert.z * t.k.x + t.t.x
-			Local sy:=vert.x * t.i.y + vert.y * t.j.y + vert.z * t.k.y + t.t.y
-			verts[i*2+0]=sx
-			verts[i*2+1]=sy
-		Next	
-		Local iptr:Int Ptr=mesh.tris.Data
-		local vptr:Float Ptr=verts.Data
-		display.DrawPrimitives(3,mesh.triCount,vptr,8,Null,0,iptr)
-	End
-	
-	Protected
-
-	Method OnLoad:Bool() Virtual
-	
-		Return False
-	End
-	
-	Method OnSave:Bool() Virtual
-	
-		Return False
-	End
-	
-	Method OnClose() Virtual
-	End
-	
-	Method OnCreateView:View() Virtual
-	
-		Return Null
-	End
-	
-	Private
-
-	Field _dirty:Bool
-	Field _path:String
-	Field _view:View
-	
-End
 
 Class GridWindow Extends Window
 	Field gridspace:GridSpace
@@ -325,7 +76,7 @@ Class GridWindow Extends Window
 
 		MainWindow=Self
 		
-		Theme.Load("vgrid.theme.json")
+'		Theme.Load("vgrid.theme.json")
 
 '		ClearColor=Color.Black
 		zoom=.5
@@ -333,7 +84,7 @@ Class GridWindow Extends Window
 		Local style:=new IsoSkin()
 		gridspace=New GridSpace(style)
 
-		ClearColor=Theme.ClearColor	
+'		ClearColor=Theme.ClearColor	
 		SwapInterval=1
 		
 '		InitPaths()
@@ -341,7 +92,7 @@ Class GridWindow Extends Window
 '		InitMenus()
 
 		InitViews()
-		AddChild( _docker )
+'		AddChild( _docker )
 		
 '		LoadState()		
 '		DeleteTmps()		
@@ -350,19 +101,28 @@ Class GridWindow Extends Window
 		
 		App.Idle+=AppIdle
 
-		Update()
+'		Update()
 		
-		_console.Document.ReplaceText(1024,1024,"VGrid 0.1~n]")
+'		_console.Document.ReplaceText(1024,1024,"VGrid 0.1~n]")
 '		_console.MoveLine(2)
-		_console.MakeKeyView()
+'		_console.MakeKeyView()
 	End
 
-	Field _docker:DockingView
+	Field _menuBar:MenuBar
+	Field _dock:DockingView
 	Field _console:TextView
-	Field _docTabber:TabView
+	Field _tabs:TabView
 
-	Field _currentDoc:Document
-	Field _openDocs:=New Stack<Document>
+'	Field _currentDoc:Document
+'	Field _openDocs:=New Stack<Document>
+
+
+	Method NewDocument()
+'		_currentDoc=New Document
+		_tabs.AddTab("Untitled",New GridView())
+	end
+
+#rem
 
 	Method UpdateKeyView()
 	
@@ -375,8 +135,8 @@ Class GridWindow Extends Window
 	
 		If doc=_currentDoc Return
 		
-		If doc And _docTabber.CurrentView<>doc.View
-			_docTabber.CurrentView=doc.View
+		If doc And _tabs.CurrentView<>doc.View
+			_tabs.CurrentView=doc.View
 		Endif
 		
 		_currentDoc=doc
@@ -393,7 +153,7 @@ Class GridWindow Extends Window
 
 		UpdateKeyView()
 		
-		Update()
+'		Update()
 	End
 
 	Method FindDocument:Document( path:String )
@@ -409,17 +169,40 @@ Class GridWindow Extends Window
 		Next
 		Return Null
 	End	
+#end
 
 	Method InitViews()
+		InitMenuBar()
 		_console=New TextView	
-		_docTabber=New TabView
-		_docTabber.CurrentChanged=Lambda()
-			MakeCurrent( FindDocument( _docTabber.CurrentView ) )
-		End		
-		_docker=New DockingView
-		_docker.ContentView=_docTabber
-		_docker.AddView( _console,"bottom",200 )
-	end
+
+		_tabs=New TabView( TabViewFlags.ClosableTabs|TabViewFlags.DraggableTabs )
+		
+'		_tabs.CurrentChanged=Lambda()
+'			MakeCurrent( FindDocument( _docTabber.CurrentView ) )
+'		End		
+
+		_tabs.RightClicked=Lambda()
+		
+			Local menu:=New Menu
+			menu.AddAction( "Action 1" )
+			menu.AddAction( "Action 2" )
+			menu.AddAction( "Action 3" )
+			
+			menu.Open()
+		End
+		
+		_tabs.CloseClicked=Lambda( index:Int )
+'		_tabs.RemoveTab( index )
+'		If tabView.CurrentView Or Not tabView.Count Return
+'		If index=tabView.Count index-=1
+'		tabView.CurrentIndex=index
+		End
+		_dock=New DockingView
+		_dock.ContentView=_tabs
+		_dock.AddView( _console,"bottom",200 )
+		_dock.AddView( _menuBar,"top" )
+		ContentView=_dock
+	End
 		
 	Method AppIdle()	
 '		UpdateActions()		
@@ -537,15 +320,83 @@ Class GridWindow Extends Window
 			End
 		End
 	End
+	
+	Field newFile:=New Action("New").Triggered=Lambda()
+		NewDocument()
+	End
+
 								
-	Method OnMouseEvent(event:MouseEvent ) Override	
-		Select event.Type		
-			Case EventType.MouseWheel
-				local w:=event.Wheel.Y
-				zoom-=w/8.0
-				If zoom<1.0/8 zoom=1.0/8				
+	Method InitMenuBar()
+		Local fileMenu:=New Menu( "File" )
+		
+		fileMenu.AddAction( newFile )
+
+		Local recentFiles:=New Menu( "Recent Files..." )
+		recentFiles.AddAction( "File1" )
+		recentFiles.AddAction( "File2" )
+		recentFiles.AddAction( "File3" )
+		recentFiles.AddAction( "File4" )
+		recentFiles.AddAction( "File5" )
+		
+		fileMenu.AddAction( "Open" ).Triggered=Lambda()
+			Alert( "Open Selected..." )
+		End
+		
+		fileMenu.AddSubMenu( recentFiles )
+		
+		fileMenu.AddAction( "Save" ).Triggered=Lambda()
+			Alert( "Save Selected..." )
+		End
+		
+		fileMenu.AddSeparator()
+
+		fileMenu.AddAction( "Close" ).Triggered=Lambda()
+			Alert( "Close Selected..." )
+		End
+		
+		fileMenu.AddAction( "Quit" ).Triggered=Lambda()
+			App.Terminate()
+		End
+		
+		Local editMenu:=New Menu( "Edit" )
+
+		editMenu.AddAction( "Cut" ).Triggered=Lambda()
+			Alert( "Cut Selected..." )
+		End
+		
+		editMenu.AddAction( "Copy" ).Triggered=Lambda()
+			Alert( "Copy Selected..." )
+		End
+		
+		editMenu.AddAction( "Paste" ).Triggered=Lambda()
+			Alert( "Paste Selected..." )
+		End
+
+		_menuBar=New MenuBar
+		
+		_menuBar.AddMenu( fileMenu )
+		_menuBar.AddMenu( editMenu )
+	End
+	
+	Method OnMouseEvent( event:MouseEvent ) Override	
+		Select event.Type
+		Case EventType.MouseUp
+			Select event.Button
+			Case MouseButton.Right			
+				Local menu:=New Menu
+				menu.AddAction( "Action 1" )
+				menu.AddAction( "Action 2" )
+				menu.AddAction( "Action 3" )				
+				menu.Open( event.Location,event.View )				
+				event.Eat()
+			end
+		Case EventType.MouseWheel
+			local w:=event.Wheel.Y
+			zoom-=w/8.0
+			If zoom<1.0/8 zoom=1.0/8				
 		End
 	End	
+
 End
 
 Function Main()

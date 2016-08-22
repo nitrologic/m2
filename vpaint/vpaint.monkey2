@@ -15,6 +15,7 @@ Global Contact:=",,Latest Source: github.com/nitrologic/m2/tree/master/vpaint"
 Global Credits:=",,Transpiled by Monkey2 the primate language of champions."
 
 Global instance:AppInstance
+Global SaveCount:int
 
 Class VPane Extends Image
 	Field canvas:Canvas
@@ -27,6 +28,10 @@ Class VPane Extends Image
 		canvas.Alpha=0.8
 		canvas.Translate(w/2,h/2)
 		Handle=New Vec2f(0.5,0.5)		
+		
+		While GetFileType(AppDir()+"vpaint"+SaveCount+".png")=FileType.Directory
+			SaveCount+=1
+		wend
 	End
 	
 	Method Draw(display:Canvas)	
@@ -144,6 +149,12 @@ Class VPane Extends Image
 		canvas.DrawTriangle(v0,v2,v3)
 	End
 
+	Method Save()
+		Local pixmap:=canvas.CopyPixmap( canvas.Viewport )
+		pixmap.Save( AppDir()+"vpaint"+SaveCount+".png" )
+		pixmap.Discard()	
+		SaveCount+=1
+	End
 
 	Method Smile(x:Float,y:Float,r:Float)
 		Local v0:=New Vec2f(x-100,y+100)
@@ -427,6 +438,8 @@ Class VPaint Extends Window
 			Case Key.Space
 				Hold()
 				pane.EndSegment()
+			Case Key.P
+				pane.Save()
 			End
 				
 			If event.Modifiers & CommandKey

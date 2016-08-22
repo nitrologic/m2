@@ -294,7 +294,6 @@ Class IsoSkin
 	Method Balls(palette:Color[])		
 		For Local color:=Eachin palette
 			Ball(color,Color.Black)
-			Ball(color,Hot)
 		Next
 	End
 	
