@@ -22,7 +22,17 @@ Global Hot:=New Color(1,0.8,0.5,1)
 
 Global MainWindow:GridWindow
 
-Class GridView Extends View
+Class PaletteView Extends TreeView
+
+	Method New()
+'		Background=Colour.Black	
+	end
+End
+
+Class GridView Extends DockingView
+
+	Field palette:=New PaletteView
+	Field treeTabs:=New TabView	'( TabViewFlags.DraggableTabs )
 
 	Field gridspace:GridSpace
 
@@ -38,7 +48,16 @@ Class GridView Extends View
 		gridspace=New GridSpace(style)
 		Activated=Lambda()
 			MakeKeyView()
-		end
+		End
+		
+		treeTabs.Gravity.X=1
+		
+		treeTabs.AddTab("Add",palette)
+
+		AddView( treeTabs,"right",250,True )
+
+'		ContentView=_docsTabView
+
 	End
 	
 	Method OnRender(canvas:Canvas) Override
@@ -55,6 +74,8 @@ Class GridView Extends View
 '		DrawStats(canvas)		
 
 		RequestRender()
+		
+		Super.OnRender(canvas)
 	end
 
 	Method OnMouseEvent( event:MouseEvent ) Override	
