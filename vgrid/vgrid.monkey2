@@ -22,16 +22,9 @@ Global Hot:=New Color(1,0.8,0.5,1)
 
 Global MainWindow:GridWindow
 
-Class PaletteView Extends TreeView
-
-	Method New()
-'		Background=Colour.Black	
-	end
-End
-
 Class GridView Extends DockingView
 
-	Field palette:=New PaletteView
+'	Field palette:=New PaletteView
 	Field treeTabs:=New TabView	'( TabViewFlags.DraggableTabs )
 
 	Field gridspace:GridSpace
@@ -52,7 +45,7 @@ Class GridView Extends DockingView
 		
 		treeTabs.Gravity.X=1
 		
-		treeTabs.AddTab("Add",palette)
+'		treeTabs.AddTab("Add",palette)
 
 		AddView( treeTabs,"right",250,True )
 
