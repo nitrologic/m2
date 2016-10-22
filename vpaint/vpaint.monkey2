@@ -1,12 +1,10 @@
 #Import "<std>"
 #Import "<mojo>"
-#Import "<portmidi>"
-
 #Import "assets/whale52hz.wav"
 
 Using std..
 Using mojo..
-Using portmidi..
+Using mojo.graphics..
 
 Global title:String="VPaint 0.3"	
 
@@ -22,7 +20,7 @@ Class VPane Extends Image
 	Field pixmap:Pixmap
 
 	Method New(w:Int,h:Int,bg:Color)		
-		Super.New(w,h,TextureFlags.Dynamic|TextureFlags.Filter|TextureFlags.Mipmap)		
+		Super.New(w,h,TextureFlags.Dynamic)		
 		canvas=New Canvas(Self)	
 		canvas.Clear(bg)
 		canvas.Alpha=0.8
@@ -255,48 +253,6 @@ Class VPaint Extends Window
 		
 '		sdl2.SDL_ShowCursor(0)
 		
-		InitMidi()		
-	End
-
-	Field portMidi:PortMidi
-
-	method InitMidi()
-		Print "PortMidi test 0.1"
-		Print "Scanning Midi Bus, please wait."
-		portMidi=New PortMidi()
-		Local inputs:=portMidi.inputDevices.Length
-		Print "inputs="+inputs
-		For Local i:=0 Until inputs
-			portMidi.OpenInput(i)
-			'Print "Open #"+i+" handle="+h 
-		next
-	End
-
-	method PollMidi()
-		Const NoteOn:=144
-		Const NoteOff:=128
-		Const Controller:=176
-		Const PitchWheel:=224
-
-		While portMidi.HasEvent()
-			Local b:=portMidi.EventDataBytes()
-			Local note:=b[1]
-			Local velocity:=b[2]
-			Local word:Int=note+(velocity Shl 7)
-			Select b[0]
-				Case NoteOn
-'					vsynth.NoteOn(note,oscillator,envelope)
-				Case NoteOff
-'					vsynth.NoteOff(note)
-				Case PitchWheel
-'					pitchbend=1.0+(word-8192)/8192.0
-				Case Controller
-					OnControl(b[1],b[2])
-				Default
-					Print b[0]+" "+b[1]+" "+b[2]+" "+b[3]
-			End					
-		Wend
-'		portMidi.Sleep(1.0/60)
 	End
 	
 	Method RefreshStatus()	
@@ -313,9 +269,7 @@ Class VPaint Extends Window
 	Field statusCount:Int
 	
 	Method OnRender( display:Canvas ) Override	
-	
-		PollMidi()
-		
+			
 		App.RequestRender()						
 
 		Select appState

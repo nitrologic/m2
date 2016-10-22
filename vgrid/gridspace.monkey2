@@ -360,7 +360,11 @@ Class IsoSkin
 		Next	
 		Local iptr:Int Ptr=mesh.tris.Data
 		local vptr:Float Ptr=verts.Data
-		display.DrawPrimitives(3,mesh.triCount,vptr,8,Null,0,iptr)
+
+
+		Print "DrawMesh tricount="+mesh.triCount
+	
+		display.DrawPrimitives(3,mesh.triCount,vptr,8,Null,0,Null,4,Null,iptr)
 	End
 
 End
