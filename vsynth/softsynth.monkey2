@@ -453,6 +453,9 @@ Class BeatGenerator Implements Synth
 
 	Field keymap:=New Keymap
 	
+	Method New()
+	End
+	
 	Method SetTempo(tempo:Tempo,div:Int,duty:V,rept:int)
 		bpm=tempo
 		divisor=div
@@ -563,6 +566,9 @@ Class Arpeggiator extends BeatGenerator
 	Field noteCount:Int
 	field note:Int
 	Field cycle:int
+	
+	Method New()
+	End
 
 	Method SetArpeggiation(mode:Int,prog:Int)
 		algorithm=mode
