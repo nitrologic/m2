@@ -777,7 +777,10 @@ Class Quad Extends Image
 
 	Method New(dim:Int,id:Int)		
 '		Super.New(dim,dim,TextureFlags.Dynamic|TextureFlags.Filter|TextureFlags.Mipmap)		
+<<<<<<< Updated upstream
 '		Super.New(dim,dim,TextureFlags.Dynamic|TextureFlags.Filter)		
+=======
+>>>>>>> Stashed changes
 		Super.New(dim,dim,TextureFlags.Dynamic)		
 		dimension=dim
 		index=id

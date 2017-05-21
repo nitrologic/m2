@@ -243,7 +243,7 @@ Class VPaint Extends Window
 		radius=2.5
 '		tool=New VTool("Tools")
 '		tool.Title="VPaint Pen : RGBCycle"
-		sample=Sound.Load("asset::whale52hz.wav")
+		sample=Null'Sound.Load("asset::whale52hz.wav")
 		If sample
 			wheel=sample.Play(-1)
 			wheel.Rate=5
@@ -261,9 +261,9 @@ Class VPaint Extends Window
 		Local velocity:Int=100*Sqrt(panxSpeed*panxSpeed+panySpeed*panySpeed)
 		Local tooltype:="Line"
 		If tool=Tool.Curve tooltype="Curve"
-		status="RPM "+rpm+" Pan="+velocity+" Tip="+Int(radius*100)+" Tool="+tooltype
+		status="RPM "+rpm+" Pan="+velocity+" Tip="+Int(radius*100)+" Tool="+tooltype+" Dim="+Width+"x"+Height
 		statusCount=200		
-		wheel.Rate=rpm/60
+		If wheel wheel.Rate=rpm/60
 	End
 	
 	Field statusCount:Int
