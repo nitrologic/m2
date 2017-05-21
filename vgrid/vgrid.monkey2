@@ -22,6 +22,11 @@ Global Hot:=New Color(1,0.8,0.5,1)
 
 Global MainWindow:GridWindow
 
+Interface GridHost
+	Method OnOpen()
+	Method OnClose()
+End
+
 Class GridView Extends DockingView
 
 '	Field palette:=New PaletteView
@@ -82,7 +87,8 @@ Class GridView Extends DockingView
 				menu.AddAction( "Action 1" )
 				menu.AddAction( "Action 2" )
 				menu.AddAction( "Action 3" )				
-				menu.Open( event.Location,event.View )				
+				menu.Open()
+' event.Location,event.View )				
 				event.Eat()
 			end
 		Case EventType.MouseWheel
@@ -154,23 +160,36 @@ Class GridView Extends DockingView
 		rot=0
 	End
 
-end
+End
 
 Class GridWindow Extends Window
+	Field host:GridHost
 	Field status:String
 	Field framecount:Int
 	Field drawcount:Int
 	Field mousecount:Int
 	Field cx:Float
 	Field cy:Float
+	Field flags:=WindowFlags.Resizable|WindowFlags.HighDPI
 			
-	Method New(title:String)
-		Super.New(title,1024,800,WindowFlags.Resizable)		
+	Method New(owner:GridHost, windowRect:Recti, title:String)
+		Super.New(windowRect,flags)		
+		host=owner
+		OnOpen()
+	End
+	
+	Method New(owner:GridHost, title:String)
+		Super.New(title,800,600,flags)		
+		host=owner
+	End
+
+	Method OnOpen()
 		MainWindow=Self
 		Local style:=new IsoSkin()
 		SwapInterval=1		
 		InitViews()
 		App.Idle+=AppIdle
+		NewDocument()
 	End
 
 	Method AppIdle()	
@@ -223,8 +242,7 @@ Class GridWindow Extends Window
 			Local menu:=New Menu
 			menu.AddAction( "Action 1" )
 			menu.AddAction( "Action 2" )
-			menu.AddAction( "Action 3" )
-			
+			menu.AddAction( "Action 3" )			
 			menu.Open()
 		End
 		
@@ -366,11 +384,63 @@ Class GridWindow Extends Window
 		End
 	End
 	
+	Method OnWindowEvent(event:WindowEvent) Override
+			Select event.Type
+				Case EventType.WindowClose
+					Print "OnClose"
+					host.OnClose()
+				Case EventType.WindowResized
+					Print "OnSize"
+				Case EventType.WindowMoved
+					Print "OnMove"
+			End
+	End
+	
+End
+
+Class GridApp Implements GridHost
+	Field window:GridWindow
+	Field prefsPath:="vgrid,prefs"
+	Field hasPrefs:Bool
+	Field windowRect:Recti
+
+	Method New(title:String)
+		OnOpen()
+		If hasPrefs
+			window=New GridWindow(Self, windowRect, title)
+		Else
+			window=New GridWindow(Self, title)
+		Endif
+	End
+
+	Method OnOpen()	
+		Local prefs:=JsonObject.Load(prefsPath)
+		If prefs And prefs.Contains("winRect")
+			Local a:=prefs.GetArray("winRect")
+			Local x:=a.GetNumber(0)
+			Local y:=a.GetNumber(1)
+			Local w:=a.GetNumber(2)
+			Local h:=a.GetNumber(3)
+			windowRect=New Recti(x,y,x+w,y+h)
+			hasPrefs=True
+		Endif
+	End
+
+	Method OnClose()		
+		Local winRect:String="["+window.Frame.X+","+window.Frame.Y+","+window.Frame.Width+","+window.Frame.Height+"]"
+		Local json:String="{~qwinRect~q="+winRect+"}"
+		If Not SaveString(json, prefsPath)
+			'Notify("Warning", "Unable to open "+path, False)
+			Print "Unable to save prefs to "+prefsPath
+			Return
+		endif
+	End
+
 End
 
 Function Main()
 	Print title
 	New AppInstance	
-	New GridWindow(title)
+	New GridApp(title)
 	App.Run()	
 End
