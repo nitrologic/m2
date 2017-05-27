@@ -1,10 +1,10 @@
+#Import "audiopipe.monkey2"
+
 #Import "<std>"
 #Import "<mojo>"
 #Import "<sdl2>"
+#import "<sdl2-mixer>"
 #Import "<portmidi>"
-
-#Import "assets/whale52hz.wav"
-#Import "assets/engine1.wav"
 
 Using std..
 Using mojo..
@@ -14,6 +14,8 @@ Using openal..
 
 Global AppTitle:String="VSynth 0.05"	
 Global Contact:="Latest Source=github.com/nitrologic/m2"
+
+Global FragmentSize:=512
 
 Global About:="VSynth Control"
 Global Octave1:= "Sharps=    W   E       T   Y   U      "
@@ -36,6 +38,8 @@ Global RepeatNames:=New String[]("1x","2x","3x","4x")
 #import "softsynth.monkey2"
 
 Public
+
+Global WriteAhead:=8192
 
 Global instance:AppInstance
 Global vsynth:VSynth
@@ -284,34 +288,46 @@ Class VSynthWindow Extends Window
 		If Panic
 			instance.Terminate()
 		Else
+			pitchbend=1.0
 			vsynth.ClearKeys()
 			Panic=true
 		Endif
 	End
+	Field audioSpec:SDL_AudioSpec
+	Field buffer:=New Double[FragmentSize*2]
+	Field audioPipe:=AudioPipe.Create()
 			
 	Method OpenAudio()
-
-		local p:=Cast<Byte ptr>(alcGetString(Cast<ALCdevice ptr>(0), ALC_DEVICE_SPECIFIER))	
-		local s:=String.FromCString(p)
-		print "OpenAL Outputs:"+s
-
-		New Fiber( Lambda()
-			Local channel:=New Channel
-			Local data:=New AudioData( FragmentSize,AudioFormat.Stereo16,AudioFrequency )
-			Local datap:=Cast<Short Ptr>( data.Data )
-			Repeat
-				Local samples:=vsynth.FillAudioBuffer( FragmentSize )
-				For Local i:=0 Until FragmentSize*2
-					datap[i]=Clamp( samples[i],Double(-1.0),Double(1.0) ) * 32767.0
-				Next
-				Local loWater:=SampleLatency()/FragmentSize
-				channel.WaitQueued( loWater )
-				channel.Queue( data )							
-			Forever
+		Local spec:SDL_AudioSpec
+		spec.freq=AudioFrequency	
+		spec.format = AUDIO_S16
+		spec.channels = 2
+		spec.samples = FragmentSize
+		spec.callback = AudioPipe.Callback
+		spec.userdata = audioPipe.Handle()
 		
-		End )
+		Mix_CloseAudio()		
+		Local error:Int = SDL_OpenAudio(Varptr spec,Varptr audioSpec)		
+		If error
+			Print "error="+error+" "+String.FromCString(SDL_GetError())
+		Else
+			Print "Audio Open freq="+audioSpec.freq
+			AudioFrequency=audioSpec.freq
+		Endif				
+		SDL_PauseAudio(0)
 	End
-		
+
+	Method UpdateAudio()
+		While True
+			Local buffered:=audioPipe.writePointer-audioPipe.readPointer
+			If buffered>=WriteAhead Exit
+			Local samples:=FragmentSize
+			Local buffer:=vsynth.FillAudioBuffer(samples)			
+			Local pointer:=Varptr buffer[0]
+			audioPipe.WriteSamples(pointer,samples*2)
+		Wend
+	End
+			
 	Method ResetMidi()
 		reset=0
 		if portMidi 
@@ -663,7 +679,7 @@ Class VSynthWindow Extends Window
 		pitchbend=Pow(2,mousebend)		
 		Select event.Type
 			Case EventType.MouseDown
-				pixels.Click(mousex,mousey)
+'				pixels.Click(mousex,mousey)
 		End
 	End
 	
@@ -689,8 +705,10 @@ Class VSynthWindow Extends Window
 		vsynth.SetHold(hold)
 		vsynth.SetSustain(sustain)
 		vsynth.SetTempo(tempo,1+div,DutyCycle[duty],rept)
-'		vsynth.SetTone(oscillator,envelope)
+		vsynth.SetTone(oscillator,envelope)
 '		vsynth.UpdateAudio()
+
+		UpdateAudio()
 
 		Local text:String = About+",,"+Octave1+","+Octave0
 		text+=",,Octave=< >="+octave
@@ -777,10 +795,8 @@ Class Quad Extends Image
 
 	Method New(dim:Int,id:Int)		
 '		Super.New(dim,dim,TextureFlags.Dynamic|TextureFlags.Filter|TextureFlags.Mipmap)		
-<<<<<<< Updated upstream
 '		Super.New(dim,dim,TextureFlags.Dynamic|TextureFlags.Filter)		
-=======
->>>>>>> Stashed changes
+
 		Super.New(dim,dim,TextureFlags.Dynamic)		
 		dimension=dim
 		index=id

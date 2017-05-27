@@ -1,5 +1,8 @@
 ' softsynth.monkey2
 
+'#Import "assets/whale52hz.wav"
+#Import "assets/engine1.wav"
+
 Alias V:Double ' Voltage(volts)
 Alias F:Double ' Frequency(hz)
 Alias T:Double ' Time(seconds)
@@ -9,7 +12,6 @@ Alias Tempo:Int ' BeatsPerMinute
 Alias K:Key
 
 Global Duration:=0
-Global FragmentSize:=24
 
 Global AudioFrequency:=44100
 
@@ -475,13 +477,13 @@ Class BeatGenerator Implements Synth
 
 	Method SetSynth(synth:Synth)
 		output=synth
-'		output.SetTone(oscillator,envelope)
+		output.SetTone(oscillator,envelope)
 	End
 
 	Method SetTone(osc:Int,env:Int)
 		oscillator=osc
 		envelope=env
-'		output.SetTone(oscillator,envelope)
+		output.SetTone(oscillator,envelope)
 	end
 
 	Method Command(command:SynthCommand,depressed:bool)
@@ -744,7 +746,7 @@ Class PolySynth Implements Synth
 				oscillator=(oscillator+7) Mod 8
 		End
 	End
-	
+
 	Method NoteOn(note:Int,velocity:Int)
 		NoteOff(note)
 		If polyList.Empty Return
@@ -759,7 +761,7 @@ Class PolySynth Implements Synth
 		Endif	
 		keymap.NoteOn(note)
 	End
-		
+
 	Method NoteOff(note:Int)	
 		Local voice:=polyMap[note]
 		If voice
