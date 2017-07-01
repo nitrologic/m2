@@ -42,6 +42,7 @@ Class ADSR Extends Envelope
 	End
 	
 	Field t:T
+	Field value:V
 	Field noteOn:Bool
 
 	Method On:V() Override
@@ -50,16 +51,21 @@ Class ADSR Extends Envelope
 			noteOn=True
 		Endif
 		t+=1.0/AudioFrequency
-		If t<attack Return t/attack
-		If t-attack<decay Return 1.0-((1-sustain)*(t-attack)/decay)
-		Return sustain
+		Local v:=sustain
+		If t<attack v=t/attack
+		If t-attack<decay v=1.0-((1-sustain)*(t-attack)/decay)
+		value=v
+		Return v
 	End
 
 	Method Off:V() Override
-		noteOn=False
+		If noteOn
+			t=0
+			noteOn=False
+		Endif
 		t+=1.0/AudioFrequency
 		If t<release 
-			Return 1.0-t/release
+			Return value*(1.0-t/release)
 		Endif
 		Return 0.0
 	End
@@ -76,8 +82,8 @@ End
 Class Sine Extends Oscillator	
 	Method Sample:V(hz:F) Override
 		Local t:T=hz/AudioFrequency
-		delta=(delta+t) Mod 1.0
-		Return Sin(2*Pi*delta)
+		delta=(delta+t)
+		Return Cos(2*Pi*delta)
 	End
 End
 
@@ -326,7 +332,7 @@ Class Voice Implements NotePlayer
 			Case 0 
 				envelope=New Envelope()
 			Case 1 
-				envelope=New ADSR(0.05,1.5,0.2,0.3)
+				envelope=New ADSR(0.05,1.5,0.2,0.5)
 			Case 2
 				envelope=New ADSR(0.06,0.01,0.92,0.2)
 			Case 3 

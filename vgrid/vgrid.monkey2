@@ -8,10 +8,15 @@ Using std..
 Using mojo..
 Using mojox..
 
+Extern 
+Function SDL_GetPrefPath:Byte Ptr(org:CString,app:CString)
+
+Public 
+
 Global DefaultWindowFlags:=WindowFlags.Resizable|WindowFlags.HighDPI
 
 Global AppTitle:String="VGrid"	
-global AppVersion:String="v0.3"
+Global AppVersion:String="v0.3"
 
 Global AboutApp:=AppTitle+AppVersion+" Isometric Volumetric Encounter" 
 Global Controls:="Clear=C,,Grow=G,GrowX=X,GrowY=Y,GrowZ=Z,Smooth 1=Shift,Smooth 2=Control,,Zoom=MouseWheel,Rotate=Cursor Keys,,FullScreen=F1,Mesh=F5"
@@ -426,6 +431,8 @@ Class GridView Extends DockingView
 
 End
 
+
+
 Class GridHost Implements AppHost
 	Field window:GridWindow
 	Field prefsPath:String
@@ -434,7 +441,8 @@ Class GridHost Implements AppHost
 	Field windowFullscreen:Bool
 
 	Method New(title:String)
-		prefsPath=App.PrefPath+"vgrid.prefs"
+'		prefsPath=App.PrefPath+"vgrid.prefs"
+		prefsPath=String.FromCString(SDL_GetPrefPath("nitrologic","vgrid"))
 		OnOpen()
 		If hasPrefs
 			window=New GridWindow(Self, windowRect, windowFullscreen, title)

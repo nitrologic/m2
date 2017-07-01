@@ -21,6 +21,12 @@ public:
 		writePointer+=count;
 		mutex.unlock();
 	}
+
+	static float clamp(double a,double low, double hi){
+		if (a<low) a=low;
+		if (a>hi) a=hi;
+		return a;
+	}
 	
 	void readSamples(short *dest, int sampleCount){
 		mutex.lock();	
@@ -29,7 +35,7 @@ public:
 			for(int i=0;i<sampleCount;i++){
 				Sample s=buffer.front();
 				buffer.pop_front();			
-				dest[i]=32767*std::max(-1.0, std::min(s, 1.0));
+				dest[i]=32767*clamp(s, -1.0, 1.0);
 			}
 			readPointer+=sampleCount;
 		}
