@@ -15,7 +15,7 @@ Global Duration:=0
 
 Global AudioFrequency:=44100
 
-Const MaxPolyphony:=32
+Const MaxPolyphony:=64
 Const MaxOctave:=12
 
 Class Envelope
@@ -52,8 +52,11 @@ Class ADSR Extends Envelope
 		Endif
 		t+=1.0/AudioFrequency
 		Local v:=sustain
-		If t<attack v=t/attack
-		If t-attack<decay v=1.0-((1-sustain)*(t-attack)/decay)
+		If t<attack 
+			v=t/attack
+		Elseif t-attack<decay 
+			v=1.0-((1-sustain)*(t-attack)/decay)
+		Endif
 		value=v
 		Return v
 	End
@@ -82,7 +85,7 @@ End
 Class Sine Extends Oscillator	
 	Method Sample:V(hz:F) Override
 		Local t:T=hz/AudioFrequency
-		delta=(delta+t)
+		delta+=t
 		Return Cos(2*Pi*delta)
 	End
 End
@@ -332,7 +335,7 @@ Class Voice Implements NotePlayer
 			Case 0 
 				envelope=New Envelope()
 			Case 1 
-				envelope=New ADSR(0.05,1.5,0.2,0.5)
+				envelope=New ADSR(0.002,1.5,0.2,0.5)
 			Case 2
 				envelope=New ADSR(0.06,0.01,0.92,0.2)
 			Case 3 
@@ -374,11 +377,15 @@ Class Voice Implements NotePlayer
 			Local v:=oscillator.Sample(hz*detune[i])			
 			Local e:V
 			If noteOn e=envelope.On() Else e=envelope.Off()
-			e*=gain
-			e*=amp
-			e*=fade[i]
-			buffer[i*2+0]+=e*left*v
-			buffer[i*2+1]+=e*right*v
+			If e=0
+				oscillator.delta=0			
+			Else
+				e*=gain
+				e*=amp
+				e*=fade[i]
+				buffer[i*2+0]+=e*left*v
+				buffer[i*2+1]+=e*right*v
+			Endif
 		Next
 	End
 End
@@ -691,7 +698,7 @@ Class Arpeggiator extends BeatGenerator
 		If note TriggerNote(note)
 		count=repeats
 	End
-end
+End
 
 Class PolySynth Implements Synth
 
@@ -735,7 +742,7 @@ Class PolySynth Implements Synth
 				voice.Stop()
 			Next
 			sustainedVoices.Clear()		
-		endif
+		Endif
 		sustained=sustain
 	End
 
@@ -761,7 +768,7 @@ Class PolySynth Implements Synth
 		voice.SetOscillator(oscillator)
 		voice.NoteOn(note,velocity)
 		polyMap[note]=voice
-		polyList.Remove(voice)
+'		polyList.Remove(voice)
 		If Not voices.Contains(voice)
 			voices.Add(voice)
 		Endif	

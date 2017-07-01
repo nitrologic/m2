@@ -36,7 +36,7 @@ Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Nois
 Global EnvelopeNames:=New String[]("None","Plain","Punchy","SlowOut","SlowIn")
 Global ArpNames:=New String[]("None","Natural","Ascending","Descending","UpDown","Random1","Random2")
 Global ProgNames:=New String[]("None","Recurse","Ascend","Descend")
-Global SynthNames:=New String[]("Mono1","Poly32","MidiOut")
+Global SynthNames:=New String[]("Mono1","Poly64","MidiOut")
 Global HoldNames:=New String[]("Off","On")
 Global DivisorNames:=New String[]("Whole","Half","Third","Quarter","Fifth","Sixth","Seventh","Eighth")
 Global DutyNames:=New String[]("1:2","3:4","1:4","7:8","1:8","5:8","3:8")
@@ -205,7 +205,7 @@ Class VSynth
 				CycleRecord()
 			Default
 				root.Command(command,down)
-		end
+		End
  	End
 	
 End	
@@ -291,12 +291,27 @@ Class VSynthWindow Extends Window
 	End
 	
 	Method Create()
+		volume=applet.DefaultNumber("synthVolume")
+		synth=applet.DefaultNumber("synthMode")
+		oscillator=applet.DefaultNumber("synthOscillator")
+		envelope=applet.DefaultNumber("synthEnvelope")
+		octave=applet.DefaultNumber("synthOctave")
+		
+		arp=applet.DefaultNumber("arpMode")
+		prog=applet.DefaultNumber("arpProg")
+		hold=applet.DefaultNumber("arpHold")
+		tempo=applet.DefaultNumber("arpTempo")		
+		div=applet.DefaultNumber("arpDivisor")
+		duty=applet.DefaultNumber("arpDuty")
+		rept=applet.DefaultNumber("arpRepeat")
+
 		For Local i:=0 Until MusicKeys.Length
 			keyNoteMap.Set(MusicKeys[i],i-1)
 		Next
 
-		vsynth=New VSynth
-
+		vsynth=New VSynth()
+		vsynth.SetSynth(synth)
+		
 		applet.OnFrame(Self)
 		OpenAudio()
 #If __HOSTOS__<>"windows"
@@ -541,7 +556,7 @@ Class VSynthWindow Extends Window
 			sustain=value>=0
 		Default
 			Print "OnControl:"+index+" "+value
-		end
+		End
 	End
 	
 	Field midiTicks:Int
@@ -695,7 +710,7 @@ Class VSynthWindow Extends Window
 			Case Key.RightShift
 				sustain=Not sustain
 			Case Key.PageUp
-				volume=1.20*volume
+				volume=volume?1.20*volume Else 0.2
 			Case Key.PageDown
 				volume=0.92*volume
 			Case Key.Left
@@ -1098,7 +1113,7 @@ class ColorMap Extends Box
 			Next
 		next
 	end
-end
+End
 
 
 Class Applet
@@ -1109,8 +1124,10 @@ Class Applet
 	Field hasPrefs:Bool
 	Field windowRect:Recti
 	Field windowFullscreen:Bool
-	
+		
 	Field window:VSynthWindow
+	
+	Field defaults:JsonObject
 
 	Method New()
 		LoadPrefs()
@@ -1124,11 +1141,25 @@ Class Applet
 	Function TrueFalse:String(b:Bool)
 		If b Return "true"
 		Return "false"
-	end
+	End
+	
+	Method DefaultNumber:V(name:String)
+		Return defaults?defaults.GetNumber(name) Else 0
+	End
 
 	Method LoadPrefs()	
-		Local prefs:=JsonObject.Load(prefsPath+prefsFile)
-		If prefs And prefs.Contains("winRect")
+		defaults=JsonObject.Load(prefsPath+prefsFile)
+
+		Local prefs:=defaults
+
+		If Not prefs
+			Print "prefs not loaded from "+prefsPath			
+			Local raw:=LoadString(prefsPath)
+			Print "raw="+raw
+			Return
+		Endif
+
+		If prefs.Contains("winRect")
 			Local a:=prefs.GetArray("winRect")
 			Local f:=prefs.GetBool("winFullscreen")
 			Local x:=a.GetNumber(0)
@@ -1141,33 +1172,76 @@ Class Applet
 			windowFullscreen=f
 			hasPrefs=True
 			Print "prefs loaded r="+x+","+y+","+w+","+h+" f="+TrueFalse(f)
-		Else
-			Print "prefs not loaded from "+prefsPath			
-			Local raw:=LoadString(prefsPath)
-			Print "raw="+raw
 		Endif
+		
 	End
 
 	Method OnFrame(window:Window)
 		If window.Fullscreen
 			windowFullscreen=True
 		Else
-			windowFullscreen=false
+			windowFullscreen=False
 			windowRect=window.Frame
 		Endif
+	End
+
+	Function JsonString:String(args:Stack<String>)
+		Local s:String
+		For Local i:=0 Until args.Length Step 2
+			Local a:=args[i+0]
+			Local b:=args[i+1]
+			If i>0 s+=","
+			s+="~q"+a+"~q:"+b
+		Next
+		Return "{"+s+"}"
 	End
 
 	Method OnClose()		
 		Local winRect:="["+windowRect.X+","+windowRect.Y+","+windowRect.Width+","+windowRect.Height+"]"
 		Local winFS:=windowFullscreen?"true"else"false"
-		Local json:String="{~qwinRect~q:"+winRect+",~qwinFullscreen~q:"+winFS+"}~n"
+
+'		Local json:String="{~qwinRect~q:"+winRect+",~qwinFullscreen~q:"+winFS+",~qsynthVolume~q:"+window.volume+"}~n"
+
+		Local json:=New Stack<String>
+		json.Add("winRect")
+		json.Add(winRect)
+		json.Add("winFullscreen")
+		json.Add(winFS)
+		json.Add("synthVolume")
+		json.Add(window.volume)
+		json.Add("synthOscillator")
+		json.Add(window.oscillator)
+		json.Add("synthEnvelope")
+		json.Add(window.envelope)
+		json.Add("synthMode")
+		json.Add(window.synth)
+		json.Add("arpMode")
+		json.Add(window.arp)
+		json.Add("synthOctave")
+		json.Add(window.octave)
+		json.Add("arpHold")
+		json.Add(window.hold?1 Else 0)
+		json.Add("arpTempo")
+		json.Add(window.tempo)
+		json.Add("arpDivisor")
+		json.Add(window.div)
+		json.Add("arpDuty")
+		json.Add(window.duty)
+		json.Add("arpProgression")
+		json.Add(window.prog)
+		json.Add("arpRepeat")
+		json.Add(window.rept)
+
 		If GetFileType(prefsPath)=FileType.None CreateDir(prefsPath)
-		If Not SaveString(json, prefsPath+prefsFile)
+		
+		Local js:=JsonString(json)
+
+		If Not SaveString(js, prefsPath+prefsFile)
 			'Notify("Warning", "Unable to open "+path, False)
 			Print "Unable to save prefs to "+prefsPath
 			Return
 		Endif
-		Print "saved prefs as "+json+" in "+prefsPath
+		Print "saved prefs as "+js+" in "+prefsPath
 		App.Terminate()
 	End
 
