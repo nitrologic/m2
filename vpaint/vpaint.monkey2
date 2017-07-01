@@ -504,7 +504,7 @@ Class VPaint Extends Window
 	End	
 End
 
-Function Main()
+Function Main2()
 	Print title
 	instance = New AppInstance	
 	New VPaint(title)

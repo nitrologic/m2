@@ -12,6 +12,14 @@ Using sdl2..
 Using portmidi..
 Using openal..
 
+Extern 
+
+Function SDL_GetPrefPath:Byte Ptr(org:CString,app:CString)
+
+Public 
+
+Global DefaultWindowFlags:=WindowFlags.Resizable|WindowFlags.HighDPI
+
 Global AppTitle:String="VSynth 0.05"	
 Global Contact:="Latest Source=github.com/nitrologic/m2"
 
@@ -20,7 +28,7 @@ Global FragmentSize:=512
 Global About:="VSynth Control"
 Global Octave1:= "Sharps=    W   E       T   Y   U      "
 Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
-Global Controls:="Midi Panic=Escape,Quit=EscapeEscape"
+Global Controls:="Midi Panic=Escape,Quit=LongEscape"
 
 Global RecordNames:=New String[]("Paused","Recording")
 Global SustainNames:=New String[]("Up","Down")
@@ -44,6 +52,7 @@ Global WriteAhead:=8192
 Global instance:AppInstance
 Global vsynth:VSynth
 
+	
 Class VSynth
 	Field audioSpec:SDL_AudioSpec
 	Field detune:V
@@ -230,7 +239,7 @@ Class VSynthWindow Extends Window
 	Field mousex:Int
 	Field mousey:Int
 	
-	Field volume:V=0.8
+	Field volume:V=0.1
 	Field mousebend:V
 	Field pitchbend:V=1.0
 
@@ -252,8 +261,8 @@ Class VSynthWindow Extends Window
 	Field duty:Int
 	Field rept:Int
 	Field tempo:Tempo=92
-	Field pressure:int
-	field reset:Int
+	Field pressure:Int
+	Field reset:Int
 	
 	Field keyNoteMap:=New Map<Key,Int>
 	
@@ -265,34 +274,70 @@ Class VSynthWindow Extends Window
 	Field midiSendName:="None"
 	
 	Field audioLatency:Int=2 '1 Shl (10+n) samples
+	Field applet:Applet
+	Field goFullscreen:Bool
 		
-	Method New(title:String)
-		Super.New(title,1280,720,WindowFlags.Resizable)				
+	Method New(host:Applet, rect:Recti, fullscreen:bool, title:String)
+		Super.New(title,rect,DefaultWindowFlags)		
+		applet=host
+		goFullscreen=fullscreen
+		Create()
+	End
+	
+	Method New(host:Applet, title:String)
+		Super.New(title,800,600,DefaultWindowFlags)		
+		applet=host
+		Create()
+	End
+	
+	Method Create()
 		For Local i:=0 Until MusicKeys.Length
 			keyNoteMap.Set(MusicKeys[i],i-1)
 		Next
+
 		vsynth=New VSynth
+
+		applet.OnFrame(Self)
 		OpenAudio()
 #If __HOSTOS__<>"windows"
 		ResetMidi()
-#endif
+#Endif
 		ClearColor=new Color(1.0/16,1.0)
 ' midi mappings		
 		MapKontrol()
 		MapAkai()
 	End
+
+	Method OnWindowEvent(event:WindowEvent) Override
+		Local host:=applet
+		Select event.Type
+			Case EventType.WindowClose
+				Print "OnClose"
+				host.OnClose()
+			Case EventType.WindowResized
+				host.OnFrame(Self)
+				Print "OnSize"
+			Case EventType.WindowMoved
+				host.OnFrame(Self)
+				Print "OnMove"
+		End
+	End
+
+	Field EscapeTime:Int
 	
-	Field Panic:=false
-	
-	Method Escape()			
-		If Panic
-			instance.Terminate()
-		Else
-			pitchbend=1.0
-			vsynth.ClearKeys()
-			Panic=true
+	Method EscapeDown()			
+		pitchbend=1.0
+		vsynth.ClearKeys()
+		EscapeTime=App.Millisecs
+	End
+
+	Method EscapeUp()			
+		Local duration:=App.Millisecs-EscapeTime
+		If duration>500
+			applet.OnClose()
 		Endif
 	End
+
 	Field audioSpec:SDL_AudioSpec
 	Field buffer:=New Double[FragmentSize*2]
 	Field audioPipe:=AudioPipe.Create()
@@ -455,7 +500,7 @@ Class VSynthWindow Extends Window
 	
 	Method OnControl(index:Int, value:Int)	
 	
-		local f:=value/128.0
+		Local f:=value/128.0
 		value-=64
 		
 		If commands.Contains(index)
@@ -590,6 +635,9 @@ Class VSynthWindow Extends Window
 				tempo-=1
 			Case Key.Equals
 				tempo+=1
+			Case Key.F1
+				Fullscreen = Not Fullscreen				
+				applet.OnFrame(Self)
 			Case Key.F2
 				CycleAudioLatency()
 			Case Key.F4
@@ -628,7 +676,7 @@ Class VSynthWindow Extends Window
 			Case Key.Key8
 				oscillator=7
 			Case Key.Escape
-				Escape()
+				EscapeDown()
 			Case Key.Space
 				vsynth.Command(SynthCommand.Record,True)
 			Case Key.LeftBracket
@@ -643,9 +691,9 @@ Class VSynthWindow Extends Window
 			Case Key.Period
 				octave=Clamp(octave+1,0,MaxOctave)
 			Case Key.LeftShift
-				sustain=true
+				sustain=True
 			Case Key.RightShift
-				sustain=not sustain
+				sustain=Not sustain
 			Case Key.PageUp
 				volume=1.20*volume
 			Case Key.PageDown
@@ -666,6 +714,7 @@ Class VSynthWindow Extends Window
 			Case Key.LeftShift
 				sustain=False
 			Case Key.Escape
+				EscapeUp()
 			Default
 				KeyUp(event.Key)
 			End
@@ -685,6 +734,10 @@ Class VSynthWindow Extends Window
 	
 
 	Method OnRender( display:Canvas ) Override	
+		If goFullscreen
+			goFullscreen=False
+			Fullscreen=True
+		Endif
 	
 		If reset
 			ResetMidi()
@@ -1048,10 +1101,82 @@ class ColorMap Extends Box
 end
 
 
+Class Applet
+	Global title:="VSynth"
+	Global prefsPath:=String.FromCString(SDL_GetPrefPath("nitrologic","vsynth"))
+	Global prefsFile:="vsynth.prefs.json"
+
+	Field hasPrefs:Bool
+	Field windowRect:Recti
+	Field windowFullscreen:Bool
+	
+	Field window:VSynthWindow
+
+	Method New()
+		LoadPrefs()
+		If hasPrefs
+			window=New VSynthWindow(Self, windowRect, windowFullscreen, title)
+		Else
+			window=New VSynthWindow(Self, title)
+		Endif
+	End
+
+	Function TrueFalse:String(b:Bool)
+		If b Return "true"
+		Return "false"
+	end
+
+	Method LoadPrefs()	
+		Local prefs:=JsonObject.Load(prefsPath+prefsFile)
+		If prefs And prefs.Contains("winRect")
+			Local a:=prefs.GetArray("winRect")
+			Local f:=prefs.GetBool("winFullscreen")
+			Local x:=a.GetNumber(0)
+			Local y:=a.GetNumber(1)
+			Local w:=a.GetNumber(2)
+			Local h:=a.GetNumber(3)
+			If w<240 w=240
+			If h<120 h=120
+			windowRect=New Recti(x,y,x+w,y+h)
+			windowFullscreen=f
+			hasPrefs=True
+			Print "prefs loaded r="+x+","+y+","+w+","+h+" f="+TrueFalse(f)
+		Else
+			Print "prefs not loaded from "+prefsPath			
+			Local raw:=LoadString(prefsPath)
+			Print "raw="+raw
+		Endif
+	End
+
+	Method OnFrame(window:Window)
+		If window.Fullscreen
+			windowFullscreen=True
+		Else
+			windowFullscreen=false
+			windowRect=window.Frame
+		Endif
+	End
+
+	Method OnClose()		
+		Local winRect:="["+windowRect.X+","+windowRect.Y+","+windowRect.Width+","+windowRect.Height+"]"
+		Local winFS:=windowFullscreen?"true"else"false"
+		Local json:String="{~qwinRect~q:"+winRect+",~qwinFullscreen~q:"+winFS+"}~n"
+		If GetFileType(prefsPath)=FileType.None CreateDir(prefsPath)
+		If Not SaveString(json, prefsPath+prefsFile)
+			'Notify("Warning", "Unable to open "+path, False)
+			Print "Unable to save prefs to "+prefsPath
+			Return
+		Endif
+		Print "saved prefs as "+json+" in "+prefsPath
+		App.Terminate()
+	End
+
+End
+
 Function Main()
 	instance = New AppInstance	
-	New VSynthWindow(AppTitle)	
-	App.Run()	
+	New Applet
+	App.Run()
 End
 
 

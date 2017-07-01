@@ -66,7 +66,7 @@ Class AppWindow Extends Window
 		If goFullscreen
 			goFullscreen=False
 			Fullscreen=True
-		endif
+		Endif
 	end
 
 	Method OnOpen()
@@ -294,7 +294,7 @@ Class GridWindow Extends AppWindow
 
 	Method New(owner:GridHost, title:String)
 		Super.New(owner,title)
-	end
+	End
 
 End
 
