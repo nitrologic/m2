@@ -296,14 +296,17 @@ Class VSynthWindow Extends Window
 		oscillator=applet.DefaultNumber("synthOscillator")
 		envelope=applet.DefaultNumber("synthEnvelope")
 		octave=applet.DefaultNumber("synthOctave")
+
+		tempo=applet.DefaultNumber("arpTempo")		
 		
 		arp=applet.DefaultNumber("arpMode")
 		prog=applet.DefaultNumber("arpProg")
 		hold=applet.DefaultNumber("arpHold")
-		tempo=applet.DefaultNumber("arpTempo")		
 		div=applet.DefaultNumber("arpDivisor")
 		duty=applet.DefaultNumber("arpDuty")
 		rept=applet.DefaultNumber("arpRepeat")
+
+		audioLatency=applet.DefaultNumber("audioLatency")
 
 		For Local i:=0 Until MusicKeys.Length
 			keyNoteMap.Set(MusicKeys[i],i-1)
@@ -1207,6 +1210,8 @@ Class Applet
 		json.Add(winRect)
 		json.Add("winFullscreen")
 		json.Add(winFS)
+		json.Add("audioLatency")
+		json.Add(window.audioLatency)
 		json.Add("synthVolume")
 		json.Add(window.volume)
 		json.Add("synthOscillator")
