@@ -11,18 +11,18 @@
 
 Extern
 
+struct mmask_t
+end
+
 struct MEVENT
 	field id:short
 	field x:int
 	field y:int
 	field z:int
-	field bstate:int
+	field bstate:mmask_t
 end
 
-struct mmask_t
-end
-
-class WINDOW
+class WINDOW extends void
 end
 
 const ALL_MOUSE_EVENTS:mmask_t
@@ -80,6 +80,14 @@ function clear:int()
 Function getch:Int()
 function curs_set(cursor:int)
 
+function use_default_colors:int()
+function assume_default_colors:int(fg:int, bg:int)
+function has_colors:bool()
+function start_color:int()
+function init_pair:int(pair:short, fg:short, bg:short)
+function can_change_color:bool()
+function init_color(color:Short, r:short, g:short, b:short)
+
 function newwin:WINDOW(w:int,h:int,x:int,y:int)
 function wclear(window:WINDOW)
 function wrefresh(window:WINDOW)
@@ -99,6 +107,8 @@ function getmouse:int(event:MEVENT ptr)
 
 function mousemask:mmask_t(events:mmask_t, oldmask:mmask_t ptr)
 
+function COLOR_PAIR:int(pair:short)
+
 Public
 
 Function Main()
@@ -107,15 +117,25 @@ Function Main()
 	noecho()
 	curs_set(0)
 
+	start_color()
+'	assume_default_colors(8,-1)
+'	use_default_colors()	
+
 	local w:=newwin(10,32,4,(COLS-32)/2)
+	local p:=init_pair(1, COLOR_GREEN, COLOR_BLACK)
+
+	wattron(w,COLOR_PAIR(0))
 
 	local oldmask:mmask_t
 	local newmask:=mousemask(ALL_MOUSE_EVENTS, varptr oldmask)
 
+
+
 	box(w,0,0)
-	mvwprintw(w,3,2,"HELLO")
+	mvwprintw(w,3,2,"ncurses test has_colors="+(has_colors()?"true"else"false"))
+	mvwprintw(w,4,2,"can_change_colors="+(can_change_color()?"true"else"false"))
 	wattron(w,A_BOLD)
-	mvwprintw(w,4,2,"("+LINES+","+COLS+")")
+	mvwprintw(w,6,2,"("+LINES+","+COLS+")")
 	wattroff(w,A_BOLD)
 	mvwprintw(w,8,2,"Escape To Quit")
 
@@ -133,7 +153,9 @@ Function Main()
 		if key=KEY_MOUSE
 			local r:=getmouse(varptr e)
 			if r=OK
-				mvwprintw(w,6,2,"mouse="+e.id+","+e.x+","+e.y+","+e.z+","+e.bstate+"  ")
+				local bits:int'=e.bstate
+				mvwprintw(w,6,2,"mouse="+e.id+","+e.x+","+e.y+","+e.z+","+bits)
+'				mvwprintw(w,6,2,"mouse="+e.id)
 			endif
 		endif
 	wend
