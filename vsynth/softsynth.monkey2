@@ -214,12 +214,14 @@ Class SampleBank
 	End
 
 	Function MakeGuid:String(guid:String)	
+		Local byteorder:=New Int[](3,2,1,0,5,4,7,6,8,9,10,11,12,13,14,15)
 		guid=guid.Replace("-","")		
 		Local buffer:=New Byte[16]
 		For Local i:=0 Until 16
 			Local b8:=ByteFromHex(guid.Slice(i*2,i*2+2))		
 			Print Hex(b8)
-			buffer[i]=b8
+			Local index:=byteorder[i]
+			buffer[index]=b8
 		Next
 		Return String.FromCString(buffer.Data,16)			
 	End
