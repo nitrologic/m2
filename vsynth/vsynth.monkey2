@@ -100,7 +100,7 @@ Class VSynth
 			Duration+=samples			
 			PlotScope(samples)
 			If recording
-				Record(samples)
+				Record(buffer,samples)
 			Endif
 		Endif
 		Return buffer
@@ -165,8 +165,8 @@ Class VSynth
 		If Not recording sampleBank.Save(Applet.prefsPath)
 	End
 
-	Method Record(samples:Int)
-		sampleBank.Record(buffer.Data,samples)
+	Method Record(samples:V[],length:Int)
+		sampleBank.Record(samples,length)
 	End
 
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)

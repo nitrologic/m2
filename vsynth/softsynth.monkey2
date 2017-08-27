@@ -185,21 +185,41 @@ Alias SampleData:Deque<V>
 
 Class SampleBank
 	Field sampleData:SampleData
-	Field pitch:=220.0
+'	Field pitch:=220.0
 	Field freq:=44100
+	
+	Method Normalise()
+		Local m:V=0.0
+		For Local i:=0 Until sampleData.Length
+			Local s:=sampleData[i]
+			If s*s>m m=s*s
+		Next
+		
+		If m>1
+			Local q:=1.0/Sqrt(m)		
+			For Local i:=0 Until sampleData.Length
+				sampleData[i]*=q
+			Next
+			Print "SampleBank Nomalised with Q "+q
+		Else 
+			Print "Normalisation not required for M "+m
+		Endif
+		
+	End
 
-	Method Record(sample:V Ptr,count:Int)
+	Method Record(samples:V[],count:Int)
 		If Not sampleData
 			sampleData = New SampleData
 		Endif
-		For Local i:=0 Until count
-			sampleData.PushLast(sample[i])
+		For Local i:=0 Until count*2
+			sampleData.PushLast(samples[i])
 		Next
 	End
 	
 	Method Save(dir:String)
 		Local path:=dir+"test.wav"
 		Local file:=FileStream.Open(path,"w")
+		Normalise()
 		WriteWAV(file)
 		file.Close()
 		Print "saved wav to "+path
@@ -212,6 +232,9 @@ Class SampleBank
 		n1=(n1>=97)?n1-87 Else n1-48
 		Return n0*16+n1
 	End
+	
+	Global WAVE_FORMAT_IEEE_FLOAT:="00000003-0000-0010-8000-00aa00389b71"
+	Const FORMAT_EXTENSIBLE:=$FFFE
 
 	Function MakeGuid:String(guid:String)	
 		Local byteorder:=New Int[](3,2,1,0,5,4,7,6,8,9,10,11,12,13,14,15)
@@ -229,38 +252,30 @@ Class SampleBank
 ' based on http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/WAVE.html
 
 	Method WriteWAV( stream:std.stream.Stream)
-		Const FORMAT_EXTENSIBLE:=$FFFE
+		Const FORMAT_FLOAT:=$0003
 		Const RIFF:=$46464952
 		Const WAVE:=$45564157
 		Const FMT:=$20746d66
-		Const FACT:=$74666469
 		Const DATA:=$61746164
-		Local WAVE_FORMAT_IEEE_FLOAT:="00000003-0000-0010-8000-00aa00389b71"
-		Local guid:=MakeGuid(WAVE_FORMAT_IEEE_FLOAT)
+'		Local guid:=MakeGuid(WAVE_FORMAT_IEEE_FLOAT)
 		Local len:=sampleData.Length*4
-		Local rifflen:=4+48+12+8+len
+		Local rifflen:=4+24+8+len
 		stream.WriteUInt(RIFF)
 		stream.WriteUInt(rifflen)
 		stream.WriteUInt(WAVE)
 		stream.WriteUInt(FMT)
-		stream.WriteUInt(40)		
-		Local channels:=1
-		Local bitspersample:=4
-		Local align:=4
-		Local speakerMask:=1
-		stream.WriteUShort(FORMAT_EXTENSIBLE)
-		stream.WriteUShort(channels)
-		stream.WriteUInt(freq)
-		stream.WriteUInt(freq*align)
-		stream.WriteUShort(align)
-		stream.WriteUShort(bitspersample)
-		stream.WriteUInt(speakerMask)
-		stream.WriteString(guid)
-		stream.WriteUInt(FACT)
-		stream.WriteUInt(4)	
-		stream.WriteUInt(1)
+		stream.WriteUInt(16)		
+		Local channels:=2
+		Local bitspersample:=32
+		Local align:=8
+		stream.WriteUShort(FORMAT_FLOAT)		'2
+		stream.WriteUShort(channels)			'2
+		stream.WriteUInt(freq)					'4
+		stream.WriteUInt(freq*align)			'4
+		stream.WriteUShort(align)				'2
+		stream.WriteUShort(bitspersample)		'2
 		stream.WriteUInt(DATA)
-		stream.WriteUInt(len)		
+		stream.WriteUInt(len)
 		For Local sample:=Eachin sampleData
 			stream.WriteFloat(sample)
 		Next
