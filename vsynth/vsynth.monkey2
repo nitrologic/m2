@@ -14,6 +14,8 @@ Using openal..
 
 Extern 
 
+'Function JsonArray
+
 Function SDL_GetPrefPath:Byte Ptr(org:CString,app:CString)
 
 Public 
@@ -52,7 +54,6 @@ Global WriteAhead:=8192
 Global instance:AppInstance
 Global vsynth:VSynth
 
-	
 Class VSynth
 	Field audioSpec:SDL_AudioSpec
 	Field detune:V
@@ -69,11 +70,14 @@ Class VSynth
 	Field buffer:=New Double[FragmentSize*2]
 	Field detuneBuffer:=New V[FragmentSize]
 	Field fadeBuffer:=New V[FragmentSize]
+
 	Field scope:=New Scope()
 
 	Field position:Double
-	Field panSpeed:Double=1.0/1024	'samples per pixel
+	Field panSpeed:Double=22.0'/128'1024	'samples per pixel
 	Field panAmp:V
+	
+	Field sampleBank:=New SampleBank()
 	Field recording:=False
 		
 	Method New()
@@ -101,28 +105,24 @@ Class VSynth
 		Endif
 		Return buffer
 	End
-	
+		
 	Method PlotScope(samples:Int)	
 		' green left channel
 		scope.Pen(LowSaturatedGreen)
 		For Local i:=0 Until samples
-			scope.Plot(buffer[i*2+0])			
+			scope.Plot(panSpeed*i,buffer[i*2+0])			
 		Next
 		' red right channel
 		scope.Pen(LowSaturatedRed)
 		For Local i:=0 Until samples
-			scope.Plot(panAmp*buffer[i*2+1])			
+			scope.Plot(panSpeed*i,panAmp*buffer[i*2+1])			
 		Next
 ' advance head
 		position+=samples*panSpeed
-		scope.Advance(0.25*Int(position))
+'		scope.Advance(Int(8*position))
+		scope.Advance(position)		'Int(8*position))
 	End
-	
-	Method Record(samples:Int)
-		Local s:=SampleBank.this
-		s.Record(buffer.Data,samples)
-	End
-	
+		
 	Method SetMidiOutput(portMidi:PortMidi,midiSend:Int)
 		midiSynth=New MidiSynth(portMidi,midiSend)
 		SetSynth(synthMode)
@@ -136,16 +136,16 @@ Class VSynth
 		root.SetTone(oscillator,envelope)
 	End
 	
-	Method NoteOn(note:Int,velocity:Int)
-		root.NoteOn(note,velocity)
+	Method NoteOn(note:Note)
+		root.NoteOn(note)
 	End
 
-	Method NoteOff(note:Int)	
+	Method NoteOff(note:Note)	
 		root.NoteOff(note)
 	End
 
-	Method GetKeymap:Keymap()
-		Return root.GetKeymap()
+	Method GetKeys:Keys()
+		Return root.GetKeys()
 	End
 	
 	Method SetSynth(synth:Int)
@@ -162,6 +162,11 @@ Class VSynth
 		
 	Method CycleRecord()
 		recording=Not recording
+		If Not recording sampleBank.Save(Applet.prefsPath)
+	End
+
+	Method Record(samples:Int)
+		sampleBank.Record(buffer.Data,samples)
 	End
 
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
@@ -199,7 +204,7 @@ Class VSynth
 	End
 	
 	Method Command(command:SynthCommand,down:bool)
-		If Not down return
+		If Not down Return
 		Select command
 			Case SynthCommand.Record
 				CycleRecord()
@@ -233,6 +238,7 @@ End
 Class VSynthWindow Extends Window
 
 	Const MusicKeys:=New Key[]( Key.Q,Key.A,Key.W,Key.S,Key.E,Key.D,  Key.F,Key.T,Key.G,Key.Y,Key.H,Key.U,Key.J,  Key.K,Key.O,Key.L,Key.P,Key.Semicolon)',Key.Apostrophe )
+	Field keyNoteMapping:=New Map<Key,Int>
 
 	Field frame:Int
 	Field tick:Int
@@ -260,12 +266,12 @@ Class VSynthWindow Extends Window
 	Field div:Int
 	Field duty:Int
 	Field rept:Int
+	Field arpstate:JsonObject
+		
 	Field tempo:Tempo=92
 	Field pressure:Int
 	Field reset:Int
-	
-	Field keyNoteMap:=New Map<Key,Int>
-	
+		
 	Field portMidi:PortMidi
 
 	Field midiInputs:Int
@@ -305,11 +311,12 @@ Class VSynthWindow Extends Window
 		div=applet.DefaultNumber("arpDivisor")
 		duty=applet.DefaultNumber("arpDuty")
 		rept=applet.DefaultNumber("arpRepeat")
+		arpstate=applet.DefaultObject("arpState")
 
 		audioLatency=applet.DefaultNumber("audioLatency")
 
 		For Local i:=0 Until MusicKeys.Length
-			keyNoteMap.Set(MusicKeys[i],i-1)
+			keyNoteMapping.Set(MusicKeys[i],i-1)
 		Next
 
 		vsynth=New VSynth()
@@ -324,6 +331,9 @@ Class VSynthWindow Extends Window
 ' midi mappings		
 		MapKontrol()
 		MapAkai()
+		
+		
+		vsynth.arpeggiator.SetState(arpstate)
 	End
 
 	Method OnWindowEvent(event:WindowEvent) Override
@@ -420,7 +430,7 @@ Class VSynthWindow Extends Window
 		
 '		_ControllerChange)|(_VolumeController Shl 8)|(value7 Shl 16)
 		portMidi.SendMessage(output,sysex)
-	end
+	End
 	
 	Method CycleMidiSend()
 		If midiOutputs	
@@ -449,16 +459,15 @@ Class VSynthWindow Extends Window
 		While portMidi and portMidi.HasEvent()
 			Local b:=portMidi.EventDataBytes()
 			Local t:=portMidi.EventTime()
-			Local note:=b[1]
-			Local velocity:=b[2]
-			Local word:Int=note+(velocity Shl 7)
+			Local note:=New Note(b[1],b[2])
+			Local word:Int=note.note+(note.velocity Shl 7)
 						
 			Select b[0]
 				Case NoteOn
-					If velocity=0
+					If note.velocity=0
 						vsynth.NoteOff(note)
 					Else
-						vsynth.NoteOn(note,velocity)
+						vsynth.NoteOn(note)
 					Endif
 				Case NoteOff					
 					vsynth.NoteOff(note)
@@ -588,29 +597,30 @@ Class VSynthWindow Extends Window
 	
 	Method OnMidiPlay(button:Int,t:Double)
 		Print "Play "+button
-	end
+	End
 		
-	Field noteMap:=New IntMap<Bool>
+	Field noteDownMap:=New IntMap<Bool>
 	Field KeyVelocity:=80
 	
 	Method KeyDown(key:Key)
-		If keyNoteMap.Contains(key)
+		If keyNoteMapping.Contains(key)
 			KeyUp(key)
-			Local note:=keyNoteMap[key]+octave*12
-			noteMap[note]=True
-			vsynth.NoteOn(note,KeyVelocity)
+			Local note:=keyNoteMapping[key]+octave*12
+			noteDownMap[note]=True
+			
+			vsynth.NoteOn(New Note(note,KeyVelocity))
 		Else
 			Print "Unmapped keycode "+Int(key)
 		Endif
 	End
 
 	Method KeyUp(key:Key)		
-		If keyNoteMap.Contains(key)
+		If keyNoteMapping.Contains(key)
 			For Local octave:=0 Until MaxOctave
-				Local note:=keyNoteMap[key]+octave*12
-				If noteMap.Contains(note)	
-					vsynth.NoteOff(note)
-					noteMap.Remove(note)
+				Local note:=keyNoteMapping[key]+octave*12
+				If noteDownMap.Contains(note)	
+					vsynth.NoteOff(New Note(note,0))
+					noteDownMap.Remove(note)
 				Endif
 			Next
 		Endif
@@ -622,9 +632,9 @@ Class VSynthWindow Extends Window
 		If t<>tick
 			Local note:=((t Shr 1)&15)*3+40
 			If t&1
-				vsynth.NoteOn(note,KeyVelocity)
+				vsynth.NoteOn(New Note(note,KeyVelocity))
 			Else
-				vsynth.NoteOff(note)			
+				vsynth.NoteOff(New Note(note,0))			
 			Endif
 			tick=t
 		Endif				
@@ -783,7 +793,6 @@ Class VSynthWindow Extends Window
 
 		Local text:String = About+",,"+Octave1+","+Octave0
 		text+=",,Octave=< >="+octave
-		text+=",Sample=Space="+RecordNames[Int(vsynth.recording)]
 		text+=",Sustain=Shift="+SustainNames[sustain]
 		text+=",Volume=PageUpDown="+FloatString(volume)
 		text+=",PitchBend=Mouse Wheel="+FloatString(pitchbend)		
@@ -797,11 +806,14 @@ Class VSynthWindow Extends Window
 		text+=",Note Repeat=Home="+RepeatNames[rept]
 		text+=",,Tempo=- +="+tempo
 		text+=",,Synth=Enter Key="+SynthNames[synth]
-		text+=",,"+Controls				
+		text+=",,"+Controls	
+		text+= ",Scope Control=CursorKeys="+panx+","+pany
+		text+= ",FullScreen=F1"
 		text+= ",Buffer=F2="+SampleLatency()+"("+MilliLatency()+"ms)"
 		text+=",,Enable MIDI=Backspace"
 		text+=",MidiIn=F3=All ["+midiInputs+"]"
 		text+= ",MidiOut=F4="+midiSendName+"["+midiOutputs+"]"
+		text+= ",Record=Space="+RecordNames[Int(vsynth.recording)]
 		text+=",,"+Contact
 		
 		display.Color=Color.Black
@@ -822,10 +834,10 @@ Class VSynthWindow Extends Window
 		pixels.Dim(32,2)		
 		pixels.Draw(display)	
 
-		Local keymap:=vsynth.GetKeymap()		
-		keys.DrawKeyboard(display,440,100,keymap)
+		Local keymap:=vsynth.GetKeys()		
 		
-		keys.DrawTape(480,70,40,25)
+		keystyle.DrawKeyboard(display,440,100,keymap)		
+		keystyle.DrawTape(480,70,40,25)
 		
 		vsynth.scope.Draw(display,440,300)
 	End				
@@ -836,10 +848,10 @@ Class VSynthWindow Extends Window
 	
 	Method MilliLatency:Int()
 		Return 1000*SampleLatency()/AudioFrequency
-	end
+	End
 
 	Field pixels:=New ColorMap(420,20)
-	Field keys:=New SynthStyle()
+	Field keystyle:=New SynthStyle()
 
 End
 
@@ -859,7 +871,7 @@ Global LowSaturatedBlue:=New Color(0.0, 0.0, Low, 1.0)
 
 Class Quad Extends Image
 	Field dimension:int
-	Field index:int
+	Field index:Int
 	Field canvas:Canvas
 	Field bg:=LowSaturatedBlue
 	Field fg:=LowSaturatedGreen
@@ -899,7 +911,7 @@ Class Quad Extends Image
 		canvas.DrawRect(x,y,w,h)
 		canvas.BlendMode=BlendMode.Additive		
 		canvas.Color=fg
-	end
+	End
 
 	Method Flush()	
 		canvas.Flush()
@@ -919,7 +931,7 @@ Class Scope
 	Method New(cols:int=4)
 		' TODO: assert columns is power of 2
 		columns=cols
-		dimension=128
+		dimension=400	'	256'128
 		mask=columns-1
 		width=dimension*mask
 		For Local index:=0 Until columns
@@ -935,10 +947,14 @@ Class Scope
 	Method Plot(y:P)
 		current.Plot(xlocal,y)
 	End
+
+	Method Plot(x:P,y:P)
+		current.Plot(xlocal+x,y)
+	End
 	
 	Method Pen(c:Color)
 		current.Pen(c)
-	end
+	End
 
 	Method Advance(xpos:P)
 		Local index:=Int(xpos/dimension)
@@ -966,7 +982,7 @@ Class Scope
 	Method Clear()
 		For Local quad:=Eachin quads
 			quad.Clear()
-		next
+		Next
 	End
 		
 End
@@ -1011,7 +1027,7 @@ Class SynthStyle
 		Endif		
 	End
 	
-	Method DrawKeyboard(display:Canvas,x:Int,y:Int,keymap:Keymap)				
+	Method DrawKeyboard(display:Canvas,x:Int,y:Int,keymap:Keys)				
 		canvas=display
 		For Local p:=0 To 1			
 			Local px:=x+2
@@ -1150,6 +1166,22 @@ Class Applet
 		Return defaults?defaults.GetNumber(name) Else 0
 	End
 
+	Method DefaultArray:JsonArray(name:String)	
+		Local prefs:=defaults
+		If prefs.Contains(name)
+			Return prefs.GetArray(name)
+		Endif
+		Return New JsonArray
+	End
+
+	Method DefaultObject:JsonObject(name:String)	
+		Local prefs:=defaults
+		If prefs.Contains(name)
+			Return prefs.GetObject(name)
+		Endif
+		Return New JsonObject
+	End
+
 	Method LoadPrefs()	
 		defaults=JsonObject.Load(prefsPath+prefsFile)
 
@@ -1198,7 +1230,7 @@ Class Applet
 		Next
 		Return "{"+s+"}"
 	End
-
+	
 	Method OnClose()		
 		Local winRect:="["+windowRect.X+","+windowRect.Y+","+windowRect.Width+","+windowRect.Height+"]"
 		Local winFS:=windowFullscreen?"true"else"false"
@@ -1232,11 +1264,18 @@ Class Applet
 		json.Add(window.div)
 		json.Add("arpDuty")
 		json.Add(window.duty)
-		json.Add("arpProgression")
+		json.Add("arpProg")
 		json.Add(window.prog)
+		json.Add("arpState")
+'		json.Add(window.notes.ToString())
+		json.Add(vsynth.arpeggiator.GetState().ToJson())
 		json.Add("arpRepeat")
 		json.Add(window.rept)
-
+		json.Add("panSpeed")
+		json.Add(window.panx)
+		json.Add("panAmp")
+		json.Add(window.pany)
+		
 		If GetFileType(prefsPath)=FileType.None CreateDir(prefsPath)
 		
 		Local js:=JsonString(json)

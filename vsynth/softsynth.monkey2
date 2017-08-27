@@ -7,7 +7,7 @@ Alias V:Double ' Voltage(volts)
 Alias F:Double ' Frequency(hz)
 Alias T:Double ' Time(seconds)
 
-Alias Note:Int
+'Alias Note:Int
 Alias Tempo:Int ' BeatsPerMinute
 Alias K:Key
 
@@ -17,6 +17,15 @@ Global AudioFrequency:=44100
 
 Const MaxPolyphony:=64
 Const MaxOctave:=12
+
+Struct Note
+	Field note:Int
+	Field velocity:Int
+	Method New(n:Int,v:Int)
+		note=n
+		velocity=v
+	End
+End
 
 Class Envelope
 	Field p:V
@@ -175,20 +184,82 @@ End
 Alias SampleData:Deque<V>
 
 Class SampleBank
-	Global this:=New SampleBank
-	Field sampleData:=New SampleData
+	Field sampleData:SampleData
 	Field pitch:=220.0
 	Field freq:=44100
 
-	Function SampleData:SampleData()
-		Return this.sampleData
-	End
-
 	Method Record(sample:V Ptr,count:Int)
+		If Not sampleData
+			sampleData = New SampleData
+		Endif
 		For Local i:=0 Until count
 			sampleData.PushLast(sample[i])
 		Next
 	End
+	
+	Method Save(dir:String)
+		Local path:=dir+"test.wav"
+		Local file:=FileStream.Open(path,"w")
+		WriteWAV(file)
+		file.Close()
+		Print "saved wav to "+path
+	End
+	
+	Function ByteFromHex:Int(hex:String)
+		Local n0:=hex[0]
+		Local n1:=hex[1]
+		n0=(n0>=97)?n0-87 Else n0-48
+		n1=(n1>=97)?n1-87 Else n1-48
+		Return n0*16+n1
+	End
+
+	Function MakeGuid:String(guid:String)	
+		guid=guid.Replace("-","")		
+		Local buffer:=New Byte[16]
+		For Local i:=0 Until 16
+			Local b8:=ByteFromHex(guid.Slice(i*2,i*2+2))		
+			Print Hex(b8)
+			buffer[i]=b8
+		Next
+		Return String.FromCString(buffer.Data,16)			
+	End
+
+' based on http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/WAVE.html
+
+	Method WriteWAV( stream:std.stream.Stream)
+		Const FORMAT_EXTENSIBLE:=$FFFE
+		Const RIFF:=$46464952
+		Const WAVE:=$45564157
+		Const FMT:=$20746d66
+		Const DATA:=$61746164
+		Local WAVE_FORMAT_IEEE_FLOAT:="00000003-0000-0010-8000-00aa00389b71"
+		Local guid:=MakeGuid(WAVE_FORMAT_IEEE_FLOAT)
+		Local len:=sampleData.Length*4
+		Local rifflen:=4+48+12+8+len
+		stream.WriteUInt(RIFF)
+		stream.WriteUInt(rifflen)
+		stream.WriteUInt(WAVE)
+		stream.WriteUInt(FMT)
+		stream.WriteUInt(40)		
+		Local channels:=1
+		Local bitspersample:=4
+		Local align:=4
+		Local speakerMask:=4
+		stream.WriteUShort(FORMAT_EXTENSIBLE)
+		stream.WriteUShort(channels)
+		stream.WriteUInt(freq)
+		stream.WriteUInt(freq*align)
+		stream.WriteUShort(align)
+		stream.WriteUShort(bitspersample)
+		stream.WriteUInt(speakerMask)
+		stream.WriteString(guid)
+		stream.WriteUInt(DATA)
+		stream.WriteUInt(len)		
+		For Local sample:=Eachin sampleData
+			stream.WriteFloat(sample)
+		Next
+	End
+
 End
 	
 Class Sampler Extends Oscillator
@@ -196,8 +267,8 @@ Class Sampler Extends Oscillator
 	Field pitch:=220.0
 	Field freq:=44100
 	
-	Method New()
-		samples=SampleBank.SampleData()
+	Method setBank(sampleBank:SampleBank)
+		samples=sampleBank.sampleData
 	End
 
 	Method Sample:V(hz:F) Override		
@@ -214,7 +285,8 @@ End
 Class LiveMicrophone Extends Sampler
 
 	Global mic:Microphone
-	Field count:int
+	Field count:Int
+
 
 	Method Poll()
 		If Not mic 
@@ -228,7 +300,7 @@ Class LiveMicrophone Extends Sampler
 		If count<0
 			Poll()
 			count=mic.fragsize 
-		endif
+		Endif
 		Return Super.Sample(hz)
 	End
 
@@ -261,7 +333,7 @@ Class Microphone
 			alcCaptureStop(device)
 			recording=false
 		Endif
-	end
+	End
 
 	Method Poll(sampleData:SampleData)
 		If Not recording
@@ -303,8 +375,8 @@ Interface NotePlayer
 	Method SetPan(value:V)
 	Method SetGain(value:V)
 	Method Stop()
-	Method NoteOn(note:Int,Velocity:Int)
-	Method NoteOff()
+	Method NoteOn(note:Note)
+	Method NoteOff(note:Note)
 End
 
 
@@ -335,7 +407,7 @@ Class Voice Implements NotePlayer
 			Case 0 
 				envelope=New Envelope()
 			Case 1 
-				envelope=New ADSR(0.002,1.5,0.2,0.5)
+				envelope=New ADSR(0.001,1.5,0.2,0.5)
 			Case 2
 				envelope=New ADSR(0.06,0.01,0.92,0.2)
 			Case 3 
@@ -354,18 +426,18 @@ Class Voice Implements NotePlayer
 	End
 
 	Method Stop()
-		NoteOff()
+		noteOn=False
 		envelope.Off()
 	End	
 	
-	Method NoteOn(note:Int,velocity:Int)
-		hz=440.0*Pow(2.0,(note-67.0)/12)
-		amp=velocity/100.0
+	Method NoteOn(note:Note)
+		hz=440.0*Pow(2.0,(note.note-67.0)/12)
+		amp=note.velocity/100.0
 		noteOn=True
 	End
 	
-	Method NoteOff()
-		noteOn=False
+	Method NoteOff(note:Note)
+		Stop()
 	End
 	
 	Method Mix(buffer:Double[],samples:Int,detune:V[],fade:V[])
@@ -407,22 +479,33 @@ Enum SynthCommand
 End
 
 Interface Synth
-	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
+	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:Int)
 	Method SetTone(osc:Int,env:Int)
 	Method Command(command:SynthCommand,depressed:bool)
 	Method SetVolume(volume:V)
-	Method NoteOn(note:Int,velocity:int)
-	Method NoteOff(note:Int)
+	Method NoteOn(note:Note)
+	Method NoteOff(note:Note)
 	Method SetSustain(sustain:Bool)
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V[],fade:V[])	
 	Method Panic()
-	Method GetKeymap:Keymap()
+	Method GetKeys:Keys()
 End
 
 
-Struct Keymap
+Struct Keys
 	Field low:Long
 	Field high:Long	
+	Field vel:Int[]
+	
+	Method ToJson:String()
+		Local s:String
+		Return "["+low+","+high+"]"
+	End
+
+
+	Method FromJsonArray:String()
+	Return ""
+	End
 
 	Method KeyDown:Bool(index:Int)
 		Local bit:Long=1	
@@ -432,19 +515,19 @@ Struct Keymap
 		Return ((high Shr shift)&bit)=bit
 	End
 	
-	Method NoteOn(index:Int)
+	Method KeyOn(index:Int)
 		Local bit:Long=1
 		Local shift:Long=index&63
 		bit=bit Shl shift
 		If index<64 low|=bit Else high|=bit
 	End
 
-	Method NoteOff(index:Int)
+	Method KeyOff(index:Int)
 		Local bit:Long=1
 		Local shift:Long=index&63
 		bit=bit Shl shift
 		If index<64 low&=~bit Else high&=~bit
-	end
+	End
 End
 
 
@@ -460,13 +543,12 @@ Class BeatGenerator Implements Synth
 	Field envelope:Int
 	Field repeats:Int
 	Field recent:Note
-	Field velocity:Note
-	Field count:int
+	Field count:Int
 	
 	Field notePeriod:T
 	Field dutyPeriod:T
 
-	Field keymap:=New Keymap
+	Field keys:=New Keys
 	
 	Method New()
 	End
@@ -497,26 +579,25 @@ Class BeatGenerator Implements Synth
 		oscillator=osc
 		envelope=env
 		output.SetTone(oscillator,envelope)
-	end
+	End
 
 	Method Command(command:SynthCommand,depressed:bool)
 		output.Command(command,depressed)
 	End
 
-	Method NoteOn(note:Int,vel:Int) Virtual
+	Method NoteOn(note:Note) Virtual
 		recent=note
-		velocity=vel
-		keymap.NoteOn(note)
+		keys.KeyOn(note.note)
 	End
 	
-	Method NoteOff(note:Int) virtual
+	Method NoteOff(note:Note) virtual
 		output.NoteOff(note)
-		keymap.NoteOff(note)
+		keys.KeyOff(note.note)
 	End
 	
 	Method Beat() Virtual
-		If recent
-			NoteOn(recent,velocity)
+		If recent.note
+			NoteOn(recent)
 		Endif
 	End
 	
@@ -529,9 +610,9 @@ Class BeatGenerator Implements Synth
 			Wend
 			StepDuration(duration)
 		Endif
-	end
+	End
 
-	Field noteDuration:=new Map<Int,T>
+	Field noteDuration:=new Map<Note,T>
 	
 	Method StepDuration(duration:T)
 		For Local note:=Eachin noteDuration.Keys			
@@ -542,23 +623,24 @@ Class BeatGenerator Implements Synth
 				Endif
 			Endif
 		Next
-	end
+	End
 
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V[],fade:V[])	
 		Update(2.0*samples/AudioFrequency)
 		output.FillAudioBuffer(buffer,samples,detune,fade)
 	End
 
-	Method GetKeymap:Keymap()
-		Return output.GetKeymap()
+	Method GetKeys:Keys()
+		Return output.GetKeys()
 	End
 	
 	Method Panic()
-		output.Panic()
-	end
+		ReleaseAll()
+		output.Panic()	
+	End
 
-	Method TriggerNote(note:Int)	
-		output.NoteOn(note,velocity)
+	Method TriggerNote(note:Note)	
+		output.NoteOn(note)
 		noteDuration[note]=dutyPeriod
 	End
 	
@@ -571,7 +653,8 @@ Class BeatGenerator Implements Synth
 
 End
 
-Class Arpeggiator extends BeatGenerator
+Class Arpeggiator Extends BeatGenerator
+	Field notemap:=New IntMap<Note>
 	Field natural:=New Stack<Note>
 	Field sorted:Stack<Note>
 	Field index:Int
@@ -579,10 +662,34 @@ Class Arpeggiator extends BeatGenerator
 	Field progression:Int
 	Field hold:Bool
 	Field noteCount:Int
-	field note:Int
-	Field cycle:int
+	Field note:Note
+	Field cycle:Int
 	
 	Method New()
+	End
+	
+	Method SetState(state:JsonObject)
+		ReleaseAll()
+		Local notes:=state.GetArray("natural")
+		For Local i:=0 Until notes.Length
+			Local note:=notes.GetNumber(i)
+'			natural.Push(note)
+		Next
+		sorted=New Stack<Note>(natural)
+		sorted.Sort()
+	End
+
+	Method GetState:JsonObject()	
+		Local naturalArray:=New JsonArray(natural.Length*2)
+		For Local i:=0 Until natural.Length
+			Local note:=natural[i] 
+			naturalArray.SetNumber(i*2+0,note.note)
+			naturalArray.SetNumber(i*2+1,note.velocity)
+		Next
+		Local state:=New JsonObject
+		state.SetValue("natural",naturalArray)
+		Print "state is "+state.ToJson()
+		Return state
 	End
 
 	Method SetArpeggiation(mode:Int,prog:Int)
@@ -593,7 +700,7 @@ Class Arpeggiator extends BeatGenerator
 	Method ReleaseAll() Override
 		Super.ReleaseAll()
 		natural.Clear()
-	end
+	End
 	
 	Method SetHold(down:Bool)
 		If hold And Not down 
@@ -604,45 +711,48 @@ Class Arpeggiator extends BeatGenerator
 		hold=down
 	End
 
-	Method NoteOn(note:Int,vel:Int) Override
+	Method NoteOn(note:Note) Override
 		If hold and noteCount=0
 			ReleaseAll()
 		Endif
 		noteCount+=1
 		If algorithm=0			
-			output.NoteOn(note,vel)
-		else		
-			Super.NoteOn(note,vel)
-			If natural.Contains(note) natural.Remove(note)
+			output.NoteOn(note)
+		Else		
+			Super.NoteOn(note)
+			If notemap.Contains(note.note)
+				notemap.Remove(note.note)
+				natural.Remove(note)
+			Endif
 			natural.Push(note)
 			sorted=New Stack<Note>(natural)
 			sorted.Sort()
 		Endif
 	End
 	
-	Method NoteOff(note:Int) Override
-		if noteCount>0
+	Method NoteOff(note:Note) Override
+		If noteCount>0
 			noteCount-=1
-		endif
+		Endif
 		output.NoteOff(note)
 		If Not hold
 			natural.Remove(note)
 			sorted=New Stack<Note>(natural)
 			sorted.Sort()
-		endif
+		Endif
 	End
 	
 	Method Beat() Override
 		
 		If natural.Length=0
 			index=0
-			return
+			Return
 		Endif
 		
 		If count>0
 			count-=1
-			If note TriggerNote(note)
-			return
+			If note.note TriggerNote(note)
+			Return
 		Endif
 		
 		If index>=natural.Length cycle+=1
@@ -685,17 +795,19 @@ Class Arpeggiator extends BeatGenerator
 				note=sorted[index]
 		End
 		
+		Local inc:=0		
 		Select progression
 			Case 1
 				cycle=cycle Mod natural.Length
-				note+=natural[cycle]-natural[0]
+				inc=natural[cycle].note-natural[0].note
 			Case 2		
-				note+=cycle
+				inc=cycle
 			Case 3
-				note-=cycle
-		end
+				inc=-cycle
+		End
+		note.note+=inc
 		
-		If note TriggerNote(note)
+		If note.note TriggerNote(note)
 		count=repeats
 	End
 End
@@ -710,7 +822,7 @@ Class PolySynth Implements Synth
 	Field envelope:Int
 	Field volume:V=1.0
 	Field sustainedVoices:=New List<Voice>
-	Field keymap:=New Keymap
+	Field keys:=New Keys
 	
 	Method New()
 		For Local i:=0 Until MaxPolyphony
@@ -721,8 +833,8 @@ Class PolySynth Implements Synth
 		Next
 	End
 	
-	Method GetKeymap:Keymap()
-		Return keymap
+	Method GetKeys:Keys()
+		Return keys
 	End
 
 	Method Panic()
@@ -760,33 +872,33 @@ Class PolySynth Implements Synth
 		End
 	End
 
-	Method NoteOn(note:Int,velocity:Int)
+	Method NoteOn(note:Note)
 		NoteOff(note)
 		If polyList.Empty Return
 		Local voice:=polyList.RemoveFirst()
 		voice.SetEnvelope(envelope)
 		voice.SetOscillator(oscillator)
-		voice.NoteOn(note,velocity)
-		polyMap[note]=voice
+		voice.NoteOn(note)
+		polyMap[note.note]=voice
 '		polyList.Remove(voice)
 		If Not voices.Contains(voice)
 			voices.Add(voice)
 		Endif	
-		keymap.NoteOn(note)
+		keys.KeyOn(note.note)
 	End
 
-	Method NoteOff(note:Int)	
-		Local voice:=polyMap[note]
+	Method NoteOff(note:Note)	
+		Local voice:=polyMap[note.note]
 		If voice
 			If sustained
 				sustainedVoices.AddLast(voice)
 			Else
 				voice.Stop()
 			Endif
-			polyMap.Remove(note)
+			polyMap.Remove(note.note)
 			polyList.AddLast(voice)
 		Endif
-		keymap.NoteOff(note)
+		keys.KeyOff(note.note)
 	End
 
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V[],gain:V[])	
@@ -798,13 +910,12 @@ End
 
 Class MonoSynth Implements Synth
 	Field tone:Voice
-	Field monoNote:Int
-	Field monoVelocity:int
-	Field notes:=New Stack<Int>
+	Field monoNote:Note
+	Field notes:=New Stack<Note>
 	Field oscillator:Int	
 	Field envelope:Int
 	Field volume:V=1.0
-	Field keymap:=New Keymap
+	Field keys:=New Keys
 
 	Method New()
 		tone=New Voice
@@ -822,12 +933,12 @@ Class MonoSynth Implements Synth
 	Method SetSustain(sustain:Bool)
 	End
 
-	Method GetKeymap:Keymap()
-		Return keymap
-	end
+	Method GetKeys:Keys()
+		Return keys
+	End
 
 	Method Panic()
-		tone.NoteOff()
+		tone.NoteOff(monoNote)
 	End
 
 	Method SetTone(osc:Int,env:Int)
@@ -848,29 +959,28 @@ Class MonoSynth Implements Synth
 			Case SynthCommand.PreviousProgram
 				oscillator=(oscillator+7) Mod 8
 		End
-	end
+	End
 
-	Method NoteOn(note:Int,velocity:Int)
+	Method NoteOn(note:Note)
 		monoNote=note
-		monoVelocity=velocity
 		If Not notes.Contains(note)
 			notes.Push(note)
 		Endif
-		tone.NoteOn(note,velocity)
-		keymap.NoteOn(note)
+		tone.NoteOn(note)
+		keys.KeyOn(note.note)
 	End
 
-	Method NoteOff(note:Int)
-		keymap.NoteOff(note)
+	Method NoteOff(note:Note)
+		keys.KeyOff(note.note)
 		notes.Remove(note)
 		If notes.Empty
-			tone.NoteOff()		
+			tone.NoteOff(note)		
 		Else
 			note=notes.Pop()
 			monoNote=note
 			notes.Push(note)
-			tone.NoteOn(note,monoVelocity)
-			keymap.NoteOn(note)
+			tone.NoteOn(note)
+			keys.KeyOn(note.note)
 		Endif
 	End
 
@@ -892,9 +1002,9 @@ Class MidiSynth Implements Synth
 
 	Field portMidi:PortMidi
 	Field send:Int
-	Field keymap:=New Keymap
+	Field keys:=New Keys
 
-	method new(driver:PortMidi,channel:Int)
+	method New(driver:PortMidi,channel:Int)
 		portMidi=driver
 		send=channel
 	End
@@ -905,13 +1015,13 @@ Class MidiSynth Implements Synth
 	Method SetVolume(volume:V)
 		If volume<0 volume=0
 		If volume>1 volume=1
-		local value7:Int=127*volume
+		Local value7:Int=127*volume
 		Local setVolume:Int=(_ControllerChange)|(_VolumeController Shl 8)|(value7 Shl 16)
 		portMidi.SendMessage(send,setVolume)
 	End
 
 	Method SetSustain(depress:Bool)
-		local value7:Int
+		Local value7:Int
 		If depress value7=127
 		Local setSustain:Int=(_ControllerChange)|(_SustainPedal Shl 8)|(value7 Shl 16)
 		portMidi.SendMessage(send,setSustain)
@@ -925,25 +1035,25 @@ Class MidiSynth Implements Synth
 			Case SynthCommand.NextProgram
 			Case SynthCommand.PreviousProgram
 		End
-	end
+	End
 
-	Method NoteOn(note:Int,velocity:int)
-		Local noteOn:Int=(_NoteOn)|(note Shl 8)|(velocity Shl 16)
+	Method NoteOn(note:Note)
+		Local noteOn:Int=(_NoteOn)|(note.note Shl 8)|(note.velocity Shl 16)
 		portMidi.SendMessage(send,noteOn)
-		keymap.NoteOn(note)
+		keys.KeyOn(note.note)
 	End
 	
-	Method NoteOff(note:Int)
-		Local noteOff:Int=(_NoteOff)|(note Shl 8)
+	Method NoteOff(note:Note)
+		Local noteOff:Int=(_NoteOff)|(note.note Shl 8)
 		portMidi.SendMessage(send,noteOff)
-		keymap.NoteOff(note)
+		keys.KeyOff(note.note)
 	End
 			
 	Method FillAudioBuffer(buffer:Double[],samples:Int,detune:V[],fade:V[])	
 	End
 	
-	Method GetKeymap:Keymap()
-		Return keymap
+	Method GetKeys:Keys()
+		Return keys
 	End
 
 	Method Panic()
