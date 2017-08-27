@@ -233,6 +233,7 @@ Class SampleBank
 		Const RIFF:=$46464952
 		Const WAVE:=$45564157
 		Const FMT:=$20746d66
+		Const FACT:=$74666469
 		Const DATA:=$61746164
 		Local WAVE_FORMAT_IEEE_FLOAT:="00000003-0000-0010-8000-00aa00389b71"
 		Local guid:=MakeGuid(WAVE_FORMAT_IEEE_FLOAT)
@@ -246,7 +247,7 @@ Class SampleBank
 		Local channels:=1
 		Local bitspersample:=4
 		Local align:=4
-		Local speakerMask:=4
+		Local speakerMask:=1
 		stream.WriteUShort(FORMAT_EXTENSIBLE)
 		stream.WriteUShort(channels)
 		stream.WriteUInt(freq)
@@ -255,6 +256,9 @@ Class SampleBank
 		stream.WriteUShort(bitspersample)
 		stream.WriteUInt(speakerMask)
 		stream.WriteString(guid)
+		stream.WriteUInt(FACT)
+		stream.WriteUInt(4)	
+		stream.WriteUInt(1)
 		stream.WriteUInt(DATA)
 		stream.WriteUInt(len)		
 		For Local sample:=Eachin sampleData
