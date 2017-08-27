@@ -5,13 +5,18 @@
 ' fullscreen toggle on F1
 ' long press on Escape to close
 
+' todo:
+' 
+
 #Import "<std>"
 #Import "<mojo>"
 #Import "<sdl2>"
+#Import <math>
 
 Using std..
 Using mojo..
 Using sdl2..
+Using math..
 
 Extern 
 
@@ -26,6 +31,43 @@ Global prefsPath:=String.FromCString(SDL_GetPrefPath(AppletAuthor,AppletName))
 Global prefsFile:=AppletName+".prefs.json"
 
 Global DefaultWindowFlags:=WindowFlags.Resizable|WindowFlags.HighDPI
+
+Function Main()
+	New AppInstance	
+	New Editor
+	App.Run()
+End
+
+Alias Nanos:Long
+
+Const NanosPerMilli:Long = 1000000
+
+Class Editor Extends Applet
+	Field background:Color=Color.Blue
+
+	Method New()
+	End
+	
+	Field time:Nanos
+	
+	Method Update(elapsed:Nanos)
+		time+=elapsed
+		Local period:=50/1e9
+		Local s:=math.Sin(time*Period)
+
+		background.b=New Color(0.5+0.44*s,0,0
+	End
+	
+	Method KeyDown(key:Key) Override
+	End
+
+	Method KeyUp(key:Key) Override
+	End
+
+	Method Render( display:Canvas ) Override	
+		display.Clear(background)
+	End
+End
 
 
 Class Applet
@@ -46,10 +88,13 @@ Class Applet
 		Endif
 	End
 
-	Method KeyDown(key:Key)
+	Method KeyDown(key:Key) Virtual
 	End
 
-	Method KeyUp(key:Key)		
+	Method KeyUp(key:Key) Virtual
+	End
+	
+	Method Render( display:Canvas ) Virtual
 	End
 
 	Function TrueFalse:String(b:Bool)
@@ -142,6 +187,7 @@ End
 Class AppWindow Extends Window
 	Field applet:Applet
 	Field goFullscreen:Bool
+	Field Millisecs:Int
 			
 	Method New(host:Applet, rect:Recti, fullscreen:bool, title:String)
 		Super.New(title,rect, DefaultWindowFlags)		
@@ -155,16 +201,22 @@ Class AppWindow Extends Window
 		applet=host
 		Create()
 	End
+	
+	Method Create()
+		applet.OnFrame(Self)
+	End
 
 	Method OnRender( display:Canvas ) Override	
 		If goFullscreen
 			goFullscreen=False
 			Fullscreen=True
+			App.RequestRender()
+			Return
 		Endif
-	End
-
-	Method Create()
-		applet.OnFrame(Self)
+		Local millis:=App.millisecs-millisecs
+		millisecs+=millis		
+		applet.Update(millis*NanosPerMilli)
+		applet.Render(display)
 	End
 
 	Method OnWindowEvent(event:WindowEvent) Override
@@ -198,6 +250,7 @@ Class AppWindow Extends Window
 			Case Key.F1
 				Fullscreen = Not Fullscreen				
 				applet.OnFrame(Self)
+				App.RequestRender()
 			Case Key.Escape
 				EscapeDown()
 			Default
@@ -212,12 +265,5 @@ Class AppWindow Extends Window
 			End
 		End
 	End
-End
-
-
-Function Main()
-	New AppInstance	
-	New Applet
-	App.Run()
 End
 
