@@ -209,7 +209,7 @@ Class SampleBank
 
 	Method Record(samples:V[],count:Int)
 		If Not sampleData
-			sampleData = New SampleData
+			sampleData=New SampleData
 		Endif
 		For Local i:=0 Until count*2
 			sampleData.PushLast(samples[i])
@@ -293,7 +293,7 @@ Class Sampler Extends Oscillator
 	End
 
 	Method Sample:V(hz:F) Override		
-		If samples.Length=0 Return 0
+		If Not samples Or samples.Length=0 Return 0
 		Local t:=hz*freq/(pitch*AudioFrequency)		
 		Local delta0:=delta
 		delta+=t
@@ -303,17 +303,113 @@ Class Sampler Extends Oscillator
 	End	
 End
 
+Class Microphone
+	Field device:ALCdevice Ptr
+	Field error:Int
+	Field audioFormat:Int
+	Field rate:=44100
+	Field fragsize:=1024
+	Field buffer:=New Stack<Byte>
+	Field recording:Bool
+	Field length:=3
+	Field count:=0
+	
+	Method ErrorState:Bool()
+		Local error:=alGetError()
+		If error
+			Print "OpenAL error "+error
+			Return True
+		Endif
+		Return False
+	End
+	
+	Method New()
+		audioFormat=AL_FORMAT_STEREO16		
+		device=alcCaptureOpenDevice(Null,rate,audioFormat,fragsize)
+		If ErrorState() Return
+'		Local b:=alcGetString(Cast<ALCdevice ptr>(0), ALC_CAPTURE_DEVICE_SPECIFIER)
+'		local p:=Cast<Byte ptr>(b)
+'		local s:=String.FromCString(p)
+'		print "Microphone OpenAL Capturing "+s
+	End
+	
+	Method Start()
+		If Not recording
+			alcCaptureStart(device)
+			If ErrorState() Return			
+			recording=True
+			print "OpenAL capture started"
+		Endif
+	End
+
+	Method Stop()
+		If recording
+			alcCaptureStop(device)
+			If ErrorState() Return			
+			recording=False
+			print "OpenAL capture stopped"
+		Endif
+	End
+
+	Method Close()	
+	    alcCaptureStop(device)
+    	alcCaptureCloseDevice(device)
+    End
+
+	Method Poll(sampleBank:SampleBank)
+		Local samples:Int			
+		alcGetIntegerv(device, ALC_CAPTURE_SAMPLES,4,Varptr samples)
+		If samples=0 Return
+		' capture raw data from device
+		buffer.Resize(samples*4)
+		alcCaptureSamples(device,Varptr buffer.Data[0],samples)
+		Local udata:=Varptr buffer.Data[0]		
+		Local sdata:=Cast<Byte Ptr>(udata)
+		Select audioFormat
+'			Case AudioFormat.Mono8 
+'				Return (udata[i]-128)/127.0
+'			Case AudioFormat.Mono16 
+'				Return (sdata[i*2+1]*256+sdata[i*2+0])/32767.0
+'			Case AudioFormat.Stereo8 
+'				Return (udata[i*2+0]-128)/127.0
+			Case AL_FORMAT_STEREO16 
+				Local vdata:= New V[samples]
+				For Local i:=0 Until samples
+					vdata[i]=(sdata[i*4+1]*256+sdata[i*4+0])/32767.0
+'					sampleData.PushLast((sdata[i*4+1]*256+sdata[i*4+0])/32767.0)
+				Next
+				sampleBank.Record(vdata,samples)				
+			Default
+				Print "Unsupported Microphone audioFormat"
+		End
+		' update state
+		count+=samples
+		If count>length*rate
+			Stop()		
+		Endif
+		
+		Print samples
+	End
+		
+End
+
 Class LiveMicrophone Extends Sampler
 
 	Global mic:Microphone
-	Field count:Int
 
+	Field sampleBank:SampleBank
+	Field count:Int
+	
+	Method New()
+		sampleBank=New SampleBank
+		setBank(sampleBank)
+	End
 
 	Method Poll()
 		If Not mic 
 			mic=New Microphone
 		endif		
-		mic.Poll(samples)
+		mic.Poll(sampleBank)
 	End
 	
 	Method Sample:V(hz:F) Override			
@@ -325,69 +421,6 @@ Class LiveMicrophone Extends Sampler
 		Return Super.Sample(hz)
 	End
 
-End
-
-Class Microphone
-	Field device:ALCdevice Ptr
-	Field error:Int
-	Field audioFormat:int
-	Field rate:=44100
-	Field fragsize:=1024
-	Field buffer:=New Stack<Byte>
-	Field recording:Bool
-	
-	Method New()
-		local p:=Cast<Byte ptr>(alcGetString(Cast<ALCdevice ptr>(0), ALC_CAPTURE_DEVICE_SPECIFIER))	
-		local s:=String.FromCString(p)
-		print "Microphone OpenAL Capture List:"+s
-		audioFormat=AL_FORMAT_STEREO16
-		device=alcCaptureOpenDevice(NULL,rate,audioFormat,fragsize)
-		error=alGetError()
-		If error
-			Print "Microphone error "+error
-			Return
-		Endif
-	End
-	
-	Method Stop()
-		If recording
-			alcCaptureStop(device)
-			recording=false
-		Endif
-	End
-
-	Method Poll(sampleData:SampleData)
-		If Not recording
-		    alcCaptureStart(device)		
-			recording=True
-		Endif		
-		Local sample:Int			
-		alcGetIntegerv(device, ALC_CAPTURE_SAMPLES,4,Varptr sample)
-		If sample=0 Return
-		buffer.Resize(sample*4)
-		alcCaptureSamples(device,Varptr buffer.Data[0],sample)
-		Local udata:=Varptr buffer.Data[0]		
-		Local sdata:=Cast<Byte Ptr>(udata)
-		Select audioFormat
-'			Case AudioFormat.Mono8 
-'				Return (udata[i]-128)/127.0
-'			Case AudioFormat.Mono16 
-'				Return (sdata[i*2+1]*256+sdata[i*2+0])/32767.0
-'			Case AudioFormat.Stereo8 
-'				Return (udata[i*2+0]-128)/127.0
-			Case AL_FORMAT_STEREO16 
-				For Local i:=0 Until sample
-					sampleData.PushLast((sdata[i*4+1]*256+sdata[i*4+0])/32767.0)
-				Next
-			Default
-				Print "Unsupported Microphone audioFormat"
-		End
-	End
-		
-	Method Close()	
-	    alcCaptureStop(device)
-    	alcCaptureCloseDevice(device)
-    End
 End
 
 Interface NotePlayer

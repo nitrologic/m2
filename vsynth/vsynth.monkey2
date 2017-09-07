@@ -79,7 +79,8 @@ Class VSynth
 	
 	Field sampleBank:=New SampleBank()
 	Field recording:=False
-		
+	Field bankPath:String
+
 	Method New()
 		arpeggiator.SetSynth(mono)
 		arpeggiator.SetArpeggiation(1,0)
@@ -162,11 +163,15 @@ Class VSynth
 		
 	Method CycleRecord()
 		recording=Not recording
-		If Not recording sampleBank.Save(Applet.prefsPath)
+		If Not recording sampleBank.Save(bankPath)
 	End
 
 	Method Record(samples:V[],length:Int)
 		sampleBank.Record(samples,length)
+	End
+	
+	Method SetBankPath(path:String)
+		bankPath=path
 	End
 
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
@@ -282,6 +287,7 @@ Class VSynthWindow Extends Window
 	Field audioLatency:Int=2 '1 Shl (10+n) samples
 	Field applet:Applet
 	Field goFullscreen:Bool
+	Field bankPath:String
 		
 	Method New(host:Applet, rect:Recti, fullscreen:bool, title:String)
 		Super.New(title,rect,DefaultWindowFlags)		
@@ -294,6 +300,11 @@ Class VSynthWindow Extends Window
 		Super.New(title,800,600,DefaultWindowFlags)		
 		applet=host
 		Create()
+	End
+	
+	Method SelectBankPath()
+		Local path:=RequestDir("Select Bank Path",bankPath)
+		If path bankPath = path
 	End
 	
 	Method Create()
@@ -314,6 +325,9 @@ Class VSynthWindow Extends Window
 		arpstate=applet.DefaultObject("arpState")
 
 		audioLatency=applet.DefaultNumber("audioLatency")
+		
+		bankPath=Applet.prefsPath
+		bankPath=applet.DefaultString("bankPath",bankPath)
 
 		For Local i:=0 Until MusicKeys.Length
 			keyNoteMapping.Set(MusicKeys[i],i-1)
@@ -668,6 +682,8 @@ Class VSynthWindow Extends Window
 				applet.OnFrame(Self)
 			Case Key.F2
 				CycleAudioLatency()
+			Case Key.F3
+				SelectBankPath()
 			Case Key.F4
 				CycleMidiSend()
 			Case Key.F5
@@ -812,7 +828,8 @@ Class VSynthWindow Extends Window
 		text+= ",Buffer=F2="+SampleLatency()+"("+MilliLatency()+"ms)"
 		text+=",,Enable MIDI=Backspace"
 		text+=",MidiIn=F3=All ["+midiInputs+"]"
-		text+= ",MidiOut=F4="+midiSendName+"["+midiOutputs+"]"
+		text+= ",MidiOut=F3="+midiSendName+"["+midiOutputs+"]"
+		text+=",BankPath=F4="+bankPath
 		text+= ",Record=Space="+RecordNames[Int(vsynth.recording)]
 		text+=",,"+Contact
 		
@@ -1162,6 +1179,11 @@ Class Applet
 		Return "false"
 	End
 	
+	Method DefaultString:String(name:String,value:String)
+		Local s:=defaults?defaults.GetString(name) Else ""
+		Return s?s Else value
+	End
+
 	Method DefaultNumber:V(name:String)
 		Return defaults?defaults.GetNumber(name) Else 0
 	End

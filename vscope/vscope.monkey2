@@ -19,7 +19,7 @@ Global LowSaturatedRed:=New Color(0.2, 0.0, 0.0, 1.0)
 Class Quad Extends Image
 	Field index:int
 	Field canvas:Canvas
-	Field bg:=Color.Black
+	Field bg:=std.graphics.Color.Black
 	Field fg:=LowSaturatedGreen
 
 	Method New(dim:Int,id:Int)		
