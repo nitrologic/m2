@@ -1,3 +1,6 @@
+' todo
+' osc port listen
+
 #Import "audiopipe.monkey2"
 
 #Import "<std>"
@@ -19,6 +22,8 @@ Extern
 Function SDL_GetPrefPath:Byte Ptr(org:CString,app:CString)
 
 Public 
+
+Global OSCPort:=8000
 
 Global DefaultWindowFlags:=WindowFlags.Resizable|WindowFlags.HighDPI
 
@@ -240,6 +245,114 @@ Function Wrap:Int(value:Int,lower:Int,upper:Int)
 	Return value
 End
 
+Class OSCHost
+
+	Const BufferSize:=1024
+	Field HostName:="0.0.0.0"
+	Field HostPort:Int
+
+	Method CloseAll()
+	End
+		
+	Method Listen(port:Int)	
+		HostPort=port
+		New Fiber( Receiver )
+	End
+	
+	Method Receiver()	
+	
+		Local buffer:=New Byte[BufferSize]
+		Local clients:=New Map<SocketAddress,Int>		
+		Local addr:=New SocketAddress				
+		Local socket:Socket
+	
+		socket=Socket.Bind( HostName, HostPort )
+		If Not socket 
+			Print "OSCHost Receiver failed to bind socket to " + HostName+":"+HostPort
+			Return
+		Endif		
+
+		socket.SetOption( "SO_REUSEADDR",1 )
+		Print "OSCHost receving at address "+socket.Address+" ready"	
+				
+		Repeat		
+			Local bytes:=socket.ReceiveFrom(Varptr buffer[0],BufferSize,addr)
+			Print "socket received "+bytes+" from client @"+addr
+			'check if client exists
+			If Not clients[addr]
+				Local id:=clients.Count()+1
+				clients[ New SocketAddress( addr ) ]=id
+				Print "New Client! id="+id
+			Endif
+		Forever
+		
+		socket.Close()
+	End
+	
+	Method OnReceive()
+	End
+	
+End
+
+#rem
+
+void processOSC(char *packet, int length){
+	int p = 0;
+	const char *address;
+	const char *format;
+
+	while (p<length) {
+		int code = packet[p];
+		switch (code){
+
+		case 47:{   // /address
+			address = packet + p;
+			printf("address %s\n", address);
+			size_t n = strlen(address);
+			int n4 = (n + 1 + 3)&-4;
+			p += n4;
+			break;
+		}
+
+		case 44:{	// ,format
+			const char *format = packet + p;
+			printf("format %s\n", format);
+			size_t n = strlen(format);
+			int n4 = (n + 1 + 3)&-4;
+			p += n4;
+			for (const char *f = format + 1; *f; f++){
+				char typetag = *f;
+				switch (typetag){
+					//						case 'i':
+					//							break;
+				case 'f':{
+					float f = peekf(packet + p);
+					printf("F:%f\n", f);
+					p += 4;
+					break; }
+					//						case 's':
+					//						case 'b':
+					//							break;
+				default:
+					printf("Unhandled OSC typetag %d %s\n", typetag, packet + p);
+					return;
+				}
+			}
+
+			break;
+		}
+
+		default:
+			printf("Unhandled OSC code %d %s\n", code, packet + p);
+			return;
+			break;
+		}
+	}
+
+}
+
+#end
+
 Class VSynthWindow Extends Window
 
 	Const MusicKeys:=New Key[]( Key.Q,Key.A,Key.W,Key.S,Key.E,Key.D,  Key.F,Key.T,Key.G,Key.Y,Key.H,Key.U,Key.J,  Key.K,Key.O,Key.L,Key.P,Key.Semicolon)',Key.Apostrophe )
@@ -275,7 +388,10 @@ Class VSynthWindow Extends Window
 		
 	Field tempo:Tempo=92
 	Field pressure:Int
-	Field reset:Int
+	Field resetMidi:Int
+	field resetOSC:Int
+	
+	Field oscHost:OSCHost
 		
 	Field portMidi:PortMidi
 
@@ -303,8 +419,8 @@ Class VSynthWindow Extends Window
 	End
 	
 	Method SelectBankPath()
-		Local path:=RequestDir("Select Bank Path",bankPath)
-		If path bankPath = path
+'		Local path:=RequestDir("Select Bank Path",bankPath)
+'		If path bankPath = path
 	End
 	
 	Method Create()
@@ -341,6 +457,8 @@ Class VSynthWindow Extends Window
 #If __HOSTOS__<>"windows"
 		ResetMidi()
 #Endif
+		ResetOSC()
+
 		ClearColor=new Color(1.0/16,1.0)
 ' midi mappings		
 		MapKontrol()
@@ -358,7 +476,7 @@ Class VSynthWindow Extends Window
 				host.OnClose()
 			Case EventType.WindowResized
 				host.OnFrame(Self)
-				Print "OnSize"
+				Print "OnSize "+Width+"x"+Height
 			Case EventType.WindowMoved
 				host.OnFrame(Self)
 				Print "OnMove"
@@ -415,11 +533,20 @@ Class VSynthWindow Extends Window
 		Wend
 	End
 			
+	Method ResetOSC()
+		resetOSC=0
+		if oscHost 
+			oscHost.CloseAll()			
+		Endif
+		oscHost=New OSCHost()
+		oscHost.Listen(OSCPort)
+	End
+	
 	Method ResetMidi()
-		reset=0
+		resetMidi=0
 		if portMidi 
-			portMidi.CloseAll()
-		Endif				
+			portMidi.CloseAll()			
+		Endif
 		portMidi=New PortMidi()
 		midiInputs=portMidi.inputDevices.Length
 		midiOutputs=portMidi.outputDevices.Length
@@ -700,7 +827,8 @@ Class VSynthWindow Extends Window
 				If arp=5 arp=6 Else arp=5
 			Case Key.Backspace
 				Title="Scanning Midi Bus, please wait."
-				reset=1
+				resetMidi=1
+				resetOSC=1
 			Case Key.Tab
 				hold=Not hold
 			Case Key.Key1
@@ -783,9 +911,9 @@ Class VSynthWindow Extends Window
 			Fullscreen=True
 		Endif
 	
-		If reset
+		If resetMidi
 			ResetMidi()
-		endif
+		Endif
 	
 		PollMidi()
 	
