@@ -1,7 +1,5 @@
-' todo
-' osc port listen
-
 #Import "audiopipe.monkey2"
+#Import "oscpipe.monkey2"
 
 #Import "<std>"
 #Import "<mojo>"
@@ -251,107 +249,80 @@ Class OSCHost
 	Field HostName:="0.0.0.0"
 	Field HostPort:Int
 
-	Method CloseAll()
-	End
-		
+	Field buffer:=New DataBuffer(BufferSize,ByteOrder.BigEndian)
+	Field clients:=New Map<SocketAddress,Int>		
+	Field addr:=New SocketAddress				
+	Field socket:Socket
+
 	Method Listen(port:Int)	
 		HostPort=port
-		New Fiber( Receiver )
-	End
-	
-	Method Receiver()	
-	
-		Local buffer:=New Byte[BufferSize]
-		Local clients:=New Map<SocketAddress,Int>		
-		Local addr:=New SocketAddress				
-		Local socket:Socket
-	
 		socket=Socket.Bind( HostName, HostPort )
 		If Not socket 
 			Print "OSCHost Receiver failed to bind socket to " + HostName+":"+HostPort
 			Return
 		Endif		
-
-		socket.SetOption( "SO_REUSEADDR",1 )
+'		socket.SetOption( "SO_REUSEADDR",1 )
 		Print "OSCHost receving at address "+socket.Address+" ready"	
-				
-		Repeat		
-			Local bytes:=socket.ReceiveFrom(Varptr buffer[0],BufferSize,addr)
-			Print "socket received "+bytes+" from client @"+addr
-			'check if client exists
+	End
+	
+	method PeekCString:String(offset:Int)
+		Local len:=0
+		While buffer.PeekByte(offset+len)
+			len+=1
+		Wend
+		Return buffer.PeekString(offset,len)
+	End
+	
+	Method Poll()	
+		While True 
+			Local ready:=socket.CanReceive
+			If Not ready Return
+			Local bytes:=socket.ReceiveFrom(buffer.Data,ready,addr)
+
+'			Print "socket received "+bytes +" from client "+addr
 			If Not clients[addr]
 				Local id:=clients.Count()+1
 				clients[ New SocketAddress( addr ) ]=id
 				Print "New Client! id="+id
 			Endif
-		Forever
-		
+			
+			Local p:=0
+			While p<bytes
+				Local code:=buffer.PeekByte(p)
+				Select code
+					Case 47
+						Local a:=PeekCString(p+1)
+						Local n:=(1+a.Length+1+3)&-4
+						p+=n
+						Print "OSC Address "+a
+					Case 44
+						Local f:=PeekCString(p+1)
+						Local n:=(1+f.Length+1+3)&-4
+						p+=n
+'						Print "OSC Format "+f
+						For Local ff:=Eachin f
+							Select ff
+								Case "f"[0]
+									Local v:=buffer.PeekFloat(p)
+									p+=4
+									Print "f:"+v
+								Default
+									Print "OSC Format Error:"+ff
+							end
+						Next
+					Default
+						Print "OSC Parse Error code "+code
+						Return
+				End			
+			Wend
+		wend
+	End
+	
+	Method CloseAll()		
 		socket.Close()
 	End
 	
-	Method OnReceive()
-	End
-	
 End
-
-#rem
-
-void processOSC(char *packet, int length){
-	int p = 0;
-	const char *address;
-	const char *format;
-
-	while (p<length) {
-		int code = packet[p];
-		switch (code){
-
-		case 47:{   // /address
-			address = packet + p;
-			printf("address %s\n", address);
-			size_t n = strlen(address);
-			int n4 = (n + 1 + 3)&-4;
-			p += n4;
-			break;
-		}
-
-		case 44:{	// ,format
-			const char *format = packet + p;
-			printf("format %s\n", format);
-			size_t n = strlen(format);
-			int n4 = (n + 1 + 3)&-4;
-			p += n4;
-			for (const char *f = format + 1; *f; f++){
-				char typetag = *f;
-				switch (typetag){
-					//						case 'i':
-					//							break;
-				case 'f':{
-					float f = peekf(packet + p);
-					printf("F:%f\n", f);
-					p += 4;
-					break; }
-					//						case 's':
-					//						case 'b':
-					//							break;
-				default:
-					printf("Unhandled OSC typetag %d %s\n", typetag, packet + p);
-					return;
-				}
-			}
-
-			break;
-		}
-
-		default:
-			printf("Unhandled OSC code %d %s\n", code, packet + p);
-			return;
-			break;
-		}
-	}
-
-}
-
-#end
 
 Class VSynthWindow Extends Window
 
@@ -419,8 +390,8 @@ Class VSynthWindow Extends Window
 	End
 	
 	Method SelectBankPath()
-'		Local path:=RequestDir("Select Bank Path",bankPath)
-'		If path bankPath = path
+		Local path:=RequestDir("Select Bank Path",bankPath)
+		If path bankPath = path
 	End
 	
 	Method Create()
@@ -535,12 +506,15 @@ Class VSynthWindow Extends Window
 			
 	Method ResetOSC()
 		resetOSC=0
-		if oscHost 
-			oscHost.CloseAll()			
-		Endif
 		oscHost=New OSCHost()
 		oscHost.Listen(OSCPort)
 	End
+	
+	Method PollOSC()
+		If oscHost
+			oscHost.Poll()
+		Endif
+	end
 	
 	Method ResetMidi()
 		resetMidi=0
@@ -810,9 +784,9 @@ Class VSynthWindow Extends Window
 			Case Key.F2
 				CycleAudioLatency()
 			Case Key.F3
-				SelectBankPath()
-			Case Key.F4
 				CycleMidiSend()
+			Case Key.F4
+				SelectBankPath()
 			Case Key.F5
 				arp=0
 			Case Key.F6
@@ -916,6 +890,7 @@ Class VSynthWindow Extends Window
 		Endif
 	
 		PollMidi()
+		PollOSC()
 	
 		App.RequestRender()	
 		
@@ -951,7 +926,7 @@ Class VSynthWindow Extends Window
 		text+=",,Tempo=- +="+tempo
 		text+=",,Synth=Enter Key="+SynthNames[synth]
 		text+=",,"+Controls	
-		text+= ",Scope Control=CursorKeys="+panx+","+pany
+		text+= ",Scope=CursorKeys="+panx+","+pany
 		text+= ",FullScreen=F1"
 		text+= ",Buffer=F2="+SampleLatency()+"("+MilliLatency()+"ms)"
 		text+=",,Enable MIDI=Backspace"
@@ -1425,6 +1400,8 @@ Class Applet
 		json.Add(window.panx)
 		json.Add("panAmp")
 		json.Add(window.pany)
+		json.Add("bankPath")
+		json.Add("~q"+window.bankPath+"~q")
 		
 		If GetFileType(prefsPath)=FileType.None CreateDir(prefsPath)
 		
