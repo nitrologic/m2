@@ -69,7 +69,7 @@ Class VSynth
 	Field mono:Synth=New MonoSynth()
 	
 	Field root:Synth
-	Field effect:Effect
+	Field effects:Chain
 	Field effecting:=False
 	
 	Field arpeggiator:=New Arpeggiator()
@@ -99,8 +99,12 @@ Class VSynth
 		arpeggiator.SetSynth(mono)
 		arpeggiator.SetArpeggiation(1,0)
 		root=arpeggiator
-'		effect=New Distortion()
-		effect=New Reverb()
+		effects=New Chain
+		effects.AddEffect(New Distortion,"Distortion")
+		effects.AddEffect(New Reverb,"Reverb")
+		For Local n:=Eachin effects.ControlNames()
+			Print n
+		Next		
 	End
 	
 	Method FillAudioBuffer:Double[](samples:Int)		
@@ -121,9 +125,9 @@ Class VSynth
 		If effecting 
 '			Local overdriveGain:=New V[][](overdrive,gain)
 '			effect.EffectAudio(buffer.Data,samples,overdriveGain)
-			Local wetDry:=New V[][](wet,dry)
-			effect.EffectAudio(buffer.Data,samples,wetDry)
-		endif
+			Local controls:=New V[][](overdrive,gain,wet,dry)
+			effects.EffectAudio(buffer.Data,samples,controls)
+		Endif
 		Duration+=samples			
 		PlotScope(samples)
 		If recording

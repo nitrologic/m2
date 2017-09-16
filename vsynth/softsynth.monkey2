@@ -552,6 +552,48 @@ Interface Effect
 	Method EffectAudio(buffer:V Ptr,samples:Int,control:V[][])	
 End
 
+Struct NamedEffect
+	Field name:String
+	Field effect:Effect
+	Method New(name:String,effect:Effect)
+		Self.name=name
+		Self.effect=effect
+	End
+End
+
+Class Chain Implements Effect
+
+	Field controlNames:String[]
+
+	Field chain:=New Deque<NamedEffect>
+
+	Method ControlNames:String[]()
+		Local names:=New Stack<String>
+		For Local link:=Eachin chain
+			Local name:=link.name
+			Local effect:=link.effect
+			For Local control:=Eachin effect.ControlNames()
+				names.Push(name+"."+control)
+			next
+		next
+		Return names.ToArray()
+	End
+	
+	Method AddEffect(effect:Effect,name:String)
+		chain.PushLast(New NamedEffect(name,effect))
+	End
+	
+	Method EffectAudio(samples:V Ptr,sampleCount:Int,control:V[][])			
+		Local cursor:=0
+		For Local link:=Eachin chain
+			Local count:=link.effect.ControlNames().Length			
+			Local controls:=control.Slice(cursor,cursor+count)
+			cursor+=count
+			link.effect.EffectAudio(samples,sampleCount,controls)
+		Next
+	End
+End
+
 Class Distortion Implements Effect
 	Const DistortionControls:=New String[]("Overdrive","Gain")
 	
@@ -596,7 +638,7 @@ Class Reverb Implements Effect
 	Field removeSource:=True
 	
 	Method New()
-		poles.Add(New Pole(210,0.5))
+		poles.Add(New Pole(510,0.5))
 	End
 		
 	Method ControlNames:String[]()
