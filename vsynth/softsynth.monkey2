@@ -6,6 +6,7 @@
 Alias V:Double ' Voltage(volts)
 Alias F:Double ' Frequency(hz)
 Alias T:Double ' Time(seconds)
+Alias M:Double ' Distance(meters)
 
 'Alias Note:Int
 Alias Tempo:Int ' BeatsPerMinute
@@ -14,6 +15,7 @@ Alias K:Key
 Global Duration:=0
 
 Global AudioFrequency:=44100
+Const SpeedOfSound:=340.29
 
 Const MaxPolyphony:=64
 Const MaxOctave:=12
@@ -95,7 +97,7 @@ Class Sine Extends Oscillator
 	Method Sample:V(hz:F) Override
 		Local t:T=hz/AudioFrequency
 		delta+=t
-		Return Cos(2*Pi*delta)
+		Return Sin(2*Pi*delta)
 	End
 End
 
@@ -545,6 +547,166 @@ Interface Synth
 	Method GetKeys:Keys()
 End
 
+Interface Effect
+	Method ControlNames:String[]()
+	Method EffectAudio(buffer:V Ptr,samples:Int,control:V[][])	
+End
+
+Class Distortion Implements Effect
+	Const DistortionControls:=New String[]("Overdrive","Gain")
+	
+	Method ControlNames:String[]()
+		Return DistortionControls
+	End
+	
+	Method EffectAudio(samples:V Ptr,sampleCount:Int,control:V[][])	
+		Local overdrive:=control[0]
+		Local gain:=control[1]
+		
+		For Local s:=0 Until sampleCount*2
+			Local i:=s/2
+			Local v:=samples[s]			
+			v*=overdrive[i]
+			If v>0
+				v=1-Exp(-v)
+			Else
+				v=-1+Exp(v)
+			Endif
+			v*=gain[i]
+			samples[s]=v
+		Next		
+	End
+End
+
+
+Class Reverb Implements Effect
+	Const Controls:=New String[]("Wet","Dry")
+
+	Struct Pole
+		Field distance:M
+		Field dampen:V
+		Method New(meters:M,gain:V)
+			distance=meters
+			dampen=gain
+		End		
+	End
+	
+	Field poles:=New List<Pole>
+	Field future:V[]
+	Field removeSource:=True
+	
+	Method New()
+		poles.Add(New Pole(210,0.5))
+	End
+		
+	Method ControlNames:String[]()
+		Return Controls
+	End
+		
+	Method EffectAudio(samples:V Ptr,sampleCount:Int,control:V[][])	
+
+		Local wetness:=control[0]
+		Local dryness:=control[1]
+		
+		Local n1:=math.Min(future.Length,sampleCount*2)
+		For Local i:=0 Until n1
+			samples[i]+=future[i]
+		Next
+
+		For Local pole:=Eachin poles
+			Local seconds:=pole.distance/SpeedOfSound
+			Local offset:=Int(AudioFrequency*seconds)
+			
+			Local maxOffset:Int=(sampleCount+offset)*2
+			
+			If future.Length<maxOffset future=future.Resize(maxOffset)
+						
+			Local dampen:=pole.dampen
+			For Local i:=0 Until sampleCount
+				Local l:=samples[i*2+0]
+				Local r:=samples[i*2+1]
+				future[(offset+i)*2+0]+=l*dampen
+				future[(offset+i)*2+1]+=r*dampen		
+			Next
+		Next
+
+		Local n2:=math.Min(future.Length,sampleCount*2)
+		For Local i:=0 Until n2
+			Local wet:=wetness[i/2]
+			Local dry:=dryness[i/2]
+			samples[i]=wet*future[i]+dry*(samples[i]-future[i])
+		Next
+				
+		future=future.Slice(sampleCount*2)		
+	End
+End
+
+'y(0) = alpha*x(0) - alpha*x(-2) + chi*y(-1) - beta*y(-2) = alpha*1 because other parts of the sum are zero
+'y(1) = alpha*x(1) - alpha*x(-1) + chi*y(0) - beta*y(-1) = chi*alpha*1
+'y(2)= alpha*x(2) - alpha*x(0) + chi*y(1) - beta*y(0) = -alpha*1 + chi*chi*alpha*1 - beta*alpha*1
+
+Class Equalise Implements Effect
+	Const Controls:=New String[]("Wet","Dry")
+
+	Struct Tap
+		Field distance:M
+		Field dampen:V
+		Method New(meters:M,gain:V)
+			distance=meters
+			dampen=gain
+		End		
+	End
+	
+	Field taps:=New List<Tap>
+	Field future:V[]
+	Field removeSource:=True
+	
+	Method New()
+		taps.Add(New Tap(210,0.5))
+	End
+		
+	Method ControlNames:String[]()
+		Return Controls
+	End
+		
+	Method EffectAudio(samples:V Ptr,sampleCount:Int,control:V[][])	
+
+		Local wetness:=control[0]
+		Local dryness:=control[1]
+		
+		Local n1:=math.Min(future.Length,sampleCount*2)
+		For Local i:=0 Until n1
+			samples[i]+=future[i]
+		Next
+
+		For Local pole:=Eachin taps
+			Local seconds:=pole.distance/SpeedOfSound
+			Local offset:=Int(AudioFrequency*seconds)
+			
+			Local maxOffset:Int=(sampleCount+offset)*2
+			
+			If future.Length<maxOffset future=future.Resize(maxOffset)
+						
+			Local dampen:=pole.dampen
+			For Local i:=0 Until sampleCount
+				Local l:=samples[i*2+0]
+				Local r:=samples[i*2+1]
+				future[(offset+i)*2+0]+=l*dampen
+				future[(offset+i)*2+1]+=r*dampen		
+			Next
+		Next
+
+		Local n2:=math.Min(future.Length,sampleCount*2)
+		For Local i:=0 Until n2
+			Local wet:=wetness[i/2]
+			Local dry:=dryness[i/2]
+			samples[i]=wet*future[i]+dry*(samples[i]-future[i])
+		Next
+				
+		future=future.Slice(sampleCount*2)		
+	End
+End
+
 
 Struct Keys
 	Field low:Long
@@ -583,7 +745,6 @@ Struct Keys
 		If index<64 low&=~bit Else high&=~bit
 	End
 End
-
 
 Class BeatGenerator Implements Synth
 

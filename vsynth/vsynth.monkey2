@@ -1,3 +1,5 @@
+' https://hexler.net/docs/touchosc-controls
+
 #Import "audiopipe.monkey2"
 #Import "oscpipe.monkey2"
 
@@ -6,6 +8,7 @@
 #Import "<sdl2>"
 #import "<sdl2-mixer>"
 #Import "<portmidi>"
+#Import "<mojox>"
 
 Using std..
 Using mojo..
@@ -21,8 +24,6 @@ Function SDL_GetPrefPath:Byte Ptr(org:CString,app:CString)
 
 Public 
 
-Global OSCPort:=8000
-
 Global DefaultWindowFlags:=WindowFlags.Resizable|WindowFlags.HighDPI
 
 Global AppTitle:String="VSynth 0.05"	
@@ -35,6 +36,7 @@ Global Octave1:= "Sharps=    W   E       T   Y   U      "
 Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
 Global Controls:="Midi Panic=Escape,Quit=LongEscape"
 
+Global EffectNames:=New String[]("None","Distorted")
 Global RecordNames:=New String[]("Paused","Recording")
 Global SustainNames:=New String[]("Up","Down")
 Global OscillatorNames:=New String[]("Square","Sine","Sawtooth","Triangle","Noise","Rom","Live Mic","Sampler")
@@ -65,7 +67,11 @@ Class VSynth
 	Field fade0:V=1.0
 	Field poly:Synth=New PolySynth()
 	Field mono:Synth=New MonoSynth()
+	
 	Field root:Synth
+	Field effect:Effect
+	Field effecting:=False
+	
 	Field arpeggiator:=New Arpeggiator()
 	Field midiSynth:MidiSynth
 	Field synthMode:Int
@@ -73,6 +79,11 @@ Class VSynth
 	Field buffer:=New Double[FragmentSize*2]
 	Field detuneBuffer:=New V[FragmentSize]
 	Field fadeBuffer:=New V[FragmentSize]
+
+	Field overdrive:=New V[FragmentSize]
+	Field gain:=New V[FragmentSize]
+	Field wet:=New V[FragmentSize]
+	Field dry:=New V[FragmentSize]
 
 	Field scope:=New Scope()
 
@@ -88,6 +99,8 @@ Class VSynth
 		arpeggiator.SetSynth(mono)
 		arpeggiator.SetArpeggiation(1,0)
 		root=arpeggiator
+'		effect=New Distortion()
+		effect=New Reverb()
 	End
 	
 	Method FillAudioBuffer:Double[](samples:Int)		
@@ -96,19 +109,32 @@ Class VSynth
 			buffer[i*2+1]=0
 			detuneBuffer[i]=detune0+i*(detune-detune0)/samples
 			fadeBuffer[i]=fade0+i*(fade-fade0)/samples
+			overdrive[i]=20
+			gain[i]=1.0/20
+			wet[i]=1
+			dry[i]=1
 		Next			
 		detune0=detune
 		fade0=fade
-		If root
-			root.FillAudioBuffer(buffer,samples,detuneBuffer,fadeBuffer)			
-			Duration+=samples			
-			PlotScope(samples)
-			If recording
-				Record(buffer,samples)
-			Endif
+		Assert(root)
+		root.FillAudioBuffer(buffer,samples,detuneBuffer,fadeBuffer)			
+		If effecting 
+'			Local overdriveGain:=New V[][](overdrive,gain)
+'			effect.EffectAudio(buffer.Data,samples,overdriveGain)
+			Local wetDry:=New V[][](wet,dry)
+			effect.EffectAudio(buffer.Data,samples,wetDry)
+		endif
+		Duration+=samples			
+		PlotScope(samples)
+		If recording
+			Record(buffer,samples)
 		Endif
 		Return buffer
 	End
+	
+	Method ToggleEffect()
+		effecting=Not effecting
+	end
 		
 	Method PlotScope(samples:Int)	
 		' green left channel
@@ -375,6 +401,7 @@ Class VSynthWindow Extends Window
 	Field applet:Applet
 	Field goFullscreen:Bool
 	Field bankPath:String
+	Field oscPort:=8000
 		
 	Method New(host:Applet, rect:Recti, fullscreen:bool, title:String)
 		Super.New(title,rect,DefaultWindowFlags)		
@@ -393,7 +420,12 @@ Class VSynthWindow Extends Window
 		Local path:=RequestDir("Select Bank Path",bankPath)
 		If path bankPath = path
 	End
-	
+		
+	Method SelectOSCPort()
+		Local port:=mojox.RequestString("Select OSC Port Number","OSC UDP Port (1-65535)",""+oscPort)
+		If port.Length oscPort=Int(port)
+	End
+
 	Method Create()
 		volume=applet.DefaultNumber("synthVolume")
 		synth=applet.DefaultNumber("synthMode")
@@ -411,7 +443,9 @@ Class VSynthWindow Extends Window
 		rept=applet.DefaultNumber("arpRepeat")
 		arpstate=applet.DefaultObject("arpState")
 
-		audioLatency=applet.DefaultNumber("audioLatency")
+		audioLatency=applet.DefaultNumber("audioLatency",audioLatency)
+		
+		oscPort=applet.DefaultNumber("oscPort",oscPort)
 		
 		bankPath=Applet.prefsPath
 		bankPath=applet.DefaultString("bankPath",bankPath)
@@ -447,10 +481,10 @@ Class VSynthWindow Extends Window
 				host.OnClose()
 			Case EventType.WindowResized
 				host.OnFrame(Self)
-				Print "OnSize "+Width+"x"+Height
+'				Print "OnSize "+Width+"x"+Height
 			Case EventType.WindowMoved
 				host.OnFrame(Self)
-				Print "OnMove"
+'				Print "OnMove"
 		End
 	End
 
@@ -507,7 +541,7 @@ Class VSynthWindow Extends Window
 	Method ResetOSC()
 		resetOSC=0
 		oscHost=New OSCHost()
-		oscHost.Listen(OSCPort)
+		oscHost.Listen(oscPort)
 	End
 	
 	Method PollOSC()
@@ -784,7 +818,7 @@ Class VSynthWindow Extends Window
 			Case Key.F2
 				CycleAudioLatency()
 			Case Key.F3
-				CycleMidiSend()
+				New Fiber(SelectOSCPort)
 			Case Key.F4
 				SelectBankPath()
 			Case Key.F5
@@ -799,6 +833,8 @@ Class VSynthWindow Extends Window
 				arp=4
 			Case Key.F10
 				If arp=5 arp=6 Else arp=5
+			Case Key.F11
+				vsynth.Command(SynthCommand.Record,True)				
 			Case Key.Backspace
 				Title="Scanning Midi Bus, please wait."
 				resetMidi=1
@@ -824,7 +860,7 @@ Class VSynthWindow Extends Window
 			Case Key.Escape
 				EscapeDown()
 			Case Key.Space
-				vsynth.Command(SynthCommand.Record,True)
+				vsynth.ToggleEffect()
 			Case Key.LeftBracket
 				envelope=Wrap(envelope-1,0,EnvelopeNames.Length)
 			Case Key.RightBracket
@@ -925,15 +961,17 @@ Class VSynthWindow Extends Window
 		text+=",Note Repeat=Home="+RepeatNames[rept]
 		text+=",,Tempo=- +="+tempo
 		text+=",,Synth=Enter Key="+SynthNames[synth]
+		text+= ",Effects=Space="+EffectNames[Int(vsynth.effecting)]
 		text+=",,"+Controls	
 		text+= ",Scope=CursorKeys="+panx+","+pany
 		text+= ",FullScreen=F1"
 		text+= ",Buffer=F2="+SampleLatency()+"("+MilliLatency()+"ms)"
 		text+=",,Enable MIDI=Backspace"
-		text+=",MidiIn=F3=All ["+midiInputs+"]"
-		text+= ",MidiOut=F3="+midiSendName+"["+midiOutputs+"]"
+		text+=",MidiIn=Fn=All ["+midiInputs+"]"
+		text+= ",MidiOut=Fn="+midiSendName+"["+midiOutputs+"]"
+		text+=",OSC Port=F3="+oscPort
 		text+=",BankPath=F4="+bankPath
-		text+= ",Record=Space="+RecordNames[Int(vsynth.recording)]
+		text+= ",Record=F11="+RecordNames[Int(vsynth.recording)]
 		text+=",,"+Contact
 		
 		display.Color=Color.Black
@@ -1287,8 +1325,8 @@ Class Applet
 		Return s?s Else value
 	End
 
-	Method DefaultNumber:V(name:String)
-		Return defaults?defaults.GetNumber(name) Else 0
+	Method DefaultNumber:V(name:String,value:V=0)
+		Return defaults?defaults.GetNumber(name) Else value
 	End
 
 	Method DefaultArray:JsonArray(name:String)	
@@ -1400,6 +1438,8 @@ Class Applet
 		json.Add(window.panx)
 		json.Add("panAmp")
 		json.Add(window.pany)
+		json.Add("oscPort")
+		json.Add(window.oscPort)
 		json.Add("bankPath")
 		json.Add("~q"+window.bankPath+"~q")
 		
