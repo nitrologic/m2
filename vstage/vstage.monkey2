@@ -5,6 +5,8 @@
 #Import "<mojo>"
 #Import "<mojo3d>"
 
+#Import "assets/"
+
 Using std..
 Using mojo..
 Using mojo3d..
@@ -76,7 +78,7 @@ Class Tris
 	Field uv:Float[]
 	Field tris:Int[]
 	
-	Method New(numv:int,numn:int,numt:Int)
+	Method New(numv:Int,numn:int,numt:Int)
 		verts=New Float[numv*3]
 		normals=New Float[numn*3]
 		uv=New Float[numn*2]
@@ -122,6 +124,14 @@ Class Tris
 			tris[i*3+1]=(i*3+1)
 			tris[i*3+2]=(i*3+2)
 		Next
+	End
+	
+	Method CreateMesh:Mesh(material:Material)
+		Local v:=verts.Data
+'		Local v3:=Vertex3f(v)
+		Local mesh:=New Mesh()
+'		mesh.AddVertices(v,verts.Length/3)
+		Return mesh
 	End
 	
 	Method GetVerts:Float[]()
@@ -618,7 +628,7 @@ Class Geometry
 	End
 End
 
-Class Box
+Class BoxLoader
 
 	Field _geoms:Geometry[]
 	Field _textures:Pixels[]
@@ -653,10 +663,8 @@ Class Box
 
 	Method Open(stream0:Stream)
 		stream=stream0
-
 		Print "StarterPack is "+stream.Length+" bytes."
 		Print ""
-
 		ReadNode()
 	End
 	
@@ -712,43 +720,32 @@ Class Box
 	End
 
 	Method ReadUTF8:Int()
-		Local b0:int,b1:int,b2:int
-		
+		Local b0:int,b1:int,b2:Int		
 		b0=stream.ReadByte()
-
 		If b0&$80=0 Return b0
-		
 		b1=stream.ReadByte()
-		
-		If (b0&$e0)=$c0 	Return ((b0&$1f)Shl 6) | (b1&$3f)
-		
+		If (b0&$e0)=$c0 Return ((b0&$1f)Shl 6) | (b1&$3f)
 		b2=stream.ReadByte()
-		
 		Return ((b0&$f)Shl 12) | (( b1&$3f)Shl 6) | (b2&$3f)
-		
 	End
 	
 	Method ReadSurf:Surface()
 		Local name:=ReadString()
-		Local rgb:Float[]=ReadVector()
-		
+		Local rgb:Float[]=ReadVector()		
 		Local emissive:Float,alpha:Float,smooth:Float,spec:Float
-		Local hasnorm:Int,tcount:int
-		
+		Local hasnorm:Int,tcount:Int
 		emissive=ReadFloat()
 		alpha=ReadFloat()
 		smooth=ReadFloat()
 		spec=ReadFloat()
 		hasnorm=ReadUTF8()
 		tcount=ReadUTF8()		
-		
 		Local tlist:=New Int[tcount]		
 		For Local i:=0 Until tcount
 			tlist[i]=ReadUTF8()
-		Next
-		
+		Next		
+		Print "Surf name="+name		
 		Return New Surface(name,rgb,emissive,alpha,smooth,hasnorm,tlist)
-'		Print "Surf name="+name		
 	End
 
 	Method ReadVertex:Vertex()
@@ -912,7 +909,7 @@ Class Box
 		Endif
 		
 		While True
-			Local kid:=ReadNode		
+			Local kid:=ReadNode()
 			If kid=Null Exit 			
 		Wend
 				
@@ -969,7 +966,12 @@ Class Set
 	Field camera:Camera
 	Field light:Light
 	Field box:Model
-	
+	Field floor:Model
+	Field ball:Model
+		
+	Field yell:PbrMaterial
+	Field turf:PbrMaterial
+
 	Method New()
 		scene=Scene.GetCurrent()		
 		scene.ClearColor=Color.Sky
@@ -982,9 +984,28 @@ Class Set
 		
 		light=New Light
 		light.RotateX(90)
+		light.CastsShadow=True
 		
-		Local material:=New PbrMaterial(Color.Yellow,1,0.5)		
-		box=Model.CreateBox(New Boxf( -1,1 ),1,1,1,material)
+		yell=New PbrMaterial(Color.Yellow,0.5,0.2)		
+		turf=New PbrMaterial(Color.Green,1,0.5)		
+
+		box=Model.CreateBox(New Boxf( -1,1 ),1,1,1,yell)
+		box.Move(0,4,0)
+		
+		floor=Model.CreateBox(New Boxf(-20,20 ),1,1,1,turf)
+		floor.Move(0,-20,0)
+		
+		Local tris:=Tris.CreateIcosaHedron()
+		Local tris2:=tris.Subdivide()
+		Local tris3:=tris2.Wireframe(0.2)
+		Local mesh:=tris3.CreateMesh(yell)
+		ball=New Model(mesh,yell)
+		
+'		Local bob:=New Geometry()
+		
+'		Local stream:=FileStream.Open("C:\nitrologic\m2\vstage\vstage.products\Windows\assets\StarterPack.box","r")
+'		Local pack:=New BoxLoader()
+'		pack.Open(stream)
 	End
 
 	Method Render(canvas:Canvas)			
