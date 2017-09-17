@@ -84,6 +84,7 @@ Class VSynth
 	Field gain:=New V[FragmentSize]
 	Field wet:=New V[FragmentSize]
 	Field dry:=New V[FragmentSize]
+	Field falloff:=New V[FragmentSize]
 
 	Field scope:=New Scope()
 
@@ -117,6 +118,7 @@ Class VSynth
 			gain[i]=1.0/20
 			wet[i]=1
 			dry[i]=1
+			falloff[i]=1.5
 		Next			
 		detune0=detune
 		fade0=fade
@@ -125,7 +127,7 @@ Class VSynth
 		If effecting 
 '			Local overdriveGain:=New V[][](overdrive,gain)
 '			effect.EffectAudio(buffer.Data,samples,overdriveGain)
-			Local controls:=New V[][](overdrive,gain,wet,dry)
+			Local controls:=New V[][](overdrive,gain,wet,dry,falloff)
 			effects.EffectAudio(buffer.Data,samples,controls)
 		Endif
 		Duration+=samples			
@@ -910,12 +912,13 @@ Class VSynthWindow Extends Window
 	Method OnMouseEvent( event:MouseEvent ) Override	
 		mousex=event.Location.X
 		mousey=event.Location.Y
-		mousebend+=event.Wheel.Y/48.0
-		pitchbend=Pow(2,mousebend)		
 		Select event.Type
+			Case EventType.MouseWheel
+				mousebend+=event.Wheel.Y/48.0
 			Case EventType.MouseDown
 '				pixels.Click(mousex,mousey)
 		End
+		pitchbend=Pow(2,mousebend)		
 	End
 	
 

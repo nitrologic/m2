@@ -14,7 +14,12 @@ Class MyWindow Extends Window
  
 		Super.New( title,width,height,flags )
 		
-		Local data:=New AudioData( 1024,AudioFormat.Mono8,11025 )
+		Local n:=256
+		
+		Local data:=New AudioData( n,AudioFormat.Mono8,11025 )
+		For Local i:=0 Until n
+			data.Data[i]=128
+		Next
 		For Local i:=0 Until 32
 			data.Data[i]=(i*5)&255
 		Next
@@ -26,6 +31,7 @@ Class MyWindow Extends Window
 	
 		If Keyboard.KeyHit( Key.Space )
 			_sound.Play()
+			Print "play"
 		Endif
 		
 		App.RequestRender()

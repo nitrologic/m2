@@ -620,9 +620,8 @@ Class Distortion Implements Effect
 	End
 End
 
-
 Class Reverb Implements Effect
-	Const Controls:=New String[]("Wet","Dry")
+	Const Controls:=New String[]("Wet","Dry","Effect")
 
 	Struct Pole
 		Field distance:M
@@ -649,10 +648,11 @@ Class Reverb Implements Effect
 
 		Local wetness:=control[0]
 		Local dryness:=control[1]
+		Local falloff:=control[2]
 		
 		Local n1:=math.Min(future.Length,sampleCount*2)
 		For Local i:=0 Until n1
-			samples[i]+=future[i]
+			samples[i]+=future[i]*falloff[i/2]
 		Next
 
 		For Local pole:=Eachin poles
