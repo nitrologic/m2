@@ -31,7 +31,15 @@ Class MyWindow Extends Window
 	
 		If Keyboard.KeyHit( Key.Space )
 			_sound.Play()
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 			Print "play"
+=======
+			Print "go"
+>>>>>>> Stashed changes
+=======
+			Print "go"
+>>>>>>> Stashed changes
 		Endif
 		
 		App.RequestRender()
