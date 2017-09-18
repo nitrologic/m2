@@ -14,11 +14,18 @@ Class MyWindow Extends Window
  
 		Super.New( title,width,height,flags )
 		
+<<<<<<< Updated upstream
 		Local n:=256
 		
 		Local data:=New AudioData( n,AudioFormat.Mono8,11025 )
 		For Local i:=0 Until n
 			data.Data[i]=128
+=======
+		Local n:=8192
+		Local data:=New AudioData( n,AudioFormat.Mono8,11025 )
+		For Local i:=0 Until n
+			data.Data[i]=0
+>>>>>>> Stashed changes
 		Next
 		For Local i:=0 Until 32
 			data.Data[i]=(i*5)&255
@@ -33,7 +40,11 @@ Class MyWindow Extends Window
 			_sound.Play()
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 			Print "play"
+=======
+			Print "go"
+>>>>>>> Stashed changes
 =======
 			Print "go"
 >>>>>>> Stashed changes
