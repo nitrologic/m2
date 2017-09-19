@@ -76,16 +76,16 @@ Class Tris
 	Field verts:Float[]
 	Field normals:Float[]
 	Field uv:Float[]
-	Field tris:Int[]
+	Field tris:UInt[]
 	
 	Method New(numv:Int,numn:int,numt:Int)
 		verts=New Float[numv*3]
+		uv=New Float[numv*2]
 		normals=New Float[numn*3]
-		uv=New Float[numn*2]
-		tris=New Int[numt*3]
+		tris=New UInt[numt*3]
 	End
 
-	Method New(verts0:Float[],normals0:Float[],uv0:Float[],tris0:Int[])			
+	Method New(verts0:Float[],normals0:Float[],uv0:Float[],tris0:UInt[])			
 		verts=verts0
 		normals=normals0
 		uv=uv0
@@ -98,8 +98,9 @@ Class Tris
 		Local numv:=numt*3
 		
 		verts=New Float[numv*3]
+		uv=New Float[numv*2]
 		normals=New Float[numv*3]
-		tris=New Int[numt*3]
+		tris=New UInt[numt*3]
 		
 		For Local i:=0 Until numt		
 			Local v0:=tris0[i*3+0]
@@ -126,11 +127,28 @@ Class Tris
 		Next
 	End
 	
-	Method CreateMesh:Mesh(material:Material)
-		Local v:=verts.Data
-'		Local v3:=Vertex3f(v)
+	Method GetVertex3f:Vertex3f(i:Int)
+		Local x:=verts[i*3+0]
+		Local y:=verts[i*3+1]
+		Local z:=verts[i*3+2]
+		Local s0:=uv[i*2+0]
+		Local t0:=uv[i*2+1]
+		Local nx:=normals[i*3+0]
+		Local ny:=normals[i*3+1]
+		Local nz:=normals[i*3+2]
+		Return New Vertex3f(x,y,z,s0,t0,nx,ny,nz)
+	End
+	
+	Method CreateMesh:Mesh()
+		Local n:=verts.Length/3
+		Local vertices:=New Vertex3f[n]
+		For Local i:=0 Until n
+			vertices[i]=GetVertex3f(i)
+		Next
 		Local mesh:=New Mesh()
-'		mesh.AddVertices(v,verts.Length/3)
+		mesh.AddMaterials(0)
+		mesh.AddVertices(vertices)
+		mesh.AddTriangles(tris)
 		Return mesh
 	End
 	
@@ -661,11 +679,18 @@ Class BoxLoader
 
 	Global _buffer:=New Int[1024]
 
-	Method Open(stream0:Stream)
+	Method Load:Model(stream0:Stream)
 		stream=stream0
 		Print "StarterPack is "+stream.Length+" bytes."
-		Print ""
-		ReadNode()
+		ReadNode()		
+		
+		Local root:=New Model()
+
+		Local nullMaterial:=New PbrMaterial(Color.Yellow,0.5,0.2)		
+
+		LoadModels(root,nullMaterial)
+		
+		Return root
 	End
 	
 	Method MarkPixels:int(width:int,height:int,frames:Int)		
@@ -959,6 +984,16 @@ Class BoxLoader
 		Next
 					
 	End
+	
+	Method LoadModels(parent:Model,nullMaterial:PbrMaterial)
+		For Local geom:=Eachin _geoms		
+			Local tris:=geom.GetTris()
+			Local mesh:=tris.CreateMesh()
+			Local model:=New Model(mesh,nullMaterial,parent)
+			Print "model++"
+		Next
+	End
+	
 End
 
 Class Set
@@ -990,22 +1025,25 @@ Class Set
 		turf=New PbrMaterial(Color.Green,1,0.5)		
 
 		box=Model.CreateBox(New Boxf( -1,1 ),1,1,1,yell)
-		box.Move(0,4,0)
+		box.Move(0,4*3,0)
 		
 		floor=Model.CreateBox(New Boxf(-20,20 ),1,1,1,turf)
-		floor.Move(0,-20,0)
+		floor.Move(0,-20*3,0)
 		
-		Local tris:=Tris.CreateIcosaHedron()
-		Local tris2:=tris.Subdivide()
-		Local tris3:=tris2.Wireframe(0.2)
-		Local mesh:=tris3.CreateMesh(yell)
-		ball=New Model(mesh,yell)
+'		Local tris:=Tris.CreateIcosaHedron()
+'		Local tris2:=tris.Subdivide()
+'		Local tris3:=tris2.Wireframe(0.2)
+'		Local mesh:=tris3.CreateMesh(yell)
+'		ball=New Model(mesh,yell)
+		
+'		Local nz:=New Shape("C:\gis\nz\nz-coastlines-topo-150k\nz-coastlines-topo-150k.shp")
 		
 '		Local bob:=New Geometry()
 		
-'		Local stream:=FileStream.Open("C:\nitrologic\m2\vstage\vstage.products\Windows\assets\StarterPack.box","r")
-'		Local pack:=New BoxLoader()
-'		pack.Open(stream)
+		Local stream:=FileStream.Open("C:\nitrologic\m2\vstage\vstage.products\Windows\assets\StarterPack.box","r")
+		Local boxloader:=New BoxLoader()
+		Local pack:=boxloader.Load(stream)
+		
 	End
 
 	Method Render(canvas:Canvas)			
