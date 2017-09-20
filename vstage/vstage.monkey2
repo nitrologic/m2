@@ -25,6 +25,15 @@ Class Edge
 			b=a0
 		End
 	End			
+
+	Operator <=>:Int(rhs:Edge)
+		Local lhs:=Self
+		If lhs.a=rhs.a And lhs.b=rhs.b Return 0
+		If lhs.a>rhs.a Return 1
+		If lhs.a=rhs.a And lhs.b>rhs.b Return 1
+		Return -1
+	End
+
 End
 
 Class EdgeMap<T> Extends Map<Edge,T>
@@ -32,21 +41,12 @@ Class EdgeMap<T> Extends Map<Edge,T>
 	Field count:Int
 
 	Method get:Int( e:Edge )
-'		Local node:=FindNode( e )
-'		Local node:<T>:=
 		If Contains(e)
 			Return Self[e]	'node.Value
 		Endif
 		count+=1		
 		Set(e,count)
 		Return count
-	End
-
-	Method Compare:Int(lhs:Edge,rhs:Edge)
-		If lhs.a=rhs.a And lhs.b=rhs.b Return 0
-		If lhs.a>rhs.a Return 1
-		If lhs.a=rhs.a And lhs.b>rhs.b Return 1
-		Return -1
 	End
 
 End
@@ -60,6 +60,13 @@ Class EdgeList
 		edges.AddLast(New Edge(v0,v1))
 		edges.AddLast(New Edge(v1,v2))
 		edges.AddLast(New Edge(v2,v0))
+	End
+	
+	Method addQuad(v0:int,v1:int,v2:Int,v3:Int)
+		edges.AddLast(New Edge(v0,v1))
+		edges.AddLast(New Edge(v1,v2))
+		edges.AddLast(New Edge(v2,v3))
+		edges.AddLast(New Edge(v3,v0))
 	End
 	
 End
@@ -77,7 +84,8 @@ Class Tris
 	Field normals:Float[]
 	Field uv:Float[]
 	Field tris:UInt[]
-	
+	Field quads:UInt[]
+
 	Method New(numv:Int,numn:int,numt:Int)
 		verts=New Float[numv*3]
 		uv=New Float[numv*2]
@@ -89,18 +97,22 @@ Class Tris
 		verts=verts0
 		normals=normals0
 		uv=uv0
-		tris=tris0
+		tris=tris0		
 	End
 
-	Method New(verts0:Float[],tris0:Int[])			
+	' flatshade
+
+	Method New(verts0:Float[],tris0:UInt[],quads0:UInt[])
 		
 		Local numt:=tris0.Length/3
-		Local numv:=numt*3
+		Local numq:=quads0.Length/4
+		Local numv:=numt*3+numq*4
 		
 		verts=New Float[numv*3]
 		uv=New Float[numv*2]
 		normals=New Float[numv*3]
 		tris=New UInt[numt*3]
+		quads=New UInt[numq*4]
 		
 		For Local i:=0 Until numt		
 			Local v0:=tris0[i*3+0]
@@ -125,7 +137,51 @@ Class Tris
 			tris[i*3+1]=(i*3+1)
 			tris[i*3+2]=(i*3+2)
 		Next
+
+		For Local i:=0 Until numq
+			
+			Local v0:=quads0[i*4+0]
+			Local v1:=quads0[i*4+1]
+			Local v2:=quads0[i*4+2]
+			Local v3:=quads0[i*4+3]
+			
+			Local ii:=i*12+numt*9
+			
+			verts[ii+0]=verts0[v0*3+0]
+			verts[ii+1]=verts0[v0*3+1]
+			verts[ii+2]=verts0[v0*3+2]
+			
+			verts[ii+3]=verts0[v1*3+0]
+			verts[ii+4]=verts0[v1*3+1]
+			verts[ii+5]=verts0[v1*3+2]
+
+			verts[ii+6]=verts0[v2*3+0]
+			verts[ii+7]=verts0[v2*3+1]
+			verts[ii+8]=verts0[v2*3+2]
+			
+			verts[ii+9]=verts0[v3*3+0]
+			verts[ii+10]=verts0[v3*3+1]
+			verts[ii+11]=verts0[v3*3+2]
+
+			calcNormal(numt+i)
+			
+			quads[i*4+0]=(i*4+0)
+			quads[i*4+1]=(i*4+1)
+			quads[i*4+2]=(i*4+2)
+			quads[i*4+3]=(i*4+3)
+		Next
+
 	End
+	
+	Method Scale:Tris(factor:Double)
+		Local n:=verts.Length/3
+		For Local i:=0 Until n
+			verts[i*3+0]*=factor
+			verts[i*3+1]*=factor
+			verts[i*3+2]*=factor
+		Next
+		Return Self
+	end
 	
 	Method GetVertex3f:Vertex3f(i:Int)
 		Local x:=verts[i*3+0]
@@ -253,12 +309,13 @@ Class Tris
 		
 	Global cubeVerts:=New Float[](1.0,1,1, -1,1,1, -1,-1,1, 1,-1,1, 1,1,-1, -1,1,-1, -1,-1,-1, 1,-1,-1)
 	
-	Global cubeTris:=New Int[](0,1,2, 0,2,3, 4,0,3, 4,3,7, 5,4,7, 5,7,6, 1,5,6, 1,6,2, 4,5,1, 4,1,0, 3,2,6, 3,6,7)
+	Global cubeTris:=New UInt[0]'(0,1,2, 0,2,3, 4,0,3, 4,3,7, 5,4,7, 5,7,6, 1,5,6, 1,6,2, 4,5,1, 4,1,0, 3,2,6, 3,6,7)
+	Global cubeQuads:=New uint[](0,1,2,3, 4,0,3,7, 5,4,7,6, 1,5,6,2, 4,5,1,0, 3,2,6,7)
 	
 	Global cubeUVs:=New Float[](0.0,0.0, 1.0,0.0, 1.0,1.0)
 
 	Function CreateCube:Tris()
-		Local cube:=New Tris(cubeVerts,cubeTris)
+		Local cube:=New Tris(cubeVerts,cubeTris,cubeQuads)
 		Return cube
 	End
 						
@@ -590,7 +647,8 @@ Class Geometry
 	Field name:String
 	Field geom:Geometry
 	Field verts:Vertex[]
-	Field triangles:Int[]
+	Field triangles:UInt[]
+	Field quads:UInt[]
 	
 	Field stash:=New IntStack()
 
@@ -599,7 +657,7 @@ Class Geometry
 		verts=verts0
 	End
 	
-	Method AddTri(surf:int,v0:int,v1:int,v2:int)
+	Method AddTri(surf:int,v0:int,v1:Int,v2:int)
 		stash.Push(surf)
 		stash.Push(v0)
 		stash.Push(v1)
@@ -609,7 +667,7 @@ Class Geometry
 	Method Compile()		
 		Local n:=stash.Length/4
 		If n=0 Return
-		triangles=New Int[n*3]
+		triangles=New uInt[n*3]
 		For Local i:=0 Until n
 			Local v0:=stash.Get(i*4+1)
 			Local v1:=stash.Get(i*4+2)
@@ -623,26 +681,14 @@ Class Geometry
 	
 	Method GetTris:Tris()
 		Compile()
-		Local n:=verts.Length
-		Local t:=triangles.Length/3
-		Local m:=New Tris(n,t,t)
-		For Local i:=0 Until n
-			Local v:=verts[i]
-			m.verts[i*3+0]=v.xyz[0]
-			m.verts[i*3+1]=v.xyz[1]
-			m.verts[i*3+2]=v.xyz[2]		
-'			m.uv[i*2+0]=v.uv[0]
-'			m.uv[i*2+1]=v.uv[1]
+		Local numv:=verts.Length
+		Local v:=New Float[numv*3]
+		For Local i:=0 Until numv
+			v[i*3+0]=verts[i].xyz[0]
+			v[i*3+1]=verts[i].xyz[1]
+			v[i*3+2]=verts[i].xyz[2]
 		Next
-		For Local i:=0 Until t
-			Local v0:=triangles[i*3+0]
-			Local v1:=triangles[i*3+1]
-			Local v2:=triangles[i*3+2]			
-			m.tris[i*3+0]=v0
-			m.tris[i*3+1]=v1
-			m.tris[i*3+2]=v2
-		Next
-		Return m
+		Return New Tris(v,triangles,quads)
 	End
 End
 
@@ -986,8 +1032,9 @@ Class BoxLoader
 	End
 	
 	Method LoadModels(parent:Model,nullMaterial:PbrMaterial)
-		For Local geom:=Eachin _geoms		
+		For Local geom:=Eachin _geoms
 			Local tris:=geom.GetTris()
+			If Not tris continue
 			Local mesh:=tris.CreateMesh()
 			Local model:=New Model(mesh,nullMaterial,parent)
 			Print "model++"
@@ -1030,19 +1077,19 @@ Class Set
 		floor=Model.CreateBox(New Boxf(-20,20 ),1,1,1,turf)
 		floor.Move(0,-20*3,0)
 		
-'		Local tris:=Tris.CreateIcosaHedron()
-'		Local tris2:=tris.Subdivide()
-'		Local tris3:=tris2.Wireframe(0.2)
-'		Local mesh:=tris3.CreateMesh(yell)
-'		ball=New Model(mesh,yell)
+		Local tris:=Tris.CreateIcosaHedron().Scale(3)
+		Local tris2:=tris.Subdivide()
+		Local tris3:=tris2.Wireframe(0.2)
+		Local mesh:=tris3.CreateMesh()
+		ball=New Model(mesh,yell)
 		
 '		Local nz:=New Shape("C:\gis\nz\nz-coastlines-topo-150k\nz-coastlines-topo-150k.shp")
 		
 '		Local bob:=New Geometry()
 		
-		Local stream:=FileStream.Open("C:\nitrologic\m2\vstage\vstage.products\Windows\assets\StarterPack.box","r")
-		Local boxloader:=New BoxLoader()
-		Local pack:=boxloader.Load(stream)
+'		Local stream:=FileStream.Open("C:\nitrologic\m2\vstage\vstage.products\Windows\assets\StarterPack.box","r")
+'		Local boxloader:=New BoxLoader()
+'		Local pack:=boxloader.Load(stream)
 		
 	End
 
