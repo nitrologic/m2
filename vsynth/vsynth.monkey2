@@ -71,6 +71,7 @@ Class VSynth
 	Field root:Synth
 	Field effects:Chain
 	Field effecting:=False
+	Field recording:=False
 	
 	Field arpeggiator:=New Arpeggiator()
 	Field midiSynth:MidiSynth
@@ -93,8 +94,8 @@ Class VSynth
 	Field panAmp:V
 	
 	Field sampleBank:=New SampleBank()
-	Field recording:=False
 	Field bankPath:String
+	Field bankCount:int
 
 	Method New()
 		arpeggiator.SetSynth(mono)
@@ -140,7 +141,11 @@ Class VSynth
 	
 	Method ToggleEffect()
 		effecting=Not effecting
-	end
+	End
+
+	Method ToggleRecord()
+		recording=Not recording
+	End
 		
 	Method PlotScope(samples:Int)	
 		' green left channel
@@ -196,17 +201,13 @@ Class VSynth
 		End
 	End
 		
-	Method CycleRecord()
-		recording=Not recording
-		If Not recording sampleBank.Save(bankPath)
-	End
-
 	Method Record(samples:V[],length:Int)
 		sampleBank.Record(samples,length)
 	End
 	
-	Method SetBankPath(path:String)
+	Method SetBankPath(path:String,count:Int)
 		bankPath=path
+		bankCount=count
 	End
 
 	Method SetTempo(tempo:Tempo,divisor:Int,duty:V,rept:int)
@@ -245,12 +246,10 @@ Class VSynth
 	
 	Method Command(command:SynthCommand,down:bool)
 		If Not down Return
-		Select command
-			Case SynthCommand.Record
-				CycleRecord()
-			Default
+'		Select command
+'			Default
 				root.Command(command,down)
-		End
+'		End
  	End
 	
 End	
@@ -407,7 +406,10 @@ Class VSynthWindow Extends Window
 	Field applet:Applet
 	Field goFullscreen:Bool
 	Field bankPath:String
+	Field bankCount:int
 	Field oscPort:=8000
+	
+	Field recording:=False
 		
 	Method New(host:Applet, rect:Recti, fullscreen:bool, title:String)
 		Super.New(title,rect,DefaultWindowFlags)		
@@ -424,7 +426,10 @@ Class VSynthWindow Extends Window
 	
 	Method SelectBankPath()
 		Local path:=RequestDir("Select Bank Path",bankPath)
-		If path bankPath = path
+		If path 
+			bankPath=path
+			vsynth.SetBankPath(path,bankCount)
+		Endif
 	End
 		
 	Method SelectOSCPort()
@@ -455,6 +460,7 @@ Class VSynthWindow Extends Window
 		
 		bankPath=Applet.prefsPath
 		bankPath=applet.DefaultString("bankPath",bankPath)
+		bankCount=applet.DefaultNumber("bankCount")
 
 		For Local i:=0 Until MusicKeys.Length
 			keyNoteMapping.Set(MusicKeys[i],i-1)
@@ -477,6 +483,7 @@ Class VSynthWindow Extends Window
 		
 		
 		vsynth.arpeggiator.SetState(arpstate)
+		vsynth.SetBankPath(bankPath,bankCount)
 	End
 
 	Method OnWindowEvent(event:WindowEvent) Override
@@ -538,7 +545,7 @@ Class VSynthWindow Extends Window
 			Local buffered:=audioPipe.writePointer-audioPipe.readPointer
 			If buffered>=WriteAhead Exit
 			Local samples:=FragmentSize
-			Local buffer:=vsynth.FillAudioBuffer(samples)			
+			Local buffer:=vsynth.FillAudioBuffer(samples)
 			Local pointer:=Varptr buffer[0]
 			audioPipe.WriteSamples(pointer,samples*2)
 		Wend
@@ -674,6 +681,15 @@ Class VSynthWindow Extends Window
 		commands[49]=SynthCommand.Loop
 		commands[46]=SynthCommand.Stop
 		commands[44]=SynthCommand.Record
+	End
+	
+	Method OnRecord()
+		recording=Not recording
+		If Not recording 
+			bankCount+=1
+			vsynth.sampleBank.Save(bankPath,bankCount)
+		Endif
+		vsynth.ToggleRecord()
 	End
 	
 	Method OnProgramChange(index:Int)
@@ -839,8 +855,8 @@ Class VSynthWindow Extends Window
 				arp=4
 			Case Key.F10
 				If arp=5 arp=6 Else arp=5
-			Case Key.F11
-				vsynth.Command(SynthCommand.Record,True)				
+			Case Key.F11				
+				OnRecord()
 			Case Key.Backspace
 				Title="Scanning Midi Bus, please wait."
 				resetMidi=1
@@ -970,7 +986,7 @@ Class VSynthWindow Extends Window
 		text+=",,Synth=Enter Key="+SynthNames[synth]
 		text+= ",Effects=Space="+EffectNames[Int(vsynth.effecting)]
 		text+=",,"+Controls	
-		text+= ",Scope=CursorKeys="+panx+","+pany
+		text+= ",Scope=CursorKeys="+panx+"."+pany
 		text+= ",FullScreen=F1"
 		text+= ",Buffer=F2="+SampleLatency()+"("+MilliLatency()+"ms)"
 		text+=",,Enable MIDI=Backspace"
@@ -978,7 +994,7 @@ Class VSynthWindow Extends Window
 		text+= ",MidiOut=Fn="+midiSendName+"["+midiOutputs+"]"
 		text+=",OSC Port=F3="+oscPort
 		text+=",BankPath=F4="+bankPath
-		text+= ",Record=F11="+RecordNames[Int(vsynth.recording)]
+		text+= ",Record=F11="+RecordNames[Int(recording)]
 		text+=",,"+Contact
 		
 		display.Color=Color.Black
@@ -1449,6 +1465,8 @@ Class Applet
 		json.Add(window.oscPort)
 		json.Add("bankPath")
 		json.Add("~q"+window.bankPath+"~q")
+		json.Add("bankCount")
+		json.Add(window.bankCount)
 		
 		If GetFileType(prefsPath)=FileType.None CreateDir(prefsPath)
 		
