@@ -1,0 +1,8 @@
+{
+	"module":"nitro",
+	"about":"Monkey2 application extensions",
+	"author":"Simon Armstrong",
+	"version":"0.0.1",
+	"support":"https://github.com/nitrologic/m2",
+	"depends":["libc"]
+}
