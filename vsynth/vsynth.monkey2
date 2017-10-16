@@ -1,5 +1,8 @@
 ' https://hexler.net/docs/touchosc-controls
 
+' pitch wheel center is not standard
+
+
 #Import "audiopipe.monkey2"
 #Import "oscpipe.monkey2"
 
@@ -26,12 +29,12 @@ Public
 
 Global DefaultWindowFlags:=WindowFlags.Resizable|WindowFlags.HighDPI
 
-Global AppTitle:String="VSynth 0.05"	
+Global AppTitle:String="Project VSynth 0.06"	
 Global Contact:="Latest Source=github.com/nitrologic/m2"
 
 Global FragmentSize:=512
 
-Global About:="VSynth Control"
+Global About:=AppTitle
 Global Octave1:= "Sharps=    W   E       T   Y   U      "
 Global Octave0:= "Notes=A   S   D  F   G   H    J  K"
 Global Controls:="Midi Panic=Escape,Quit=LongEscape"
@@ -634,7 +637,7 @@ Class VSynthWindow Extends Window
 				Case NoteOff					
 					vsynth.NoteOff(note)
 				Case PitchWheel
-					pitchbend=1.0+(word-8192)/8192.0
+					pitchbend=1.0+(word-8452)/8452.0
 				Case Controller
 					OnControl(b[1],b[2])
 				Case ProgramChange
@@ -686,8 +689,12 @@ Class VSynthWindow Extends Window
 	Method OnRecord()
 		recording=Not recording
 		If Not recording 
-			bankCount+=1
-			vsynth.sampleBank.Save(bankPath,bankCount)
+			Local path:String
+			Repeat
+				bankCount+=1
+				path=bankPath+"vsynth.rom"+bankCount+".wav"
+			Until GetFileType(path)=FileType.None			
+			vsynth.sampleBank.Save(path)
 		Endif
 		vsynth.ToggleRecord()
 	End

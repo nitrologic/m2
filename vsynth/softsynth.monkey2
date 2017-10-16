@@ -218,8 +218,7 @@ Class SampleBank
 		Next
 	End
 	
-	Method Save(dir:String,id:int)
-		Local path:=dir+"vsynth.rom"+id+".wav"
+	Method Save(path:String)	
 		Local file:=FileStream.Open(path,"w")
 		Normalise()
 		WriteWAV(file)
