@@ -752,7 +752,6 @@ End
 Struct Keys
 	Field low:Long
 	Field high:Long	
-	Field vel:Int[]
 	
 	Method ToJson:String()
 		Local s:String
@@ -890,7 +889,7 @@ Class BeatGenerator Implements Synth
 		Return output.GetKeys()
 	End
 	
-	Method Panic()
+	Method Panic() Virtual
 		ReleaseAll()
 		output.Panic()	
 	End
@@ -920,22 +919,33 @@ Class Arpeggiator Extends BeatGenerator
 	Field noteCount:Int
 	Field note:Note
 	Field cycle:Int
+	Field snapshot:JsonObject
 	
 	Method New()
+	End
+
+	Method Panic() Override
+		If Not snapshot snapshot=GetState()
+		Super.Panic()
 	End
 	
 	Method SetState(state:JsonObject)
 		ReleaseAll()
 		Local notes:=state.GetArray("natural")
-		For Local i:=0 Until notes.Length
-			Local note:=notes.GetNumber(i)
-'			natural.Push(note)
+		For Local i:=0 Until notes.Length/2
+			Local note:=notes.GetNumber(i*2+0)
+			Local velocity:=notes.GetNumber(i*2+1)
+			natural.Push(New Note(note,velocity))
 		Next
 		sorted=New Stack<Note>(natural)
 		sorted.Sort()
+		index=natural.Length
+		noteCount=0
+		snapshot=Null
 	End
 
 	Method GetState:JsonObject()	
+		If snapshot Return snapshot
 		Local naturalArray:=New JsonArray(natural.Length*2)
 		For Local i:=0 Until natural.Length
 			Local note:=natural[i] 
@@ -944,7 +954,6 @@ Class Arpeggiator Extends BeatGenerator
 		Next
 		Local state:=New JsonObject
 		state.SetValue("natural",naturalArray)
-		Print "state is "+state.ToJson()
 		Return state
 	End
 

@@ -1,15 +1,18 @@
+' v(icious)synth by nitrologic@gmail.com
+'
+' issues
+' pitch wheel center is not standard
+' tempo 0 causes unrecoverable clock
+'
+' osc reference
 ' https://hexler.net/docs/touchosc-controls
 
-' pitch wheel center is not standard
-
-
 #Import "audiopipe.monkey2"
-#Import "oscpipe.monkey2"
 
 #Import "<std>"
 #Import "<mojo>"
 #Import "<sdl2>"
-#import "<sdl2-mixer>"
+#Import "<sdl2-mixer>"
 #Import "<portmidi>"
 #Import "<mojox>"
 
@@ -53,7 +56,7 @@ Global DutyNames:=New String[]("1:2","3:4","1:4","7:8","1:8","5:8","3:8")
 Global DutyCycle:=New Double[](0.5,0.75,0.25,0.875,0.125,0.625,0.375)
 Global RepeatNames:=New String[]("1x","2x","3x","4x")
 
-#import "softsynth.monkey2"
+#Import "softsynth.monkey2"
 
 Public
 
@@ -220,6 +223,10 @@ Class VSynth
 '	Method SetVolumeFader(vol:V)
 '		fade=vol
 '	End
+
+	Method SetState(state:JsonObject)
+		arpeggiator.SetState(state)
+	End
 	
 	Method SetVolume(volume:V)
 		fade=volume*volume
@@ -367,7 +374,9 @@ Class VSynthWindow Extends Window
 	Field tick:Int
 	Field mousex:Int
 	Field mousey:Int
-	
+	Field mouseMiddle:Bool
+	Field mouseLeft:Bool
+	Field mouseRight:bool
 	Field volume:V=0.1
 	Field mousebend:V
 	Field pitchbend:V=1.0
@@ -483,9 +492,8 @@ Class VSynthWindow Extends Window
 ' midi mappings		
 		MapKontrol()
 		MapAkai()
-		
-		
-		vsynth.arpeggiator.SetState(arpstate)
+
+		vsynth.SetState(arpstate)
 		vsynth.SetBankPath(bankPath,bankCount)
 	End
 
@@ -939,6 +947,10 @@ Class VSynthWindow Extends Window
 			Case EventType.MouseWheel
 				mousebend+=event.Wheel.Y/48.0
 			Case EventType.MouseDown
+				mouseLeft=event.Button&MouseButton.Left
+				mouseRight=event.Button&MouseButton.Right
+				mouseMiddle=event.Button&MouseButton.Middle				
+				If mouseMiddle mousebend=0
 '				pixels.Click(mousex,mousey)
 		End
 		pitchbend=Pow(2,mousebend)		
@@ -1496,43 +1508,3 @@ Function Main()
 	App.Run()
 End
 
-
-#rem
-yamaha
-
-SysEx=240
-TimeCode=241
-SongPosition=242
-SongSelect=243
-EOX=247
-Clock=248
-Start=250
-Continue=251
-Stop=252
-Reset=255
-
-midi level
-Bank Select (cc#0/32)
-Modulation Depth (cc#1)
-Portamento Time (cc#5)
-Channel Volume (cc#7)
-Pan (cc#10)
-Expression (cc#11)
-Hold1 (Damper) (cc#64)
-Portamento ON/OFF (cc#65)
-Sostenuto (cc#66)
-Soft (cc#67)
-Filter Resonance (Timbre/Harmonic Intensity) (cc#71)
-Release Time (cc#72)
-Attack Time (cc#73)
-Brightness (cc#74)
-Decay Time (cc#75) (new message)
-Vibrato Rate (cc#76) (new message)
-Vibrato Depth (cc#77) (new message)
-Vibrato Delay (cc#78) (new message)
-Reverb Send Level (cc#91)
-Chorus Send Level (cc#93)
-Data Entry (cc#6/38)
-RPN LSB/MSB (cc#100/101)
-#end
-	
