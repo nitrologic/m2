@@ -2,7 +2,6 @@
 '
 ' issues
 ' pitch wheel center is not standard
-' tempo 0 causes unrecoverable clock
 '
 ' osc reference
 ' https://hexler.net/docs/touchosc-controls
@@ -102,6 +101,8 @@ Class VSynth
 	Field sampleBank:=New SampleBank()
 	Field bankPath:String
 	Field bankCount:int
+	
+	Field samplers:=New Stack<Sampler>
 
 	Method New()
 		arpeggiator.SetSynth(mono)
@@ -113,6 +114,7 @@ Class VSynth
 		For Local n:=Eachin effects.ControlNames()
 			Print n
 		Next		
+'		samplers.Add(New LiveMicrophone)
 	End
 	
 	Method FillAudioBuffer:Double[](samples:Int)		
@@ -131,6 +133,12 @@ Class VSynth
 		fade0=fade
 		Assert(root)
 		root.FillAudioBuffer(buffer,samples,detuneBuffer,fadeBuffer)			
+		
+		For Local sampler:=Eachin samplers
+			Local controls:V[][]
+			sampler.Mix(buffer.Data,samples,controls)			
+		Next	
+		
 		If effecting 
 '			Local overdriveGain:=New V[][](overdrive,gain)
 '			effect.EffectAudio(buffer.Data,samples,overdriveGain)
@@ -208,7 +216,7 @@ Class VSynth
 	End
 		
 	Method Record(samples:V[],length:Int)
-		sampleBank.Record(samples,length)
+		sampleBank.Record(samples,length,2)
 	End
 	
 	Method SetBankPath(path:String,count:Int)

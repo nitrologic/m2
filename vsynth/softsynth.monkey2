@@ -186,8 +186,7 @@ End
 Alias SampleData:Deque<V>
 
 Class SampleBank
-	Field sampleData:SampleData
-'	Field pitch:=220.0
+	Field sampleData:=New SampleData
 	Field freq:=44100
 	
 	Method Normalise()
@@ -209,15 +208,22 @@ Class SampleBank
 		
 	End
 
-	Method Record(samples:V[],count:Int)
-		If Not sampleData
-			sampleData=New SampleData
-		Endif
-		For Local i:=0 Until count*2
+	Method Record(samples:V[],count:Int,channels:Int)
+		For Local i:=0 Until count*channels
 			sampleData.PushLast(samples[i])
 		Next
 	End
 	
+	Method Play:Int(samples:V[],count:Int,channels:Int)
+		count*=channels
+		If count>sampleData.Length count=sampleData.Length
+		For Local i:=0 Until count
+			Local v:=sampleData.PopFirst()
+			samples[i]=v
+		Next
+		Return count
+	End
+
 	Method Save(path:String)	
 		Local file:=FileStream.Open(path,"w")
 		Normalise()
@@ -283,146 +289,7 @@ Class SampleBank
 	End
 
 End
-	
-Class Sampler Extends Oscillator
-	Field samples:SampleData
-	Field pitch:=220.0
-	Field freq:=44100
-	
-	Method setBank(sampleBank:SampleBank)
-		samples=sampleBank.sampleData
-	End
 
-	Method Sample:V(hz:F) Override		
-		If Not samples Or samples.Length=0 Return 0
-		Local t:=hz*freq/(pitch*AudioFrequency)		
-		Local delta0:=delta
-		delta+=t
-		Local f:=delta
-		f=f Mod samples.Length
-		Return samples[f]
-	End	
-End
-
-Class Microphone
-	Field device:ALCdevice Ptr
-	Field error:Int
-	Field audioFormat:Int
-	Field rate:=44100
-	Field fragsize:=1024
-	Field buffer:=New Stack<Byte>
-	Field recording:Bool
-	Field length:=3
-	Field count:=0
-	
-	Method ErrorState:Bool()
-		Local error:=alGetError()
-		If error
-			Print "OpenAL error "+error
-			Return True
-		Endif
-		Return False
-	End
-	
-	Method New()
-		audioFormat=AL_FORMAT_STEREO16		
-		device=alcCaptureOpenDevice(Null,rate,audioFormat,fragsize)
-		If ErrorState() Return
-'		Local b:=alcGetString(Cast<ALCdevice ptr>(0), ALC_CAPTURE_DEVICE_SPECIFIER)
-'		local p:=Cast<Byte ptr>(b)
-'		local s:=String.FromCString(p)
-'		print "Microphone OpenAL Capturing "+s
-	End
-	
-	Method Start()
-		If Not recording
-			alcCaptureStart(device)
-			If ErrorState() Return			
-			recording=True
-			print "OpenAL capture started"
-		Endif
-	End
-
-	Method Stop()
-		If recording
-			alcCaptureStop(device)
-			If ErrorState() Return			
-			recording=False
-			print "OpenAL capture stopped"
-		Endif
-	End
-
-	Method Close()	
-	    alcCaptureStop(device)
-    	alcCaptureCloseDevice(device)
-    End
-
-	Method Poll(sampleBank:SampleBank)
-		Local samples:Int			
-		alcGetIntegerv(device, ALC_CAPTURE_SAMPLES,4,Varptr samples)
-		If samples=0 Return
-		' capture raw data from device
-		buffer.Resize(samples*4)
-		alcCaptureSamples(device,Varptr buffer.Data[0],samples)
-		Local udata:=Varptr buffer.Data[0]		
-		Local sdata:=Cast<Byte Ptr>(udata)
-		Select audioFormat
-'			Case AudioFormat.Mono8 
-'				Return (udata[i]-128)/127.0
-'			Case AudioFormat.Mono16 
-'				Return (sdata[i*2+1]*256+sdata[i*2+0])/32767.0
-'			Case AudioFormat.Stereo8 
-'				Return (udata[i*2+0]-128)/127.0
-			Case AL_FORMAT_STEREO16 
-				Local vdata:= New V[samples]
-				For Local i:=0 Until samples
-					vdata[i]=(sdata[i*4+1]*256+sdata[i*4+0])/32767.0
-'					sampleData.PushLast((sdata[i*4+1]*256+sdata[i*4+0])/32767.0)
-				Next
-				sampleBank.Record(vdata,samples)				
-			Default
-				Print "Unsupported Microphone audioFormat"
-		End
-		' update state
-		count+=samples
-		If count>length*rate
-			Stop()		
-		Endif
-		
-		Print samples
-	End
-		
-End
-
-Class LiveMicrophone Extends Sampler
-
-	Global mic:Microphone
-
-	Field sampleBank:SampleBank
-	Field count:Int
-	
-	Method New()
-		sampleBank=New SampleBank
-		setBank(sampleBank)
-	End
-
-	Method Poll()
-		If Not mic 
-			mic=New Microphone
-		endif		
-		mic.Poll(sampleBank)
-	End
-	
-	Method Sample:V(hz:F) Override			
-		count-=1
-		If count<0
-			Poll()
-			count=mic.fragsize 
-		Endif
-		Return Super.Sample(hz)
-	End
-
-End
 
 Interface NotePlayer
 	Method SetOscillator(osc:Int)
@@ -452,8 +319,8 @@ Class Voice Implements NotePlayer
 			Case 3 oscillator=New Triangle
 			Case 4 oscillator=New Noise
 			Case 5 oscillator=New Rompler
-			Case 6 oscillator=New LiveMicrophone
-			Case 7 oscillator=New Sampler
+'			Case 6 oscillator=New LiveMicrophone
+'			Case 7 oscillator=New Sampler
 		End
 	End
 	
@@ -573,8 +440,8 @@ Class Chain Implements Effect
 			Local effect:=link.effect
 			For Local control:=Eachin effect.ControlNames()
 				names.Push(name+"."+control)
-			next
-		next
+			Next
+		Next
 		Return names.ToArray()
 	End
 	
@@ -812,7 +679,12 @@ Class BeatGenerator Implements Synth
 		bpm=tempo
 		divisor=div
 		dutycycle=duty
-		notePeriod=60.0/(bpm*divisor)
+		Local denom:=bpm*divisor
+		If denom>0
+			notePeriod=60.0/denom
+		Else
+			notePeriod=0
+		endif
 		dutyPeriod=duty*notePeriod
 		repeats=rept
 	End
@@ -1324,3 +1196,203 @@ Class MidiSynth Implements Synth
 	Method Panic()
 	End
 End
+
+
+
+
+Class Microphone
+	Field device:ALCdevice Ptr
+	Field error:Int
+	Field audioFormat:Int
+	Field rate:=44100
+	Field fragsize:=1024
+	Field buffer:=New Stack<Byte>
+	Field recording:Bool
+	Field length:=3
+	Field count:=0
+	
+	Method ErrorState:Bool()
+		Local error:=alGetError()
+		If error
+			Print "OpenAL error "+error
+			Return True
+		Endif
+		Return False
+	End
+	
+	Method New()
+		audioFormat=AL_FORMAT_STEREO16		
+		device=alcCaptureOpenDevice(Null,rate,audioFormat,fragsize)
+		If ErrorState() Return
+'		Local b:=alcGetString(Cast<ALCdevice ptr>(0), ALC_CAPTURE_DEVICE_SPECIFIER)
+'		local p:=Cast<Byte ptr>(b)
+'		local s:=String.FromCString(p)
+'		print "Microphone OpenAL Capturing "+s
+	End
+	
+	Method Start()
+		If Not recording
+			alcCaptureStart(device)
+			If ErrorState() Return			
+			recording=True
+			print "OpenAL capture started"
+		Endif
+	End
+
+	Method Stop()
+		If recording
+			alcCaptureStop(device)
+			If ErrorState() Return			
+			recording=False
+			print "OpenAL capture stopped"
+		Endif
+	End
+
+	Method Close()	
+	    alcCaptureStop(device)
+    	alcCaptureCloseDevice(device)
+    End
+
+	Method Poll(sampleBank:SampleBank)
+		Local samples:Int			
+		alcGetIntegerv(device, ALC_CAPTURE_SAMPLES,4,Varptr samples)
+		If samples=0 Return
+		' capture raw data from device
+		buffer.Resize(samples*4)
+		alcCaptureSamples(device,Varptr buffer.Data[0],samples)
+		Local udata:=Varptr buffer.Data[0]		
+		Local sdata:=Cast<Byte Ptr>(udata)
+		Select audioFormat
+'			Case AudioFormat.Mono8 
+'				Return (udata[i]-128)/127.0
+'			Case AudioFormat.Mono16 
+'				Return (sdata[i*2+1]*256+sdata[i*2+0])/32767.0
+'			Case AudioFormat.Stereo8 
+'				Return (udata[i*2+0]-128)/127.0
+			Case AL_FORMAT_STEREO16 
+				Local vdata:= New V[samples*2]
+				For Local i:=0 Until samples
+					vdata[i*2+0]=(sdata[i*4+1]*256+sdata[i*4+0])/32767.0
+					vdata[i*2+1]=(sdata[i*4+3]*256+sdata[i*4+2])/32767.0
+				Next
+				sampleBank.Record(vdata,samples,2)
+			Default
+				Print "Unsupported Microphone audioFormat"
+		End
+		' update state
+		count+=samples
+		If count>length*rate
+'			Stop()		
+		Endif
+		
+'		Print samples
+	End
+		
+End
+
+
+Class Sampler Implements Effect
+	Field controlNames:String[]
+	Field sampleBank:=New SampleBank()
+
+	Method ControlNames:String[]()
+		Return controlNames
+	end
+
+	Method EffectAudio(samples:V Ptr,sampleCount:Int,control:V[][])			
+		Mix(samples, sampleCount,control)
+	End
+
+	Method Mix(samples:V Ptr,sampleCount:Int,control:V[][])	virtual
+	end
+End
+
+
+Class LiveMicrophone Extends Sampler
+
+	Global mic:Microphone
+
+	Field count:Int
+	Field playback:V[]
+	Field sampleBank:=New SampleBank
+	
+	Method New()
+		mic=New Microphone
+		mic.Start()
+	End
+
+'	Method Poll()
+'		mic.Poll(sampleBank)
+'	End
+
+	Method Mix(buffer:V Ptr,samples:Int,control:V[][]) Override
+		mic.Poll(sampleBank)
+						
+		If playback.Length<samples playback=New V[samples]
+
+		samples = sampleBank.Play(playback,samples/2,2)	
+
+		For Local i:=0 Until samples
+			buffer[i]+=playback[i]
+		next		
+	End
+
+End
+
+
+
+#rem 	
+
+Class Sampler Extends Oscillator
+	Field samples:SampleData
+	Field pitch:=220.0
+	Field freq:=44100
+	
+	Method setBank(sampleBank:SampleBank)
+		samples=sampleBank.sampleData
+	End
+
+	Method Sample:V(hz:F) Override		
+		If Not samples Or samples.Length=0 Return 0
+		Local t:=hz*freq/(pitch*AudioFrequency)		
+		Local delta0:=delta
+		delta+=t
+		Local f:=delta
+		f=f Mod samples.Length
+		Return samples[f]
+	End	
+End
+
+Class LiveMicrophone Extends Sampler
+
+	Global mic:Microphone
+
+	Field sampleBank:SampleBank
+	Field count:Int
+	
+	Method New()
+		sampleBank=New SampleBank
+		setBank(sampleBank)
+	End
+
+	Method Poll()
+		If Not mic 
+			mic=New Microphone
+			mic.Start()
+		Endif		
+		mic.Poll(sampleBank)
+	End
+	
+	Method Sample:V(hz:F) Override			
+		count-=1
+		If count<0
+			Poll()
+			count=mic.fragsize 
+		Endif
+		Return Super.Sample(hz)
+	End
+
+End
+
+#end
+
