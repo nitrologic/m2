@@ -1077,11 +1077,11 @@ Class Set
 		floor=Model.CreateBox(New Boxf(-20,20 ),1,1,1,turf)
 		floor.Move(0,-20*3,0)
 		
-		Local tris:=Tris.CreateIcosaHedron().Scale(3)
-		Local tris2:=tris.Subdivide()
-		Local tris3:=tris2.Wireframe(0.2)
-		Local mesh:=tris3.CreateMesh()
-		ball=New Model(mesh,yell)
+'		Local tris:=Tris.CreateIcosaHedron()
+'		Local tris2:=tris.Subdivide()
+'		Local tris3:=tris2.Wireframe(0.2)
+'		Local mesh:=tris3.CreateMesh(yell)
+'		ball=New Model(mesh,yell)
 		
 '		Local nz:=New Shape("C:\gis\nz\nz-coastlines-topo-150k\nz-coastlines-topo-150k.shp")
 		
