@@ -2,6 +2,7 @@
 '
 ' issues
 ' pitch wheel center is not standard
+' release mode only
 '
 ' osc reference
 ' https://hexler.net/docs/touchosc-controls
@@ -1358,6 +1359,7 @@ Class Applet
 
 	Method New()
 		LoadPrefs()
+		Print "Prefspath:" + prefsPath
 		If hasPrefs
 			window=New VSynthWindow(Self, windowRect, windowFullscreen, title)
 		Else
