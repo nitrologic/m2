@@ -1,246 +1,131 @@
-' applet class 
+' emojione
+' (c) 2018 mojolabs
+' All rights reserved
 
-' manage preferences by json in sdl generated prefpath
-' remember window dimensions
-' fullscreen toggle on F1
-' long press on Escape to close
-
-#Import "<std>"
-#Import "<mojo>"
-#Import "<sdl2>"
-
+#Import "applet"
 #Import "assets/emojione/"
+#Import "assets/fonts/"
 
 Using std..
 Using mojo..
 Using sdl2..
 
-Extern 
-
-Function SDL_GetPrefPath:Byte Ptr(org:CString,app:CString)
-
-Public 
+Const Glyphs:="ABCČĆDĐEFGHIJKLMNOPQRSŠTUVWXYZŽabcčćdđefghijklmnopqrsštuvwxyzžАБВГҐДЂЕЁЄЖЗЅИІЇЙЈКЛЉМНЊОПРСТЋУЎФХЦЧЏШЩЪЫЬЭЮЯабвгґдђеёєжзѕиіїйјклљмнњопрстћуўфхцчџшщъыьэюяΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩαβγδεζηθικλμνξοπρστυφχψωάΆέΈέΉίϊΐΊόΌύΰϋΎΫΏĂÂÊÔƠƯăâêôơư1234567890‘?’“!”(%)[#]{@}/&\<-+÷×=>®©$€£¥¢:;,.*"
 
 Global AppletName:="emoji"
 Global AppletAuthor:="nitrologic"
 
-Global prefsPath:=String.FromCString(SDL_GetPrefPath(AppletAuthor,AppletName))
-Global prefsFile:=AppletName+".prefs.json"
+Const Monkey:=$1f412
+Const Hash:=$23
 
-Global DefaultWindowFlags:=WindowFlags.Resizable|WindowFlags.HighDPI
-
-
-Class Applet
-
-	Field hasPrefs:Bool
-	Field windowRect:Recti
-	Field windowFullscreen:Bool		
-	Field window:AppWindow
-	Field defaults:JsonObject
+Class Emoji
 	
-	Method Init()
-		LoadPrefs()
-		Local title:=AppletName
-		If hasPrefs
-			window=New AppWindow(Self, windowRect, windowFullscreen, title)
-		Else
-			window=New AppWindow(Self, title)
-		Endif
-	End
-
-	Method KeyDown(key:Key)
-	End
-
-	Method KeyUp(key:Key)		
-	End
-
-	Function TrueFalse:String(b:Bool)
-		If b Return "true"
-		Return "false"
+	Field image:Image
+	
+	Method New(id:Int)
+		Local hex:=std.stringio.Hex(id).ToLower()
+		If hex.Length<4 hex=("0000"+hex).Right(4)
+		image=Image.Load("asset::"+hex+".png")
+		image.Handle=New Vec2f(0.5,0.5)
 	End
 	
-	Method DefaultNumber:Double(name:String)
-		Return defaults?defaults.GetNumber(name) Else 0
+	Field scale:=0.5
+	Method Draw(canvas:Canvas,x:Int,y:Int,rot:Float)
+		Local scalex:=scale*math.Cos(rot)
+		canvas.DrawImage(image,x,y,0,scalex,scale)
+	End
+	
+End
+
+Alias Emojis:Emoji[]
+
+Class EmojiGrid
+	Field width:Int
+	Field height:Int
+	Field grid:Emoji[]
+	Field emojis:Emojis
+	
+	Method Plot(x:Int,y:Int,code:Int)
+		grid[y*width+x]=emojis[code]
 	End
 
-	Method LoadPrefs()	
-		defaults=JsonObject.Load(prefsPath+prefsFile)
-
-		Local prefs:=defaults
-
-		If Not prefs
-			Print "prefs not loaded from "+prefsPath			
-			Local raw:=LoadString(prefsPath)
-			Print "raw="+raw
-			Return
-		Endif
-
-		If prefs.Contains("winRect")
-			Local a:=prefs.GetArray("winRect")
-			Local f:=prefs.GetBool("winFullscreen")
-			Local x:=a.GetNumber(0)
-			Local y:=a.GetNumber(1)
-			Local w:=a.GetNumber(2)
-			Local h:=a.GetNumber(3)
-			If w<240 w=240
-			If h<120 h=120
-			windowRect=New Recti(x,y,x+w,y+h)
-			windowFullscreen=f
-			hasPrefs=True
-			Print "prefs loaded r="+x+","+y+","+w+","+h+" f="+TrueFalse(f)
-		Endif
-		
-	End
-
-	Function JsonString:String(args:Stack<String>)
-		Local s:String
-		For Local i:=0 Until args.Length Step 2
-			Local a:=args[i+0]
-			Local b:=args[i+1]
-			If i>0 s+=","
-			s+="~q"+a+"~q:"+b
+	Method New(emos:Emojis,w:Int, h:Int)
+		emojis=emos
+		width=w
+		height=h
+		grid=New Emoji[w*h]
+		For Local x:=0 Until width
+			Plot(x,0,Hash)
 		Next
-		Return "{"+s+"}"
 	End
 
-	Method OnFrame(window:Window)
-		If window.Fullscreen
-			windowFullscreen=True
-		Else
-			windowFullscreen=False
-			windowRect=window.Frame
-		Endif
-	End
-
-	Method OnCreate() Abstract
-
-	Method OnRender(canvas:Canvas) Virtual
-	End
-
-	Method OnClose() Virtual 
-		Local winRect:="["+windowRect.X+","+windowRect.Y+","+windowRect.Width+","+windowRect.Height+"]"
-		Local winFS:=windowFullscreen?"true"else"false"
-
-		Local json:=New Stack<String>
-		json.Add("winRect")
-		json.Add(winRect)
-		json.Add("winFullscreen")
-		json.Add(winFS)
+	Field rot:=0.0
+	Field cx:=80
+	Field cy:=80
+	
+	Method Draw(canvas:Canvas)
 		
-		' add app specific serialisation from prefs here
+		canvas.DrawText("Emoji Rr",20,20)
+		canvas.DrawText(Glyphs,20,120)
 
-		If GetFileType(prefsPath)=FileType.None CreateDir(prefsPath)
-		
-		Local js:=JsonString(json)
+		rot+=0.02
+		For Local y:=0 Until height
+			For Local x:=0 Until width
+				Local emoji:=grid[y*width+x]
+				If emoji
+					
+					Local face:Emoji
+					
+					face=(rot Mod math.Pi*2) > math.Pi ? emojis[Monkey] Else emoji
+					
 
-		If Not SaveString(js, prefsPath+prefsFile)
-			'Notify("Warning", "Unable to open "+path, False)
-			Print "Unable to save prefs to "+prefsPath
-			Return
-		Endif
-		Print "saved prefs as "+js+" in "+prefsPath
-		App.Terminate()
+					face.Draw(canvas,cx+x*32,cy+y*32,rot)
+				Endif
+			Next
+		Next
 	End
-
 
 End
 
-
-Class AppWindow Extends Window
-	Field applet:Applet
-	Field goFullscreen:Bool
-			
-	Method New(host:Applet, rect:Recti, fullscreen:bool, title:String)
-		Super.New(title,rect, DefaultWindowFlags)		
-		applet=host
-		goFullscreen=fullscreen
-		Create()
-	End
+Class Memory Extends EmojiGrid
 	
-	Method New(host:Applet, title:String)
-		Super.New(title,800,600,DefaultWindowFlags)		
-		applet=host
-		Create()
+	Method New(emo:Emojis)
+		Super.New(emo,5,5)
 	End
-
-	Method Create()
-		applet.OnCreate()
-		applet.OnFrame(Self)
-	End
-
-	Method OnRender( display:Canvas ) Override	
-		If goFullscreen
-			goFullscreen=False
-			Fullscreen=True
-		Endif
-		applet.OnRender(display)
-	End
-
-	Method OnWindowEvent(event:WindowEvent) Override
-		Select event.Type
-			Case EventType.WindowClose
-				applet.OnClose()
-			Case EventType.WindowResized
-				applet.OnFrame(Self)
-			Case EventType.WindowMoved
-				applet.OnFrame(Self)
-		End
-	End
-
-	Field EscapeTime:Int
-	
-	Method EscapeDown()			
-		EscapeTime=App.Millisecs
-	End
-
-	Method EscapeUp()			
-		Local duration:=App.Millisecs-EscapeTime
-		If duration>300
-			applet.OnClose()
-		Endif
-	End
-
-	Method OnKeyEvent( event:KeyEvent ) Override	
-		Select event.Type
-		Case EventType.KeyDown
-			Select event.Key
-			Case Key.F1
-				Fullscreen = Not Fullscreen				
-				applet.OnFrame(Self)
-			Case Key.Escape
-				EscapeDown()
-			Default
-				applet.KeyDown(event.Key)
-			End
-		Case EventType.KeyUp
-			Select event.Key
-			Case Key.Escape
-				EscapeUp()
-			Default
-				applet.KeyUp(event.Key)
-			End
-		End
-	End
+		
 End
-
+	
 
 Class EmojiApp Extends Applet
+
+	Field roboto:Font
 	
-	Field e023:Image
-	Field e1f412:Image
+	Field emos:=New Emoji[65536*4]
+
+	Field memory:Memory
+	
+' TDIL no monkey2 virtual invokes from super constructor
+	
+	Method emoji:Emoji(id:Int)
+		Local emoji:=New Emoji(id)
+		emos[id]=emoji
+		Return emoji
+	End
 	
 	Method New()
 		Init()
 	End
 	
 	Method OnCreate() Override
-		e023=Image.Load("asset::0023.png")
-		e1f412=Image.Load("asset::1f412.png")
+		emoji(Hash)
+		emoji(Monkey)		
+		memory=New Memory(emos)		
+		roboto=Font.Load("asset::Roboto-Regular.ttf",96)
 	End
 	
 	Method OnRender(canvas:Canvas) Override
-		canvas.DrawImage(e023,100,100)
-		canvas.DrawImage(e1f412,100,100)
+		canvas.Font=roboto
+		memory.Draw(canvas)
 	End
 	
 End
@@ -250,4 +135,3 @@ Function Main()
 	New EmojiApp
 	App.Run()
 End
-
