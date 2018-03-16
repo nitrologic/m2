@@ -2,3 +2,4 @@
 *.buildv*
 *.products
 .vscode
+DirectX12
