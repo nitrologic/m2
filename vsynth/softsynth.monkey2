@@ -804,11 +804,13 @@ Class Arpeggiator Extends BeatGenerator
 	Method SetState(state:JsonObject)
 		ReleaseAll()
 		Local notes:=state.GetArray("natural")
-		For Local i:=0 Until notes.Length/2
-			Local note:=notes.GetNumber(i*2+0)
-			Local velocity:=notes.GetNumber(i*2+1)
-			natural.Push(New Note(note,velocity))
-		Next
+		If notes
+			For Local i:=0 Until notes.Length/2
+				Local note:=notes.GetNumber(i*2+0)
+				Local velocity:=notes.GetNumber(i*2+1)
+				natural.Push(New Note(note,velocity))
+			Next
+		Endif
 		sorted=New Stack<Note>(natural)
 		sorted.Sort()
 		index=natural.Length

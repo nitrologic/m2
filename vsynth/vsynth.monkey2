@@ -26,7 +26,7 @@ Extern
 
 'Function JsonArray
 
-Function SDL_GetPrefPath:Byte Ptr(org:CString,app:CString)
+'Function SDL_GetPrefPath:Byte Ptr(org:CString,app:CString)
 
 Public 
 
@@ -1346,8 +1346,9 @@ End
 
 Class Applet
 	Global title:="VSynth"
-	Global prefsPath:=String.FromCString(SDL_GetPrefPath("nitrologic","vsynth"))
-	Global prefsFile:="vsynth.prefs.json"
+'	Global prefsPath:=String.FromCString(SDL_GetPrefPath("nitrologic","vsynth"))
+	Global prefsPath:=AppPath()
+	Global prefsFile:="vsynth.prefs2.json"
 
 	Field hasPrefs:Bool
 	Field windowRect:Recti
@@ -1404,8 +1405,9 @@ Class Applet
 
 		If Not prefs
 			Print "prefs not loaded from "+prefsPath			
-			Local raw:=LoadString(prefsPath)
-			Print "raw="+raw
+'			Local raw:=LoadString(prefsPath)
+'			Print "raw="+raw
+			defaults=New JsonObject()
 			Return
 		Endif
 
