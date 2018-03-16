@@ -168,7 +168,7 @@ Class AudioIn
 	    alcCaptureStop(device)
     	alcCaptureCloseDevice(device)
     End
-end
+End
 
 ' application main window
 

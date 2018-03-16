@@ -1025,10 +1025,11 @@ Class VSynthWindow Extends Window
 		text+= ",Record=F11="+RecordNames[Int(recording)]
 		text+=",,"+Contact
 		
+
+' ui
 		display.Color=Color.Black
 		display.DrawRect(0,0,400,Height)
 		display.Color=Color.Grey
-
 		Local cy:=20
 		For Local line:=Eachin text.Split(",")
 			Local cx:=10
@@ -1038,17 +1039,15 @@ Class VSynthWindow Extends Window
 			Next
 			cy+=20
 		Next
-
-		pixels.Zoom(12)
-		pixels.Dim(32,2)		
-		pixels.Draw(display)	
-
-		Local keymap:=vsynth.GetKeys()		
+' freakshow
+		vsynth.scope.Draw(display,420,20)
 		
-		keystyle.DrawKeyboard(display,440,100,keymap)		
-		keystyle.DrawTape(480,70,40,25)
-		
-		vsynth.scope.Draw(display,440,300)
+'		pixels.Zoom(12)
+'		pixels.Dim(32,2)		
+'		pixels.Draw(display)	
+'		Local keymap:=vsynth.GetKeys()		
+'		keystyle.DrawKeyboard(display,440,540,keymap)		
+'		keystyle.DrawTape(480,500,40,25)
 	End				
 	
 	Method SampleLatency:Int()
@@ -1392,14 +1391,16 @@ Class Applet
 
 	Method DefaultObject:JsonObject(name:String)	
 		Local prefs:=defaults
-		If prefs.Contains(name)
+		If prefs And prefs.Contains(name)
 			Return prefs.GetObject(name)
 		Endif
 		Return New JsonObject
 	End
 
 	Method LoadPrefs()	
-		defaults=JsonObject.Load(prefsPath+prefsFile)
+		Local filePath:=prefsPath+prefsFile
+		
+		defaults=JsonObject.Load(filePath)
 
 		Local prefs:=defaults
 
@@ -1499,16 +1500,24 @@ Class Applet
 		json.Add("bankCount")
 		json.Add(window.bankCount)
 		
-		If GetFileType(prefsPath)=FileType.None CreateDir(prefsPath)
+		If GetFileType(prefsPath)=FileType.None 
+			CreateDir(prefsPath, True)
+			If GetFileType(prefsPath)=FileType.None 
+				Print "Unable to create prefs folder in "+ prefsPath
+				Return
+			Endif
+		Endif
 		
 		Local js:=JsonString(json)
 
-		If Not SaveString(js, prefsPath+prefsFile)
+		Local filePath:=prefsPath+prefsFile
+		
+		If Not SaveString(js, filePath)
 			'Notify("Warning", "Unable to open "+path, False)
-			Print "Unable to save prefs to "+prefsPath
+			Print "Unable to save prefs {" + js + "} to "+filePath
 			Return
 		Endif
-		Print "saved prefs as "+js+" in "+prefsPath
+		Print "saved prefs as "+js+" in "+filePath
 		App.Terminate()
 	End
 
