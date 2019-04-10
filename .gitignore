@@ -2,4 +2,5 @@
 *.buildv*
 *.products
 .vscode
+.mx2
 DirectX12

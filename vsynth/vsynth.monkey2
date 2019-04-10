@@ -1,11 +1,11 @@
-' v(icious)synth by nitrologic@gmail.com
+' synth vicious by nitrologic@gmail.com
 '
-' issues
-' pitch wheel center is not standard
-' release mode only
+' pitch wheel center not standard
+' monkey2 release mode only
+' no osc
+' no modular ui
 '
-' osc reference
-' https://hexler.net/docs/touchosc-controls
+' osc reference https://hexler.net/docs/touchosc-controls
 
 #Import "audiopipe.monkey2"
 
@@ -22,17 +22,11 @@ Using sdl2..
 Using portmidi..
 Using openal..
 
-Extern 
-
-'Function JsonArray
-
-'Function SDL_GetPrefPath:Byte Ptr(org:CString,app:CString)
-
 Public 
 
 Global DefaultWindowFlags:=WindowFlags.Resizable|WindowFlags.HighDPI
 
-Global AppTitle:String="Project VSynth 0.06"	
+Global AppTitle:String="Synth Vicious 0.0.7"	
 Global Contact:="Latest Source=github.com/nitrologic/m2"
 
 Global FragmentSize:=512
@@ -1346,7 +1340,7 @@ End
 Class Applet
 	Global title:="VSynth"
 '	Global prefsPath:=String.FromCString(SDL_GetPrefPath("nitrologic","vsynth"))
-	Global prefsPath:=AppPath()
+	Global prefsPath:=AppDir()
 	Global prefsFile:="vsynth.prefs2.json"
 
 	Field hasPrefs:Bool
@@ -1529,3 +1523,7 @@ Function Main()
 	App.Run()
 End
 
+
+'Extern 
+'Function JsonArray
+'Function SDL_GetPrefPath:Byte Ptr(org:CString,app:CString)
